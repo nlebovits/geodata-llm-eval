@@ -12,6 +12,7 @@ from grade import (  # noqa: E402
     WRONG,
     compare,
     grade_question,
+    load_geometry_qids,
     load_table,
 )
 
@@ -95,6 +96,55 @@ class TestLoadTable:
     def test_ragged_rows(self, tmp_path):
         p = write(tmp_path, "a.csv", "a,b\n1,2\n3\n")
         assert load_table(p) is None
+
+
+class TestGeometryGrading:
+    """Questions marked grading: geometry tolerate method variation."""
+
+    def test_float_half_percent_passes_geometry_only(self):
+        golden = [[1000.0]]
+        assert compare([[1005.0]], golden, geometry=True)
+        assert not compare([[1005.0]], golden)
+
+    def test_float_beyond_one_percent_still_fails(self):
+        assert not compare([[1015.0]], [[1000.0]], geometry=True)
+
+    def test_small_count_absolute_slack(self):
+        golden = [[30]]
+        assert compare([[32]], golden, geometry=True)
+        assert not compare([[33]], golden, geometry=True)
+
+    def test_large_count_one_percent_slack(self):
+        golden = [[10000]]
+        assert compare([[10099]], golden, geometry=True)
+        assert not compare([[10150]], golden, geometry=True)
+
+    def test_integer_exact_without_geometry(self):
+        assert not compare([[31]], [[30]])
+
+    def test_string_still_exact_under_geometry(self):
+        assert not compare([["sorrisso"]], [["sorriso"]], geometry=True)
+
+    def test_qids_loaded_from_spec(self, tmp_path):
+        spec = (
+            "questions:\n"
+            "  - id: \"01\"\n    tier: easy\n"
+            "  - id: \"11\"\n    tier: medium\n    grading: geometry\n"
+        )
+        p = write(tmp_path, "questions.yaml", spec)
+        assert load_geometry_qids(p) == {"q11"}
+
+    def test_repo_spec_marks_geometry_questions(self):
+        repo = Path(__file__).resolve().parent.parent
+        qids = load_geometry_qids(repo / "fixtures" / "questions.yaml")
+        assert "q11" in qids and "q28" in qids
+        assert "q01" not in qids
+
+    def test_grade_question_applies_geometry(self, tmp_path):
+        golden = write(tmp_path, "g.csv", "share\n0.500\n")
+        answer = write(tmp_path, "a.csv", "share\n0.503\n")
+        assert grade_question(answer, golden, geometry=True) == CORRECT
+        assert grade_question(answer, golden) == WRONG
 
 
 class TestGradeQuestion:

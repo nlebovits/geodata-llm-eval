@@ -45,14 +45,31 @@ globbing, unit discipline, spatial computation, or a cross-dataset join.
   containment matching. Cross-dataset spatial joins, each scoped to one
   state so remote scans stay tractable.
 
-The set bakes in known traps the data owners document themselves:
-`hansen_covered_area` is inflated ~3× and must never serve as a denominator,
-area computed in raw EPSG:4326 is square degrees, and the facilities
-`weight` column changes units by tier. Where a question needs geometry area
-or distance, it names the CRS or method (EPSG:6933, `ST_Distance_Sphere`)
-so answers grade deterministically at 1e-3 relative tolerance. Ranked
-questions name their tiebreaker, because tie handling changes which rows
-the answer contains.
+Questions state the deliverable, never the method. No SQL function names,
+no CRS prescriptions, no column names, no warnings about data quirks. The
+agent gets the published catalog metadata and its own judgment, and that
+is the point: the benchmark measures whether a model can discover a
+schema, choose sound methods, and avoid a dataset's pitfalls with zero
+guidance. The data carries real traps that the catalog metadata documents
+(an inflated coverage-area column, area math in raw geographic coordinates
+yielding square degrees, a weight column whose units change by facility
+tier). Naming a trap in the question would hand over the very judgment
+being measured, so the questions stay silent and the golden answers embody
+the correct handling. Precision survives in the contract itself: every
+question still pins its thresholds, units, filters, ranking key, and
+tiebreaker, because those define *what* the deliverable is rather than
+*how* to compute it.
+
+Method freedom moves numbers. Spherical versus ellipsoidal distance, or
+the choice of equal-area projection, shifts geometry-derived results by a
+few tenths of a percent, and a count defined by a 50 km threshold can gain
+or lose the fields sitting on the boundary. Questions involving computed
+areas, distances, or geometric thresholds are marked `grading: geometry`
+in `questions.yaml`: their floats grade at relative 1e-2 instead of the
+default 1e-3, and their integer counts allow a slack of 2 or 1% of the
+golden value, whichever is larger. Pure-arithmetic questions keep the
+strict tolerance. Golden queries pin a documented reference method and are
+committed alongside the fixtures.
 
 A third dataset joins the pool in a later stage; the harness treats
 `questions.yaml` as opaque, so extending the set touches no code.
