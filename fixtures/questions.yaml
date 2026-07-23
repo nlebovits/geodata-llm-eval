@@ -21,6 +21,9 @@
 #             paraguay)
 #   Loss areas (hansen_loss_area, deforestarea*) are square metres;
 #   hectares = m2 / 10,000; km2 = m2 / 1,000,000.
+#   Era labels ('0104' ... '2124') are strings with leading zeros.
+#   Golden CSVs and the grader must read and write them as strings,
+#   or '0104' silently becomes the integer 104.
 #   Where geometry area is required, the question names the CRS.
 #   Where distance is required, the question names the method.
 
@@ -348,8 +351,11 @@ questions:
       (BR_sisbi_points). Note the two files record the state
       differently — SIF uses the two-letter abbreviation, SISBI the
       state name — so they must be harmonized. Report the top 5 states
-      by SISBI-to-SIF ratio among states with at least 20 SISBI plants,
-      ties broken by state abbreviation ascending.
+      by SISBI-to-SIF ratio among states with at least 20 SISBI plants
+      and at least one SIF plant. Piauí and Rio Grande do Norte have
+      SISBI plants but no SIF plants; the SIF-plant floor excludes them
+      rather than dividing by zero. Ties broken by state abbreviation
+      ascending.
     output:
       columns:
         - name: uf
@@ -370,17 +376,19 @@ questions:
     tier: medium
     question: >
       Detection cohorts for Pará: count fields by firstyear (the first
-      year the field was detected). One row per firstyear value present
-      in the data.
+      year the field was detected). Exclude fields with null firstyear
+      (about a quarter of the rows). One row per non-null firstyear
+      value present in the data; firstyear is stored as a float, so
+      report it cast to integer.
     output:
       columns:
         - name: firstyear
           type: integer
-          description: firstyear value as recorded
+          description: firstyear value cast to integer
         - name: field_count
           type: integer
           description: fields with that firstyear
-      rows: one per firstyear present
+      rows: one per non-null firstyear present
 
   # ---------------------------------------------------------------- hard
   - id: "21"
@@ -391,9 +399,10 @@ questions:
       brazil_para fields with deforestarea2124 > 0 whose centroid
       (ST_Centroid on the stored EPSG:4326 geometry) lies within 50 km
       of the plant, measured as spherical distance with DuckDB's
-      ST_Distance_Sphere. Report the top 10 plants by exposed-field
-      count (all plants if fewer than 10 qualify), ties broken by
-      nr_sif ascending.
+      ST_Distance_Sphere. A plant qualifies if it has at least one
+      exposed field. Report the top 10 qualifying plants by
+      exposed-field count, or all of them if fewer than 10 qualify,
+      ties broken by nr_sif ascending.
     output:
       columns:
         - name: nr_sif
@@ -500,8 +509,9 @@ questions:
       intersect the municipality polygon, count how many have at least
       90% of their area inside it. Compute the containment fraction as
       ST_Area(ST_Intersection(field, muni)) / ST_Area(field) directly
-      in EPSG:4326 — as a ratio of areas in the same CRS, the
-      projection cancels. Report both counts.
+      in EPSG:4326, using exactly this formula so answers are
+      reproducible. At field scale the degree-area distortion is
+      near-uniform, so the ratio is stable. Report both counts.
     output:
       columns:
         - name: intersecting_fields

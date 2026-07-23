@@ -4,7 +4,7 @@ Can a language model complete a real geospatial workflow against a cloud-native
 data catalog? This repo measures that, and what it costs.
 
 An agent gets two Portolan catalogs on Source Cooperative —
-[trazo3-fields](https://source.coop/wri-data-lab/trazofields) (10.9M field
+[trazo3-fields](https://source.coop/wri-data-lab/trazofields) (6.7M field
 boundaries with Hansen loss attributes) and
 [soft-commodity-infrastructure](https://source.coop/tristangruppwri/soft-commodity-infrastructure)
 (Brazilian silos, slaughterhouses, mills, and cooperative membership) — a set
