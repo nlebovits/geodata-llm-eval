@@ -1,0 +1,62 @@
+# Question set for the trazo3-fields benchmark.
+#
+# 30 questions across 3 tiers (easy / medium / hard), authored and
+# verified jointly. Three examples below make the format concrete;
+# the remaining 27 are authored with domain review before any sweep runs.
+#
+# Each question specifies an output contract: the columns (by meaning,
+# not name — the grader is column-name-insensitive) and types the
+# answer CSV must contain. The agent writes answers/q{id}.csv.
+#
+# Golden results live in fixtures/golden/q{id}.csv with a SHA256SUMS
+# manifest. Golden files are NEVER mounted into session containers.
+
+catalog_url: https://data.source.coop/wri-data-lab/trazofields/
+
+questions:
+  - id: "01"
+    tier: easy
+    question: >
+      How many field boundaries in the Bolivia dataset have any
+      Hansen tree-cover loss between 2021 and 2024
+      (deforestarea2124 greater than zero)?
+    output:
+      columns:
+        - name: count
+          type: integer
+          description: number of matching fields
+      rows: 1
+
+  - id: "11"
+    tier: medium
+    question: >
+      For Paraguay, report the total 2021-2024 Hansen loss area
+      grouped by MapBiomas 2024 land-cover mode class (mbmode24),
+      for the five classes with the largest total loss.
+    output:
+      columns:
+        - name: mbmode24
+          type: integer
+          description: MapBiomas class code
+        - name: total_loss_area
+          type: float
+          description: sum of deforestarea2124, dataset units
+      rows: 5
+
+  - id: "21"
+    tier: hard
+    question: >
+      What share of each Bolivian field's true area was lost to
+      Hansen tree-cover loss in 2021-2024? Report the ten fields
+      with the highest share. Field area must be computed from the
+      geometry in an equal-area projection, not taken from the
+      hansen_covered_area column.
+    output:
+      columns:
+        - name: id
+          type: integer
+          description: field Id
+        - name: loss_share
+          type: float
+          description: hansen 2021-2024 loss area / field area (0-1)
+      rows: 10

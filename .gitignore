@@ -1,0 +1,8 @@
+# pixi environments
+.pixi/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# results ARE committed for auditability — do not ignore results/
