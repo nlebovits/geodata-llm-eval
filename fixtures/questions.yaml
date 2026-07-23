@@ -1,62 +1,575 @@
-# Question set for the trazo3-fields benchmark.
+# Question set: 30 questions, 3 tiers, 2 catalogs.
 #
-# 30 questions across 3 tiers (easy / medium / hard), authored and
-# verified jointly. Three examples below make the format concrete;
-# the remaining 27 are authored with domain review before any sweep runs.
+# Every question is a deliverable a supply-chain analyst would ship, not a
+# syntax exercise. Column names and enum values below were verified against
+# the remote data on 2026-07-23. Golden results are authored per issue #2
+# and live in fixtures/golden/q{id}.csv; they are NEVER mounted into
+# session containers.
 #
-# Each question specifies an output contract: the columns (by meaning,
-# not name — the grader is column-name-insensitive) and types the
-# answer CSV must contain. The agent writes answers/q{id}.csv.
+# Output contracts specify columns by meaning and type — the grader is
+# column-name- and column-order-insensitive, and compares rows as a
+# multiset. Counts and strings must match exactly; floats within relative
+# 1e-3. Where a question selects a top-N, the question text names the
+# ranking key and tiebreaker, because tie handling changes which rows the
+# answer contains.
 #
-# Golden results live in fixtures/golden/q{id}.csv with a SHA256SUMS
-# manifest. Golden files are NEVER mounted into session containers.
+# Conventions used in question text:
+#   region  = trazo3 filename stem without the "trazo3_" prefix and
+#             "_2024" suffix (e.g. "bolivia", "brazil_goias",
+#             "argentina_chaco"); 14 regions total
+#   country = first token of the region (argentina, bolivia, brazil,
+#             paraguay)
+#   Loss areas (hansen_loss_area, deforestarea*) are square metres;
+#   hectares = m2 / 10,000; km2 = m2 / 1,000,000.
+#   Where geometry area is required, the question names the CRS.
+#   Where distance is required, the question names the method.
 
-catalog_url: https://data.source.coop/wri-data-lab/trazofields/
+catalogs:
+  trazo3-fields: https://data.source.coop/wri-data-lab/trazofields/
+  soft-commodity-infrastructure: https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/
 
 questions:
+  # ---------------------------------------------------------------- easy
   - id: "01"
     tier: easy
     question: >
-      How many field boundaries in the Bolivia dataset have any
-      Hansen tree-cover loss between 2021 and 2024
-      (deforestarea2124 greater than zero)?
+      Across all 14 trazo3-fields GeoParquet files, report the number of
+      field boundaries per country.
     output:
       columns:
-        - name: count
+        - name: country
+          type: string
+          description: argentina, bolivia, brazil, or paraguay
+        - name: field_count
           type: integer
-          description: number of matching fields
+          description: number of field boundaries
+      rows: 4
+
+  - id: "02"
+    tier: easy
+    question: >
+      For each of the 14 trazo3 regions, what share of fields has any
+      2021-2024 Hansen loss (deforestarea2124 greater than zero)?
+      Report all 14 regions.
+    output:
+      columns:
+        - name: region
+          type: string
+          description: region identifier per the filename convention
+        - name: loss_share
+          type: float
+          description: fields with deforestarea2124 > 0 / all fields, 0-1
+      rows: 14
+
+  - id: "03"
+    tier: easy
+    question: >
+      Rank grain-silo operators (BR_intake_points) by total storage
+      capacity_t. Report the top 10 operators by total capacity, breaking
+      ties by operator name ascending, with each operator's share of
+      national capacity.
+    output:
+      columns:
+        - name: operator
+          type: string
+          description: warehouse operator name
+        - name: total_capacity_t
+          type: float
+          description: summed capacity_t in tonnes
+        - name: national_share
+          type: float
+          description: operator capacity / total national capacity, 0-1
+      rows: 10
+
+  - id: "04"
+    tier: easy
+    question: >
+      How many federal (SIF) beef slaughterhouses (BR_buyer_points,
+      commodity = 'beef') fall in each capacity_band? One row per
+      capacity_band value present among beef plants.
+    output:
+      columns:
+        - name: capacity_band
+          type: string
+          description: SIF capacity band as recorded in the data
+        - name: plant_count
+          type: integer
+          description: number of beef plants in the band
+      rows: one per capacity_band present
+
+  - id: "05"
+    tier: easy
+    question: >
+      From BR_membership_muni: how many municipalities have at least one
+      cooperative-member farm, and how many member farms are there in
+      total nationwide?
+    output:
+      columns:
+        - name: muni_count
+          type: integer
+          description: municipalities with coop_members > 0
+        - name: total_members
+          type: integer
+          description: sum of coop_members
       rows: 1
 
-  - id: "11"
-    tier: medium
+  - id: "06"
+    tier: easy
     question: >
-      For Paraguay, report the total 2021-2024 Hansen loss area
-      grouped by MapBiomas 2024 land-cover mode class (mbmode24),
-      for the five classes with the largest total loss.
+      Rank states by total sugar/ethanol mill capacity (BR_mill_points,
+      capacity_m3d). Report the top 5 states by summed capacity_m3d,
+      ties broken by state abbreviation ascending, with mill counts.
+    output:
+      columns:
+        - name: uf
+          type: string
+          description: state abbreviation
+        - name: mill_count
+          type: integer
+          description: number of mills in the state
+        - name: total_capacity_m3d
+          type: float
+          description: summed capacity in cubic metres per day
+      rows: 5
+
+  - id: "07"
+    tier: easy
+    question: >
+      Location precision audit: for each tier in BR_facilities, what
+      share of rows has geom_method = 'registered'? One row per tier.
+    output:
+      columns:
+        - name: tier
+          type: string
+          description: tier value as recorded in the data
+        - name: registered_share
+          type: float
+          description: rows with geom_method 'registered' / all rows, 0-1
+      rows: one per tier
+
+  - id: "08"
+    tier: easy
+    question: >
+      For Bolivia, report the 5 MapBiomas 2024 mode classes (mbmode24)
+      with the most fields, ties broken by class code ascending.
     output:
       columns:
         - name: mbmode24
           type: integer
           description: MapBiomas class code
-        - name: total_loss_area
-          type: float
-          description: sum of deforestarea2124, dataset units
+        - name: field_count
+          type: integer
+          description: number of fields with that mode class
       rows: 5
 
+  - id: "09"
+    tier: easy
+    question: >
+      Soy specialization: among the nine Brazilian state files, report
+      the 5 regions with the highest share of soybean fields
+      (mbmode24 = 39), ties broken by region ascending.
+    output:
+      columns:
+        - name: region
+          type: string
+          description: region identifier per the filename convention
+        - name: soy_share
+          type: float
+          description: fields with mbmode24 = 39 / all fields, 0-1
+      rows: 5
+
+  - id: "10"
+    tier: easy
+    question: >
+      Across the nine Brazilian state files, report total Hansen loss in
+      hectares per era bin: deforestarea0104, deforestarea0509,
+      deforestarea1014, deforestarea1520, deforestarea2124. One row per
+      era, era labelled by its column suffix (e.g. '0104').
+    output:
+      columns:
+        - name: era
+          type: string
+          description: era bin suffix ('0104' ... '2124')
+        - name: loss_ha
+          type: float
+          description: summed loss area in hectares
+      rows: 5
+
+  # -------------------------------------------------------------- medium
+  - id: "11"
+    tier: medium
+    question: >
+      Cleared-share league table for the five non-Brazil regions
+      (bolivia, argentina_chaco, argentina_cordoba, paraguay_chaco,
+      paraguay_non_chaco): per region, total 2021-2024 Hansen loss
+      divided by total field area. Field area must be computed from the
+      geometry in EPSG:6933; do NOT use hansen_covered_area as the
+      denominator (it is inflated roughly 3x).
+    output:
+      columns:
+        - name: region
+          type: string
+          description: region identifier per the filename convention
+        - name: cleared_share
+          type: float
+          description: sum(deforestarea2124) / sum(field area m2), 0-1
+      rows: 5
+
+  - id: "12"
+    tier: medium
+    question: >
+      Loss acceleration: for each of the 14 regions, compute the ratio
+      sum(deforestarea2124) / sum(deforestarea1520). Report only regions
+      where the ratio exceeds 1 — where recent loss outpaces the prior
+      period.
+    output:
+      columns:
+        - name: region
+          type: string
+          description: region identifier per the filename convention
+        - name: acceleration_ratio
+          type: float
+          description: 2021-24 loss / 2015-20 loss
+      rows: one per region with ratio > 1
+
+  - id: "13"
+    tier: medium
+    question: >
+      Era decomposition for Bolivia: what share of Bolivia's total
+      Hansen loss (sum across all five era bins, nulls treated as zero)
+      falls in each era? One row per era, labelled by column suffix.
+    output:
+      columns:
+        - name: era
+          type: string
+          description: era bin suffix ('0104' ... '2124')
+        - name: loss_share
+          type: float
+          description: era loss / total loss across all eras, 0-1
+      rows: 5
+
+  - id: "14"
+    tier: medium
+    question: >
+      EUDR-window exposure by country: per country, the number of fields
+      with deforestarea2124 > 0 and their total 2021-2024 loss in
+      hectares.
+    output:
+      columns:
+        - name: country
+          type: string
+          description: argentina, bolivia, brazil, or paraguay
+        - name: exposed_fields
+          type: integer
+          description: fields with deforestarea2124 > 0
+        - name: loss_ha
+          type: float
+          description: summed deforestarea2124 in hectares
+      rows: 4
+
+  - id: "15"
+    tier: medium
+    question: >
+      Does field size predict clearing? For argentina_cordoba, bucket
+      fields by area computed from geometry in EPSG:6933 — under 10 ha,
+      10 to 100 ha (inclusive lower bound, exclusive upper), 100 ha and
+      over — and report each bucket's cleared share:
+      sum(deforestarea2124) / sum(field area m2).
+    output:
+      columns:
+        - name: size_class
+          type: string
+          description: "'lt10', '10to100', or 'gte100'"
+        - name: cleared_share
+          type: float
+          description: sum(deforestarea2124) / sum(field area m2), 0-1
+      rows: 3
+
+  - id: "16"
+    tier: medium
+    question: >
+      Storage capacity per cooperative member: per state, total silo
+      capacity_t (BR_intake_points) divided by total coop_members
+      (BR_membership_muni). Consider only states with at least 10,000
+      members. Report the top 5 by capacity per member, ties broken by
+      state abbreviation ascending.
+    output:
+      columns:
+        - name: uf
+          type: string
+          description: state abbreviation
+        - name: capacity_t_per_member
+          type: float
+          description: state capacity_t / state coop_members
+      rows: 5
+
+  - id: "17"
+    tier: medium
+    question: >
+      Cooperative intake share: per state with at least 50 silos, the
+      share of silo capacity_t operated by cooperatives
+      (is_cooperative = true). Report the top 5 states by cooperative
+      share, ties broken by state abbreviation ascending.
+    output:
+      columns:
+        - name: uf
+          type: string
+          description: state abbreviation
+        - name: coop_capacity_share
+          type: float
+          description: cooperative capacity_t / state capacity_t, 0-1
+      rows: 5
+
+  - id: "18"
+    tier: medium
+    question: >
+      Commodity attribution in Paraguay (both Paraguay files combined):
+      compare soybean fields (mbmode24 = 39) against pasture fields
+      (mbmode24 = 15). For each class report the field count and the
+      share of fields with 2021-2024 loss.
+    output:
+      columns:
+        - name: mbmode24
+          type: integer
+          description: 39 or 15
+        - name: field_count
+          type: integer
+          description: fields of that class
+        - name: recent_loss_share
+          type: float
+          description: fields with deforestarea2124 > 0 / class fields
+      rows: 2
+
+  - id: "19"
+    tier: medium
+    question: >
+      Inspection-tier gap: per state, count federal SIF plants
+      (BR_buyer_points) and state/municipal SISBI plants
+      (BR_sisbi_points). Note the two files record the state
+      differently — SIF uses the two-letter abbreviation, SISBI the
+      state name — so they must be harmonized. Report the top 5 states
+      by SISBI-to-SIF ratio among states with at least 20 SISBI plants,
+      ties broken by state abbreviation ascending.
+    output:
+      columns:
+        - name: uf
+          type: string
+          description: two-letter state abbreviation
+        - name: sif_count
+          type: integer
+          description: SIF plants in the state
+        - name: sisbi_count
+          type: integer
+          description: SISBI plants in the state
+        - name: ratio
+          type: float
+          description: sisbi_count / sif_count
+      rows: 5
+
+  - id: "20"
+    tier: medium
+    question: >
+      Detection cohorts for Pará: count fields by firstyear (the first
+      year the field was detected). One row per firstyear value present
+      in the data.
+    output:
+      columns:
+        - name: firstyear
+          type: integer
+          description: firstyear value as recorded
+        - name: field_count
+          type: integer
+          description: fields with that firstyear
+      rows: one per firstyear present
+
+  # ---------------------------------------------------------------- hard
   - id: "21"
     tier: hard
     question: >
-      What share of each Bolivian field's true area was lost to
-      Hansen tree-cover loss in 2021-2024? Report the ten fields
-      with the highest share. Field area must be computed from the
-      geometry in an equal-area projection, not taken from the
-      hansen_covered_area column.
+      Slaughterhouse exposure ranking: for each federal beef plant in
+      Pará (BR_buyer_points, commodity = 'beef', uf = 'PA'), count
+      brazil_para fields with deforestarea2124 > 0 whose centroid
+      (ST_Centroid on the stored EPSG:4326 geometry) lies within 50 km
+      of the plant, measured as spherical distance with DuckDB's
+      ST_Distance_Sphere. Report the top 10 plants by exposed-field
+      count (all plants if fewer than 10 qualify), ties broken by
+      nr_sif ascending.
     output:
       columns:
-        - name: id
+        - name: nr_sif
+          type: string
+          description: SIF registration number of the plant
+        - name: exposed_fields
           type: integer
-          description: field Id
+          description: qualifying fields within 50 km
+      rows: up to 10
+
+  - id: "22"
+    tier: hard
+    question: >
+      Capacity at risk in Mato Grosso: what share of total silo
+      capacity_t (BR_intake_points, uf = 'MT') sits within 25 km of at
+      least one brazil_mato_grosso field with deforestarea2124 > 0?
+      Distance is ST_Distance_Sphere from the silo point to the field
+      centroid (ST_Centroid on the stored EPSG:4326 geometry).
+    output:
+      columns:
+        - name: at_risk_share
+          type: float
+          description: capacity_t within 25 km / total MT capacity_t, 0-1
+      rows: 1
+
+  - id: "23"
+    tier: hard
+    question: >
+      Infrastructure access in Goiás: for brazil_goias soybean fields
+      (mbmode24 = 39) that have 2021-2024 loss (deforestarea2124 > 0),
+      compute the distance from each field centroid to its nearest
+      Goiás silo with a registered location (BR_intake_points,
+      uf = 'GO', geom_method = 'registered'), using ST_Distance_Sphere.
+      Report the median of those nearest distances in kilometres.
+    output:
+      columns:
+        - name: median_km
+          type: float
+          description: median nearest-silo distance in km
+      rows: 1
+
+  - id: "24"
+    tier: hard
+    question: >
+      Município clearing ranking for Tocantins: assign each
+      brazil_tocantins field to the municipality (BR_muni, uf = 'TO')
+      containing its centroid, and report the top 10 municipalities by
+      total 2021-2024 loss in hectares, ties broken by cod_ibge
+      ascending.
+    output:
+      columns:
+        - name: cod_ibge
+          type: string
+          description: IBGE municipality code as recorded
+        - name: municipio_nome
+          type: string
+          description: municipality name as recorded
+        - name: loss_ha
+          type: float
+          description: summed deforestarea2124 in hectares
+      rows: 10
+
+  - id: "25"
+    tier: hard
+    question: >
+      Engagement targets in Mato Grosso: municipalities where fields
+      (brazil_mato_grosso, assigned by centroid containment against the
+      BR_membership_muni polygons for uf = 'MT') sum to at least
+      1,000 ha of 2021-2024 loss AND coop_members exceeds 500 — places
+      with both a deforestation problem and a cooperative to contact
+      about it. Report every qualifying municipality.
+    output:
+      columns:
+        - name: cod_ibge
+          type: string
+          description: IBGE municipality code as recorded
+        - name: loss_ha
+          type: float
+          description: summed deforestarea2124 in hectares
+        - name: coop_members
+          type: integer
+          description: coop_members for the municipality
+      rows: one per qualifying municipality
+
+  - id: "26"
+    tier: hard
+    question: >
+      Traceability blind spots in Piauí: count brazil_piaui fields with
+      more than 10 ha of 2021-2024 loss whose centroid is more than
+      100 km (ST_Distance_Sphere) from every facility with a registered
+      location (BR_facilities, geom_method = 'registered').
+    output:
+      columns:
+        - name: field_count
+          type: integer
+          description: fields beyond 100 km of all registered facilities
+      rows: 1
+
+  - id: "27"
+    tier: hard
+    question: >
+      Containment matching for Sorriso, Mato Grosso (BR_muni,
+      cod_ibge = '5107925'): among brazil_mato_grosso fields that
+      intersect the municipality polygon, count how many have at least
+      90% of their area inside it. Compute the containment fraction as
+      ST_Area(ST_Intersection(field, muni)) / ST_Area(field) directly
+      in EPSG:4326 — as a ratio of areas in the same CRS, the
+      projection cancels. Report both counts.
+    output:
+      columns:
+        - name: intersecting_fields
+          type: integer
+          description: fields intersecting the polygon
+        - name: contained_90_fields
+          type: integer
+          description: fields with containment fraction >= 0.9
+      rows: 1
+
+  - id: "28"
+    tier: hard
+    question: >
+      Area accounting for argentina_cordoba: report the total field
+      area in km2 and the median field area in hectares, both computed
+      from the geometry in EPSG:6933. Computing area in raw EPSG:4326
+      coordinates yields square degrees and is wrong.
+    output:
+      columns:
+        - name: total_km2
+          type: float
+          description: total field area in km2, EPSG:6933
+        - name: median_ha
+          type: float
+          description: median field area in hectares, EPSG:6933
+      rows: 1
+
+  - id: "29"
+    tier: hard
+    question: >
+      Catchment comparison in Paraná: among silos in Paraná
+      (BR_intake_points, uf = 'PR') within 50 km (ST_Distance_Sphere,
+      silo point to field centroid) of at least one brazil_parana field
+      with deforestarea2124 > 0, report total capacity_t split by
+      cooperative status.
+    output:
+      columns:
+        - name: coop_capacity_t
+          type: float
+          description: qualifying capacity_t where is_cooperative
+        - name: noncoop_capacity_t
+          type: float
+          description: qualifying capacity_t where not is_cooperative
+      rows: 1
+
+  - id: "30"
+    tier: hard
+    question: >
+      Cross-border Chaco profile: one row each for paraguay_chaco and
+      argentina_chaco with the field count, the share of fields with
+      2021-2024 loss, the total 2021-2024 loss in hectares, and the
+      median field area in hectares computed from geometry in
+      EPSG:6933. Same ecoregion, two countries, side by side.
+    output:
+      columns:
+        - name: region
+          type: string
+          description: paraguay_chaco or argentina_chaco
+        - name: field_count
+          type: integer
+          description: number of fields
         - name: loss_share
           type: float
-          description: hansen 2021-2024 loss area / field area (0-1)
-      rows: 10
+          description: fields with deforestarea2124 > 0 / all fields
+        - name: loss_ha
+          type: float
+          description: summed deforestarea2124 in hectares
+        - name: median_ha
+          type: float
+          description: median field area in hectares, EPSG:6933
+      rows: 2

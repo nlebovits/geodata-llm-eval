@@ -3,12 +3,15 @@
 Can a language model complete a real geospatial workflow against a cloud-native
 data catalog? This repo measures that, and what it costs.
 
-An agent gets the [trazo3-fields](https://source.coop/wri-data-lab/trazofields)
-Portolan catalog on Source Cooperative, a set of 30 questions, and nothing
-else. It queries the remote GeoParquet itself, recovers from its own errors,
-and writes one answer file per question. We grade the answers against a
-human-verified golden fixture and report accuracy against imputed API cost per
-model.
+An agent gets two Portolan catalogs on Source Cooperative —
+[trazo3-fields](https://source.coop/wri-data-lab/trazofields) (10.9M field
+boundaries with Hansen loss attributes) and
+[soft-commodity-infrastructure](https://source.coop/tristangruppwri/soft-commodity-infrastructure)
+(Brazilian silos, slaughterhouses, mills, and cooperative membership) — a set
+of 30 questions, and nothing else. It queries the remote GeoParquet itself,
+recovers from its own errors, and writes one answer file per question. We
+grade the answers against a human-verified golden fixture and report accuracy
+against imputed API cost per model.
 
 ## Design
 
@@ -19,11 +22,40 @@ One variable: the model. Everything else is fixed.
 - **Task:** each session works through the full 30-question set (3 difficulty
   tiers) as one workflow. Within-session learning is intended — an agent that
   figures out the schema on question 1 should use that on question 30.
-- **Metadata:** the published Portolan catalog as-is (STAC, README, AGENTS.md).
-  Metadata ablation is the follow-up experiment, not this one.
+- **Metadata:** the published Portolan catalogs as-is (STAC, README,
+  AGENTS.md). Metadata ablation is the follow-up experiment, not this one.
 - **Sampling:** default temperature, so the 10 passes form a real distribution.
 - **Data:** stays remote on source.coop. Cloud-native range-request access is
   the point of the exercise, not an inconvenience to cache away.
+
+## Questions
+
+The 30 questions in `fixtures/questions.yaml` are analyst deliverables, not
+GIS drills. Each forces at least two of: catalog navigation, multi-file
+globbing, unit discipline, spatial computation, or a cross-dataset join.
+
+- **Easy (1–10):** real warmups — coverage inventories, capacity
+  concentration, precision audits. Single-pass aggregation over one or more
+  files.
+- **Medium (11–20):** analytical derivations — cleared-share league tables,
+  loss acceleration, inspection-tier gaps that require harmonizing state
+  codes across files.
+- **Hard (21–30):** full workflows — ranking slaughterhouses by nearby
+  EUDR-window loss, silo capacity at risk, traceability blind spots,
+  containment matching. Cross-dataset spatial joins, each scoped to one
+  state so remote scans stay tractable.
+
+The set bakes in known traps the data owners document themselves:
+`hansen_covered_area` is inflated ~3× and must never serve as a denominator,
+area computed in raw EPSG:4326 is square degrees, and the facilities
+`weight` column changes units by tier. Where a question needs geometry area
+or distance, it names the CRS or method (EPSG:6933, `ST_Distance_Sphere`)
+so answers grade deterministically at 1e-3 relative tolerance. Ranked
+questions name their tiebreaker, because tie handling changes which rows
+the answer contains.
+
+A third dataset joins the pool in a later stage; the harness treats
+`questions.yaml` as opaque, so extending the set touches no code.
 
 ## Independence and audit
 
@@ -70,7 +102,7 @@ scale-up, and this MVP is the case for funding them.
 
 ## Build order
 
-1. Author 30 questions with Tristan; verify golden results by hand
+1. Author 30 questions; verify golden results by hand with Tristan (#2)
 2. `harness/run.py` — spawn sessions, collect transcripts
 3. `harness/grade.py` — compare answers to golden
 4. `harness/report.py` — accuracy grid and Pareto plot

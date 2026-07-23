@@ -1,12 +1,14 @@
 # Task
 
-You are working with a cloud-native geospatial data catalog published at:
+You are working with two cloud-native geospatial data catalogs:
 
-https://data.source.coop/wri-data-lab/trazofields/
+- https://data.source.coop/wri-data-lab/trazofields/
+- https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/
 
-Start from the catalog's own metadata (README, STAC records, AGENTS.md if
-present). The data are GeoParquet files you can query remotely with DuckDB
-(`duckdb` is installed, with the `spatial` and `httpfs` extensions).
+Start from each catalog's own metadata (README, STAC records, AGENTS.md if
+present) and find the data files yourself. The data are GeoParquet files
+you can query remotely with DuckDB (`duckdb` is installed, with the
+`spatial` and `httpfs` extensions).
 
 Answer every question in `questions.yaml`. For each question, write one CSV
 file to `answers/q{id}.csv` matching that question's output contract: the

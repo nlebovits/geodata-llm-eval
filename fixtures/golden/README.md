@@ -2,8 +2,9 @@
 
 One verified result CSV per question (`q01.csv` … `q30.csv`), plus a
 `SHA256SUMS` manifest. Authored by running hand-written queries against
-trazo3-fields and reviewing the results against known facts about the
-data, jointly with domain review.
+trazo3-fields and soft-commodity-infrastructure, and reviewing the
+results against known facts about the data, jointly with domain review.
+Commit each gold query alongside its CSV so results can be regenerated.
 
 Regenerate the manifest after any change:
 

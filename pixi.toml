@@ -1,4 +1,4 @@
-[project]
+[workspace]
 name = "geodata-llm-eval"
 version = "0.1.0"
 description = "Benchmark: LLM geospatial workflows against a Portolan catalog, accuracy vs imputed cost"
