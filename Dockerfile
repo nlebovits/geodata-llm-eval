@@ -8,9 +8,11 @@ FROM node:22-bookworm-slim
 ARG CLAUDE_CODE_VERSION=2.1.218
 ARG DUCKDB_VERSION=1.3.2
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       ca-certificates curl unzip python3 python3-pip git \
+# Retries + no pipelining: the default mirror route drops connections
+RUN apt-get -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 update \
+    && apt-get -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 \
+       install -y --no-install-recommends \
+       ca-certificates curl unzip python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Pinned DuckDB CLI
