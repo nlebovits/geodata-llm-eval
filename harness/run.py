@@ -33,6 +33,20 @@ from pricing import PRICES, imputed_cost_usd
 IMAGE = "geodata-llm-eval"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
+# ships csv; the geometry/split encodings drive the adversarial follow-up.
+INPUT_FILES = {
+    "csv": ["goias-sample.csv"],
+    "geometry": ["goias-sample.parquet"],
+    "split": ["goias-sample.csv", "goias-sample-geom.parquet"],
+}
+
+
+def list_files(input_mode: str) -> list[Path]:
+    """The input-list file(s) to mount for an encoding mode."""
+    base = REPO_ROOT / "fixtures" / "lists"
+    return [base / name for name in INPUT_FILES[input_mode]]
+
 
 def harness_commit() -> str:
     try:
@@ -88,7 +102,8 @@ def parse_result_record(transcript_path: Path) -> dict:
     }
 
 
-def run_session(model: str, pass_n: int, dry_run: bool) -> None:
+def run_session(model: str, pass_n: int, dry_run: bool,
+                input_mode: str = "csv") -> None:
     model_id = PRICES[model].model_id
     out_dir = REPO_ROOT / "results" / model / f"pass-{pass_n}"
 
@@ -99,6 +114,13 @@ def run_session(model: str, pass_n: int, dry_run: bool) -> None:
             REPO_ROOT / "fixtures" / "questions.yaml",
             workspace / "questions.yaml",
         )
+        # The policy documents are the binding spec the agent implements; the
+        # golden fixtures never enter the workspace.
+        shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
+        lists_dir = workspace / "lists"
+        lists_dir.mkdir()
+        for src in list_files(input_mode):
+            shutil.copy(src, lists_dir / src.name)
         (workspace / "answers").mkdir()
 
         cmd = docker_command(workspace, model_id)
@@ -133,6 +155,7 @@ def run_session(model: str, pass_n: int, dry_run: bool) -> None:
             "finished_utc": datetime.now(timezone.utc).isoformat(),
             "exit_code": proc.returncode,
             "harness_commit": harness_commit(),
+            "input_mode": input_mode,
             **stats,
             "imputed_cost_usd": round(
                 imputed_cost_usd(
@@ -161,10 +184,12 @@ def main() -> int:
                     help="resume numbering from here")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the docker command instead of running")
+    ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
+                    help="encoding of the input list; see policies/INPUTS.md")
     args = ap.parse_args()
 
     for n in range(args.start_pass, args.start_pass + args.passes):
-        run_session(args.model, n, args.dry_run)
+        run_session(args.model, n, args.dry_run, args.input_mode)
     return 0
 
 
