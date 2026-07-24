@@ -1,0 +1,29 @@
+-- ---------------------------------------------------------------------------
+-- cad_extract.sql.tmpl  →  sql/out/list/<id>/cad_extract.sql
+-- Pull the cadastral parcels (CAR) named on this list from the national CAR
+-- parquet. The list is a CSV with a cod_imovel column; we keep the parcels'
+-- legal-status columns (ind_status/des_condic) for the EUDR legality panel.
+--
+-- Source : tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet (8.45M rows)
+-- Placeholders: ${LIST_CSV} ${ID_COLUMN} ${CAR_URL} ${CAD_PARQUET}
+-- ---------------------------------------------------------------------------
+INSTALL httpfs; LOAD httpfs;
+INSTALL spatial; LOAD spatial;
+
+CREATE OR REPLACE TABLE list AS
+SELECT DISTINCT CAST(${ID_COLUMN} AS VARCHAR) AS cod_imovel
+FROM read_csv_auto('${LIST_CSV}');
+
+CREATE OR REPLACE TABLE cad AS
+SELECT cod_imovel, municipio, cod_estado, num_area, mod_fiscal,
+       ind_status, ind_tipo, des_condic, dat_criaca, dat_atuali,
+       geometry
+FROM read_parquet('${CAR_URL}')
+WHERE cod_imovel IN (SELECT cod_imovel FROM list);
+
+COPY cad TO '${CAD_PARQUET}' (FORMAT PARQUET);
+
+-- Console check: every listed ID should resolve to a CAR parcel.
+SELECT (SELECT count(*) FROM list) AS list_ids,
+       (SELECT count(*) FROM cad)  AS found_in_car,
+       (SELECT count(*) FROM list) - (SELECT count(*) FROM cad) AS missing;
