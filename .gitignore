@@ -6,3 +6,6 @@ __pycache__/
 .ruff_cache/
 
 # results ARE committed for auditability — do not ignore results/
+
+# Oracle intermediate extracts (regenerable; the cold source.coop pull)
+fixtures/golden/_work/

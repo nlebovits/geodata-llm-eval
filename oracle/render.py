@@ -32,6 +32,17 @@ SQL_DIR = Path(__file__).resolve().parent / "sql"
 # Stages run in order; later stages read the parquets earlier ones write.
 PIPELINE = ["eudr_crops", "cad_extract", "fields_extract", "match", "coop_match"]
 
+# The two stages that pull from source.coop, and the parquet each produces. Once
+# pulled, the extract is cached: the cold 3.7 GB CAR scan and the Trazo3 field
+# scan happen once, and every golden regeneration after reuses them (mirrors
+# build_lists.sh, whose cached extracts are what made local reruns fast). Pass
+# --force to re-pull. The local stages (match, coop_match, all query views) are
+# fast and always re-run.
+CACHEABLE = {
+    "cad_extract": "CAD_PARQUET",
+    "fields_extract": "FIELDS_RAW_PARQUET",
+}
+
 # Which query answers which question, and how to slice its result:
 #   (sql template stem, ordered output columns, row limit or None).
 # Every stem must end by creating a view named _q holding its result.
@@ -129,9 +140,26 @@ def render_sql(stem: str, subs: dict) -> str:
     return string.Template(template).substitute(subs)
 
 
-def build_state(con: duckdb.DuckDBPyConnection, subs: dict) -> None:
-    """Run the pipeline once so every question query has its inputs on disk."""
+def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
+                force: bool = False) -> None:
+    """Run the pipeline so every question query has its inputs on disk.
+
+    A cacheable remote-pull stage is skipped when its output parquet already
+    exists (unless force). match/coop_match rebuild the in-memory tables the
+    query views read (e.g. `decision`), so they always run — cheap and local.
+    """
     for stage in PIPELINE:
+        out_key = CACHEABLE.get(stage)
+        if out_key and not force and Path(subs[out_key]).exists():
+            # Re-register the cached parquet under the names later stages and
+            # query views expect, without re-pulling from source.coop.
+            if stage == "cad_extract":
+                con.execute(
+                    f"CREATE OR REPLACE TABLE cad AS "
+                    f"SELECT * FROM read_parquet('{subs['CAD_PARQUET']}')")
+            print(f"[{stage}] cached — skipping remote pull", flush=True)
+            continue
+        print(f"[{stage}] running", flush=True)
         con.execute(render_sql(stage, subs))
 
 
@@ -143,14 +171,14 @@ def write_csv(rows: list, columns: list, path: Path) -> None:
         writer.writerows(rows)
 
 
-def render_all(pins: dict, out_dir: Path) -> dict:
+def render_all(pins: dict, out_dir: Path, force: bool = False) -> dict:
     work = out_dir / "_work"
     work.mkdir(parents=True, exist_ok=True)
     subs = substitutions(pins, work)
 
     con = duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;")
-    build_state(con, subs)
+    build_state(con, subs, force=force)
 
     written = {}
     for qid, (stem, columns, limit) in sorted(QUESTION_MAP.items()):
@@ -188,9 +216,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "fixtures/golden")
     ap.add_argument("--pins", type=Path, default=REPO_ROOT / "fixtures/pins.json")
+    ap.add_argument("--force", action="store_true",
+                    help="re-pull the cached remote extracts (CAR + Trazo scans)")
     args = ap.parse_args()
     pins = json.loads(args.pins.read_text(encoding="utf-8"))
-    written = render_all(pins, args.out)
+    written = render_all(pins, args.out, force=args.force)
     print(f"wrote {len(written)} golden fixtures to {args.out}")
     return 0
 
