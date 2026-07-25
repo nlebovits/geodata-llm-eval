@@ -1,0 +1,12 @@
+# Golden fixtures and their checksum manifest must stay byte-stable across
+# platforms, or the committed SHA256SUMS (and the "anyone can re-grade" claim)
+# breaks. Force LF so a Windows checkout does not rewrite them to CRLF.
+fixtures/golden/*.csv   text eol=lf
+fixtures/golden/SHA256SUMS text eol=lf
+fixtures/lists/*.csv    text eol=lf
+# SQL, Python, YAML, Markdown: keep LF in the repo.
+*.sql   text eol=lf
+*.py    text eol=lf
+*.yaml  text eol=lf
+*.md    text eol=lf
+*.tmpl  text eol=lf
