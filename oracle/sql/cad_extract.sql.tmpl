@@ -27,10 +27,15 @@ CREATE OR REPLACE TABLE list AS
 SELECT DISTINCT CAST(${ID_COLUMN} AS VARCHAR) AS cod_imovel
 FROM read_csv_auto('${LIST_CSV}');
 
+-- The CAR file is EPSG:4674 (SIRGAS 2000); Trazo fields are EPSG:4326 (WGS84).
+-- The two datums differ <1 m in Brazil, immaterial for the containment ratios
+-- and envelope clips downstream, so relabel to 4326 with ST_SetCRS (a
+-- metadata-only override, no coordinate transform) rather than reproject. This
+-- also lets DuckDB's CRS-strict spatial functions accept CAR ∩ Trazo directly.
 CREATE OR REPLACE TABLE cad AS
 SELECT cod_imovel, municipio, cod_estado, num_area, mod_fiscal,
        ind_status, ind_tipo, des_condic, dat_criaca, dat_atuali,
-       geometry
+       ST_SetCRS(geometry, 'EPSG:4326') AS geometry
 FROM read_parquet('${CAR_URL}')
 WHERE cod_estado IN (SELECT DISTINCT split_part(cod_imovel, '-', 1) FROM list)
   AND cod_imovel IN (SELECT cod_imovel FROM list);
