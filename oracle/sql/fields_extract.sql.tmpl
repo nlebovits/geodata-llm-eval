@@ -20,7 +20,12 @@ SELECT ST_Envelope(ST_Union_Agg(geometry)) AS g FROM cad;
 CREATE OR REPLACE TABLE fields AS
 SELECT
     f.Id,
-    f.field_area_ha,
+
+    -- This Trazo3 release ships no field_area_ha column, so compute it from the
+    -- geometry: ST_Area_Spheroid gives m2 on the WGS84 spheroid for EPSG:4326
+    -- input, /10000 -> hectares. Area questions grade with the geometry
+    -- tolerance, which absorbs the small method difference vs a baked column.
+    round(ST_Area_Spheroid(f.geometry) / 10000.0, 4) AS field_area_ha,
 
     -- Crop / land-use: Mapbiomas 2024 mode class, with a readable label.
     f.mbmode24,
@@ -42,10 +47,10 @@ SELECT
     (coalesce(f.deforestarea0104, 0) + coalesce(f.deforestarea0509, 0)
      + coalesce(f.deforestarea1014, 0) + coalesce(f.deforestarea1520, 0)
      + coalesce(f.deforestarea2124, 0))                     AS band_loss_area,
-    CASE WHEN f.field_area_ha > 0
+    CASE WHEN field_area_ha > 0
          THEN LEAST((coalesce(f.deforestarea0104, 0) + coalesce(f.deforestarea0509, 0)
                      + coalesce(f.deforestarea1014, 0) + coalesce(f.deforestarea1520, 0)
-                     + coalesce(f.deforestarea2124, 0)) / (f.field_area_ha * 10000), 1.0)
+                     + coalesce(f.deforestarea2124, 0)) / (field_area_ha * 10000), 1.0)
          ELSE 0 END AS cleared_share,
 
     f.mode_year,
