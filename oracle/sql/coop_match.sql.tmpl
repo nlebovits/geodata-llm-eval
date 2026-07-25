@@ -24,12 +24,17 @@ SELECT cod_imovel,
        split_part(cod_imovel, '-', 2)              AS cod_ibge,
        municipio,
        dominant_mb,
-       ST_Point(cx, cy)                            AS centroid
+       ST_SetCRS(ST_Point(cx, cy), 'EPSG:4326')    AS centroid
 FROM read_parquet('${CADASTERS_PARQUET}');
 
+-- The published facilities product stores native GEOMETRY labeled OGC:CRS84
+-- (equivalent to EPSG:4326), not WKB — read it directly and relabel to EPSG:4326
+-- so the ST_Transform/ST_Within calls below see one consistent CRS. (rural-land's
+-- local build stored WKB; the Source Cooperative publish converted to native
+-- geometry.)
 CREATE OR REPLACE TABLE geoms AS
 SELECT entity_id, entity_kind, tier, weight, basis,
-       ST_GeomFromWKB(geometry)                    AS geom
+       ST_SetCRS(geometry, 'EPSG:4326')            AS geom
 FROM read_parquet('${COOP_GEOMS}');
 
 -- Relationship tier: membership by município (entity_id = cod_ibge).
