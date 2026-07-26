@@ -91,11 +91,20 @@ def test_prose_about_refresh_tokens_still_commits(repo):
     assert result.returncode == 0, result.stderr
 
 
-def test_hook_is_executable_and_installed_in_this_repo():
-    """`pixi run install-hooks` must have been run here; otherwise the guard
-    is a file nobody executes."""
+def test_hook_is_executable():
+    """Committed without the bit set, the guard is a file git skips."""
     assert HOOK.exists()
     assert os.access(HOOK, os.X_OK), "hooks/pre-commit must be executable"
+
+
+@pytest.mark.skipif(
+    bool(os.environ.get("CI")),
+    reason="core.hooksPath is a per-clone setting; CI checks out fresh and "
+           "commits nothing, so there is nothing for a hook to guard there",
+)
+def test_hook_is_installed_in_this_clone():
+    """`pixi run install-hooks` must have been run here; otherwise the guard
+    is a file nobody executes."""
     configured = subprocess.run(
         ["git", "config", "core.hooksPath"],
         cwd=REPO_ROOT, capture_output=True, text=True,
