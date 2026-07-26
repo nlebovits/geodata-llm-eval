@@ -22,5 +22,6 @@
   "run_id": "20260726T165606Z-40c072f",
   "label": "",
   "answers_written": 30,
-  "status": "done"
+  "status": "done",
+  "graded_against": "128499a9709d"
 }

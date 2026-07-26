@@ -13,6 +13,13 @@
 INSTALL httpfs; LOAD httpfs;
 INSTALL spatial; LOAD spatial;
 
+-- GeoParquet stores coordinates longitude-first. DuckDB's spheroid and
+-- reprojection functions default to reading them latitude-first, which silently
+-- computes areas and distances at the wrong latitude. Set the axis order
+-- explicitly. DuckDB warns that its default is due to flip, so the setting is
+-- also what keeps this query stable across versions.
+SET geometry_always_xy = true;
+
 CREATE OR REPLACE TABLE cad AS SELECT * FROM read_parquet('${CAD_PARQUET}');
 CREATE OR REPLACE TABLE env AS
 SELECT ST_Envelope(ST_Union_Agg(geometry)) AS g FROM cad;
@@ -23,8 +30,11 @@ SELECT
 
     -- This Trazo3 release ships no field_area_ha column, so compute it from the
     -- geometry: ST_Area_Spheroid gives m2 on the WGS84 spheroid for EPSG:4326
-    -- input, /10000 -> hectares. Area questions grade with the geometry
-    -- tolerance, which absorbs the small method difference vs a baked column.
+    -- input, /10000 -> hectares. Correct only under the geometry_always_xy
+    -- setting above; without it a Goiás field comes out ~1.5x small, because
+    -- the function reads the longitude as a latitude and shrinks the degree of
+    -- longitude to match. Area questions grade with the geometry tolerance,
+    -- which absorbs the small method difference vs a baked column but not that.
     round(ST_Area_Spheroid(f.geometry) / 10000.0, 4) AS field_area_ha,
 
     -- Crop / land-use: Mapbiomas 2024 mode class, with a readable label.

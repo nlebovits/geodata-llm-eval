@@ -13,6 +13,12 @@
 -- ---------------------------------------------------------------------------
 INSTALL spatial; LOAD spatial;
 
+-- Every geometry here is longitude-first. The containment fractions below are
+-- planar ratios, which survive an axis swap, so this setting changes nothing
+-- today; it is here so that adding a spheroid or reprojection call to this
+-- file later cannot silently reintroduce the axis bug.
+SET geometry_always_xy = true;
+
 CREATE OR REPLACE TABLE cad    AS SELECT * FROM read_parquet('${CAD_PARQUET}');
 CREATE OR REPLACE TABLE fields AS SELECT * FROM read_parquet('${FIELDS_RAW_PARQUET}');
 

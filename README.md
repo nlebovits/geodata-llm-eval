@@ -88,6 +88,12 @@ Grading is executable, not model-judged. The comparator compares each session's
   choice moves an answer further than that — the parcel centroid the distance
   runs from, the hectares that decide a mixed parcel's dominant crop — the
   policy documents state it.
+- Axis order is not one of those choices. GeoParquet is longitude-first, and
+  DuckDB's `ST_Area_Spheroid` and `ST_Transform` read latitude-first unless
+  `geometry_always_xy` is set, which puts a Goiás field at the wrong latitude
+  and shrinks it by about a third. That is far outside the tolerance and it is
+  not a convention anyone should have to guess, so every oracle template that
+  loads `spatial` declares the setting, and a test enforces it.
 - Rows compare as multisets; column order and names are ignored.
 - A missing or unparseable answer fails, recorded separately from a wrong one.
 - Each answer cell is rounded to the precision the golden cell carries before

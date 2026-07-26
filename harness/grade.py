@@ -21,16 +21,31 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import itertools
 import json
 import math
 import sys
 from pathlib import Path
 
-from layout import is_scored, read_meta, run_dirs, run_name
+from layout import is_scored, read_meta, regraded, run_dirs, run_name
 
 REL_TOL = 1e-3
 ABS_TOL = 1e-9
+
+
+def golden_fingerprint(golden_dir: Path) -> str | None:
+    """A digest of the golden manifest being graded against.
+
+    `run.py` records the same digest at session time. The two are equal for a
+    run graded against the fixtures it saw, and differ for a run re-graded
+    after the oracle changed — which is a fact about the score, not a defect,
+    but one nothing else in the run directory would otherwise state.
+    """
+    manifest = golden_dir / "SHA256SUMS"
+    if not manifest.exists():
+        return None
+    return hashlib.sha256(manifest.read_bytes()).hexdigest()[:12]
 
 # Geometry-graded questions (grading: geometry in questions.yaml) compute areas,
 # distances, or geometric thresholds, where reasonable method choices — spherical
@@ -496,6 +511,7 @@ def main() -> int:
 
     geometry_ids = geometry_graded_ids(args.questions)
     questions = load_questions(args.questions)
+    graded_against = golden_fingerprint(args.golden)
 
     print(f"{'run':<34} {'correct':>8} {'near':>5} {'wrong':>6}"
           f" {'missing':>8} {'broken':>7}")
@@ -515,6 +531,15 @@ def main() -> int:
         (session_dir / "diffs.json").write_text(
             json.dumps(diffs, indent=2, sort_keys=True) + "\n"
         )
+        if graded_against is not None and meta.get("graded_against") != graded_against:
+            meta["graded_against"] = graded_against
+            (session_dir / "meta.json").write_text(
+                json.dumps(meta, indent=2) + "\n", encoding="utf-8"
+            )
+        if regraded(meta):
+            print(f"{run_name(session_dir):<34} "
+                  f"re-graded: ran against {meta['golden_fingerprint']}, "
+                  f"scored against {graded_against}")
         counts = {k: sum(1 for v in grades.values() if v == k)
                   for k in (CORRECT, NEAR_MISS, WRONG, MISSING, UNPARSEABLE)}
         print(

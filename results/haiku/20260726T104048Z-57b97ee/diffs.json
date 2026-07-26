@@ -298,10 +298,10 @@
     {
       "answer": 450000.5,
       "column": "matched_field_ha",
-      "golden": 23579.0,
+      "golden": 36108.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 18.0848,
+      "rel_error": 11.462419,
       "row": 0
     }
   ],
@@ -318,10 +318,10 @@
     {
       "answer": 450000.5,
       "column": "matched_field_ha",
-      "golden": 23579.0,
+      "golden": 36108.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 18.0848,
+      "rel_error": 11.462419,
       "row": 0
     },
     {
@@ -423,10 +423,10 @@
     {
       "answer": 250000.0,
       "column": "total_ha",
-      "golden": 21380.6,
+      "golden": 32745.7,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 10.692843,
+      "rel_error": 6.63459,
       "row": 0
     },
     {
@@ -441,19 +441,19 @@
     {
       "answer": 180000.0,
       "column": "total_ha",
-      "golden": 1530.6,
+      "golden": 2340.4,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 116.600941,
+      "rel_error": 75.90993,
       "row": 1
     },
     {
       "answer": 0.025,
       "column": "loss_share",
-      "golden": 0.2273,
+      "golden": 0.227,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.890013,
+      "rel_error": 0.889868,
       "row": 1
     }
   ],
@@ -924,10 +924,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 144.9,
+      "golden": 221.2,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 2.450656,
+      "rel_error": 1.260398,
       "row": 0
     },
     {
@@ -960,10 +960,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 39.4,
+      "golden": 60.3,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 11.690355,
+      "rel_error": 7.291874,
       "row": 1
     },
     {
@@ -996,10 +996,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 9.5,
+      "golden": 14.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 51.631579,
+      "rel_error": 33.246575,
       "row": 2
     },
     {
@@ -1032,10 +1032,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 7.0,
+      "golden": 10.7,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 70.428571,
+      "rel_error": 45.728972,
       "row": 3
     },
     {
@@ -1068,10 +1068,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 18.0,
+      "golden": 27.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 26.777778,
+      "rel_error": 17.115942,
       "row": 4
     },
     {
@@ -1104,10 +1104,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 3.3,
+      "golden": 5.0,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 150.515152,
+      "rel_error": 99.0,
       "row": 5
     },
     {
@@ -1140,10 +1140,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 4.8,
+      "golden": 7.4,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 103.166667,
+      "rel_error": 66.567568,
       "row": 6
     },
     {
@@ -1176,10 +1176,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 5.1,
+      "golden": 7.8,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 97.039216,
+      "rel_error": 63.102564,
       "row": 7
     },
     {
@@ -1212,10 +1212,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 81.8,
+      "golden": 125.2,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 5.112469,
+      "rel_error": 2.99361,
       "row": 8
     },
     {
@@ -1248,10 +1248,10 @@
     {
       "answer": 500.0,
       "column": "field_area_ha",
-      "golden": 4.3,
+      "golden": 6.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 115.27907,
+      "rel_error": 74.757576,
       "row": 9
     },
     {

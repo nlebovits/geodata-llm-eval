@@ -64,6 +64,42 @@ def test_pipeline_templates_exist():
         assert (render.SQL_DIR / f"{stem}.sql.tmpl").exists(), stem
 
 
+def test_every_template_loading_spatial_declares_its_axis_order():
+    """GeoParquet is longitude-first; DuckDB's spheroid and reprojection
+    functions read latitude-first unless told otherwise.
+
+    Left undeclared, ST_Area_Spheroid shrinks a Goiás field by about a third
+    and ST_Transform stretches a degree of longitude from 107 km to 121 km,
+    both silently and both in the direction that still looks plausible. DuckDB
+    warns that its default is due to flip, so a template that leaves this
+    implicit is also a template whose goldens change under a version bump.
+    """
+    offenders = []
+    for path in sorted(render.SQL_DIR.rglob("*.sql.tmpl")):
+        sql = path.read_text("utf-8")
+        if "LOAD spatial" not in sql:
+            continue
+        if "geometry_always_xy = true" not in sql:
+            offenders.append(path.relative_to(render.SQL_DIR).as_posix())
+    assert not offenders, f"spatial templates missing axis declaration: {offenders}"
+
+
+def test_the_axis_declaration_precedes_every_geometry_call():
+    """Setting the axis order after the first geometry call would leave that
+    call reading the old convention while the file looks correct."""
+    for path in sorted(render.SQL_DIR.rglob("*.sql.tmpl")):
+        sql = path.read_text("utf-8")
+        if "geometry_always_xy = true" not in sql:
+            continue
+        body = "\n".join(line for line in sql.splitlines()
+                         if not line.lstrip().startswith("--"))
+        declaration = body.index("geometry_always_xy = true")
+        for call in ("ST_Area_Spheroid", "ST_Transform", "ST_GeometryType"):
+            first = body.find(call)
+            if first != -1:
+                assert first > declaration, f"{path.name}: {call} precedes the setting"
+
+
 def test_column_counts_match_the_question_contracts():
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     by_id = {f"q{q['id']}": q for q in spec["questions"]}

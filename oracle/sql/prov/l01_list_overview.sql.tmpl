@@ -3,6 +3,9 @@
 -- "deforestation-free" = no forest loss AFTER the 31 Dec 2020 cut-off.
 -- (spatial loaded for ST_GeometryType — the geolocation-polygon coverage metric)
 INSTALL spatial; LOAD spatial;
+-- Longitude-first, as everywhere else in the oracle. ST_GeometryType does not
+-- care, but the declaration keeps one axis convention across the pipeline.
+SET geometry_always_xy = true;
 CREATE OR REPLACE VIEW _q AS
 WITH m AS (SELECT * FROM read_parquet('${MATCHED_PARQUET}')),
      c AS (SELECT * FROM read_parquet('${CAD_MATCHED_PARQUET}')),

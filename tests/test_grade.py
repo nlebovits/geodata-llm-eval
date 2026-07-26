@@ -5,8 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
+from layout import regraded  # noqa: E402
+
 from grade import (  # noqa: E402
     CORRECT,
+    golden_fingerprint,
     MISSING,
     NEAR_MISS,
     UNPARSEABLE,
@@ -27,6 +30,31 @@ def write(tmp_path, name, text):
     p = tmp_path / name
     p.write_text(text)
     return p
+
+
+def test_the_fingerprint_tracks_the_manifest(tmp_path):
+    """Regenerating the oracle changes the fixtures, and a score is only
+    comparable to another score computed against the same ones."""
+    (tmp_path / "SHA256SUMS").write_text("abc  q01.csv\n")
+    before = golden_fingerprint(tmp_path)
+    (tmp_path / "SHA256SUMS").write_text("def  q01.csv\n")
+    assert before != golden_fingerprint(tmp_path)
+    assert golden_fingerprint(tmp_path / "absent") is None
+
+
+def test_a_run_scored_against_later_fixtures_is_flagged():
+    """The axis-order fix regenerated seven goldens and moved one Opus run
+    from 22/30 to 29/30. A score that moved because the fixtures moved has to
+    say so, or it reads as a model that improved on its own."""
+    assert regraded({"golden_fingerprint": "aaa", "graded_against": "bbb"})
+    assert not regraded({"golden_fingerprint": "aaa", "graded_against": "aaa"})
+
+
+def test_a_run_predating_the_fingerprint_is_not_called_regraded():
+    """Absence of a digest is missing evidence, not evidence of a mismatch."""
+    assert not regraded({"graded_against": "bbb"})
+    assert not regraded({"golden_fingerprint": "aaa"})
+    assert not regraded({})
 
 
 GOLDEN = "region,count\nsanta_cruz,1523\nbeni,847\n"

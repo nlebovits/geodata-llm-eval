@@ -16,6 +16,13 @@
 -- ---------------------------------------------------------------------------
 INSTALL spatial; LOAD spatial;
 
+-- Centroids and facility geometry are longitude-first. DuckDB's ST_Transform
+-- defaults to the EPSG:4326 authority axis order, which is latitude-first, so
+-- without this every distance below is computed from swapped coordinates: a
+-- degree of longitude in Goiás measures 121 km instead of 107, and the
+-- ranking of nearest facilities changes with it.
+SET geometry_always_xy = true;
+
 -- The cadaster input supplies centroid lon/lat (cx/cy) directly — no geometry
 -- round-trip (cad_enriched keeps its native geometry for the tiler; coop_match
 -- only needs the centroid + crop + município code).

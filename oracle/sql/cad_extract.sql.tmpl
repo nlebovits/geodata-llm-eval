@@ -23,6 +23,11 @@
 INSTALL httpfs; LOAD httpfs;
 INSTALL spatial; LOAD spatial;
 
+-- CAR geometry is longitude-first. Nothing in this file is axis-sensitive
+-- today (envelopes and centroids are not), but the extract feeds every
+-- downstream stage, so it declares the same axis order they assume.
+SET geometry_always_xy = true;
+
 CREATE OR REPLACE TABLE list AS
 SELECT DISTINCT CAST(${ID_COLUMN} AS VARCHAR) AS cod_imovel
 FROM read_csv_auto('${LIST_CSV}');

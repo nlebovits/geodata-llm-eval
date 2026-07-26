@@ -46,3 +46,13 @@ def is_scored(meta: dict) -> bool:
     scored rather than as a run to silently drop.
     """
     return meta.get("status", "done") in SCORED_STATUSES
+
+
+def regraded(meta: dict) -> bool:
+    """Whether a run's score comes from different fixtures than it ran against.
+
+    True only when both digests are known and disagree. Runs predating either
+    field cannot be compared, and absence is not evidence of a mismatch.
+    """
+    ran, scored = meta.get("golden_fingerprint"), meta.get("graded_against")
+    return bool(ran and scored and ran != scored)
