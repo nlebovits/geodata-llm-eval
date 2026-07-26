@@ -105,6 +105,12 @@ widening to a count is what actually serves the user.
 Distances are computed in **EPSG:5880** (SIRGAS 2000 Brazil Polyconic), *not* in
 degrees — unlike the areal ratios in `MATCHING.md`, which are CRS-cancelling.
 
+They run from the **cadastral parcel's centroid** to the facility point. A large
+property spans several kilometres, so measuring from its centroid and measuring
+from its nearest boundary give materially different answers, and every ranking
+threshold here — `intake_km`, `intake_km_ceiling`, `proximity_override_km` — is
+read against the centroid figure.
+
 ## What each candidate carries forward
 
 For every candidate the match records, so the report and any reviewer can see

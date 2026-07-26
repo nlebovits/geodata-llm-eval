@@ -72,8 +72,14 @@ WHERE (d.by_primary OR d.by_aggregate)
 
 COPY matched_fields TO '${MATCHED_PARQUET}' (FORMAT PARQUET);
 
--- Dominant crop class per parcel: the class covering the most matched fields,
--- ties broken by the lowest class code.
+-- Dominant crop class per parcel: the class covering the most hectares, ties
+-- broken by the lowest class code. EUDR_CROPS.md states the rule.
+--
+-- Hectares rather than field count, because field boundaries are drawn at
+-- whatever size the survey produced: a parcel with four small pasture plots
+-- and one large soya plot grows mostly soya, and counting fields calls it
+-- pasture. The choice routes the parcel in coop_match, so it decides whether
+-- a farmer hears from a silo or a slaughterhouse.
 --
 -- This was mode(mbmode24) inline in cad_enriched. DuckDB's mode() breaks ties
 -- arbitrarily, so any parcel with a tied plurality could change dominant_mb --
@@ -83,13 +89,13 @@ COPY matched_fields TO '${MATCHED_PARQUET}' (FORMAT PARQUET);
 CREATE OR REPLACE TABLE dominant_class AS
 SELECT cod_imovel, mbmode24 AS dominant_mb
 FROM (
-    SELECT cod_imovel, mbmode24, count(*) AS n_fields
+    SELECT cod_imovel, mbmode24, sum(field_area_ha) AS class_ha
     FROM matched_fields
     WHERE mbmode24 IS NOT NULL
     GROUP BY cod_imovel, mbmode24
 )
 QUALIFY row_number() OVER (PARTITION BY cod_imovel
-                           ORDER BY n_fields DESC, mbmode24) = 1;
+                           ORDER BY class_ha DESC, mbmode24) = 1;
 
 -- Enriched parcels: CAR attributes + per-parcel rollup + geometry (for the map).
 CREATE OR REPLACE TABLE cad_enriched AS

@@ -54,6 +54,18 @@ this table entirely keeps every tier — the "unknown crop" case.
 survives wherever `intake_point` does. `membership_muni` is never routed away —
 the relationship lever is independent of what the farm grows.
 
+### The dominant class of a mixed parcel
+
+Routing reads one class per cadaster. Where a parcel carries fields of several
+classes, its **dominant class is the one covering the most hectares**, with ties
+broken by the lower `mbmode24` code.
+
+Hectares, not field count. Field boundaries come in whatever sizes the survey
+produced, so a parcel holding four small pasture plots and one large soya plot
+grows mostly soya while a count of fields calls it pasture. The rule decides
+which delivery tier the parcel routes to, and so decides whether a farmer hears
+from a silo or from a slaughterhouse.
+
 ## Two different reasons to exclude a crop
 
 Classes 18, 20, 40, 41, 47, 48 and 62 are out of scope because **the regulation

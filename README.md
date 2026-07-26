@@ -80,7 +80,14 @@ Grading is executable, not model-judged. The comparator compares each session's
 - Counts and strings must match exactly; numerics within relative 1e-3.
 - Geometry-sensitive questions (areas, distances) grade at relative 1e-2 with
   integer slack `max(2, 1% of golden)`, because projection and distance-method
-  choices move those answers.
+  choices move those answers. No area convention is stated to the session and
+  none should be: the oracle computes hectares on the WGS84 spheroid only
+  because this Trazo3 release ships no area column. Geodesic area, an
+  equal-area projection, and Brazil Polyconic agree within a percent, so the
+  tolerance covers the spread and the session picks its own method. Where a
+  choice moves an answer further than that — the parcel centroid the distance
+  runs from, the hectares that decide a mixed parcel's dominant crop — the
+  policy documents state it.
 - Rows compare as multisets; column order and names are ignored.
 - A missing or unparseable answer fails, recorded separately from a wrong one.
 - Each answer cell is rounded to the precision the golden cell carries before

@@ -72,6 +72,37 @@ def test_column_counts_match_the_question_contracts():
         assert len(cols) == n_contract, (qid, len(cols), n_contract)
 
 
+def test_every_question_reporting_a_computed_area_or_distance_is_tolerant():
+    """No area or distance convention is stated to the session, so the grader
+    has to absorb the spread between reasonable methods.
+
+    Geodesic hectares, an equal-area projection, and Brazil Polyconic land
+    within about a percent of each other, which the geometry tolerance covers.
+    The loss questions stay strict because their hectares are sums of a column
+    the catalog publishes: no method choice exists there, and the tolerance
+    would only cost discrimination. q23 stays strict for a different reason,
+    documented alongside it.
+    """
+    spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
+    graded = {q["id"] for q in spec["questions"]
+              if q.get("grading") == "geometry"}
+    assert {"14", "15", "19", "26", "30"} <= graded
+    assert "23" not in graded
+
+
+def test_q23_keeps_a_numeric_field_id_out_of_integer_slack():
+    """Integer slack under geometry grading is max(2, 1% of golden), and the
+    comparator tries column permutations, so it cannot tell an identifier from
+    a quantity. Neighbouring plots carry adjacent ids, so a tolerant q23 would
+    credit an answer naming the wrong farm."""
+    spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
+    q23 = next(q for q in spec["questions"] if q["id"] == "23")
+    ids = [c for c in q23["output"]["columns"]
+           if c["name"] == "field_id" and c["type"] == "integer"]
+    assert ids, "q23 lost its integer field_id; revisit the grading choice"
+    assert q23.get("grading") != "geometry"
+
+
 def test_substitution_leaves_no_placeholders(tmp_path):
     subs = render.substitutions(PINS, tmp_path)
     seen = set()
@@ -182,11 +213,13 @@ def test_candidate_cap_applies(tmp_path):
     assert (n_kept, worst) == (cap, cap)
 
 
-def test_dominant_class_breaks_ties_by_lowest_class_code(tmp_path):
-    """dominant_mb was mode(), which breaks ties arbitrarily.
+def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
+    """dominant_mb was mode() over field count, which breaks ties arbitrarily
+    and lets many small plots outvote one large one.
 
-    Two classes covering three fields each must resolve the same way on every
-    run, or the fixture moves without an input changing.
+    EUDR_CROPS.md now defines the dominant class as the one covering the most
+    hectares, ties broken by the lower class code. The rule picks the delivery
+    tier, so it decides whether a farmer hears from a silo or a slaughterhouse.
     """
     subs = render.substitutions(PINS, tmp_path)
     stmt = _create_statement(render.render_sql("match", subs),
@@ -196,18 +229,52 @@ def test_dominant_class_breaks_ties_by_lowest_class_code(tmp_path):
     con.execute("""
         CREATE TABLE matched_fields AS
         SELECT * FROM (VALUES
-            ('CAD-TIE', 39), ('CAD-TIE', 39), ('CAD-TIE', 39),
-            ('CAD-TIE', 15), ('CAD-TIE', 15), ('CAD-TIE', 15),
-            ('CAD-CLEAR', 41), ('CAD-CLEAR', 41), ('CAD-CLEAR', 15),
-            ('CAD-NULL', NULL)
-        ) v(cod_imovel, mbmode24);
+            -- one big soya plot against four small pasture plots
+            ('CAD-MIXED', 39, 144.9),
+            ('CAD-MIXED', 15,  12.0), ('CAD-MIXED', 15, 11.0),
+            ('CAD-MIXED', 15,  10.0), ('CAD-MIXED', 15,  9.5),
+            -- equal hectares either way
+            ('CAD-TIE',   39,  60.0), ('CAD-TIE',   15, 60.0),
+            ('CAD-NULL',  NULL, 20.0)
+        ) v(cod_imovel, mbmode24, field_area_ha);
     """)
     con.execute(stmt)
     rows = dict(con.execute(
         "SELECT cod_imovel, dominant_mb FROM dominant_class").fetchall())
-    assert rows["CAD-TIE"] == 15      # tie of three each -> lowest code
-    assert rows["CAD-CLEAR"] == 41    # plurality wins over the lower code
+    assert rows["CAD-MIXED"] == 39    # 144.9 ha of soya beats 42.5 ha over 4 plots
+    assert rows["CAD-TIE"] == 15      # equal hectares -> lower class code
     assert "CAD-NULL" not in rows     # no classified field, no dominant class
+
+
+def test_excluded_count_ignores_the_buffer_only_near_misses(tmp_path):
+    """q12 asks how many fields intersect a listed parcel and fail both tests.
+
+    The count used to include fields whose only overlap was with the parcels
+    buffered outward by neighbor_gap_tolerance_m and dissolved -- fields that
+    touch no parcel at all. That is a defensible audit population and an
+    indefensible reading of the question.
+    """
+    subs = render.substitutions(PINS, tmp_path)
+    stmt = render.render_sql("match_excluded", subs)
+
+    con = duckdb.connect()
+    con.execute("""
+        CREATE TABLE decision AS
+        SELECT * FROM (VALUES
+            -- overlaps a parcel, under the bar on both tests: counted
+            (1, 0.30, 0.42, false, false),
+            (2, 0.10, 0.55, false, false),
+            -- inside the 25 m cushion only, touching no parcel: not counted
+            (3, 0.00, 0.31, false, false),
+            (4, NULL, 0.12, false, false),
+            -- admitted, so not excluded at all
+            (5, 0.80, 0.90, true,  true),
+            -- nowhere near the list
+            (6, 0.00, 0.00, false, false)
+        ) v(field_id, max_single_frac, union_frac, by_primary, by_aggregate);
+    """)
+    con.execute(stmt)
+    assert con.execute("SELECT n_excluded FROM _q").fetchone()[0] == 2
 
 
 def test_no_qualify_binds_a_base_column_named_rank():

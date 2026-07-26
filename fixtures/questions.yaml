@@ -21,6 +21,20 @@
 # grade at relative 1e-2 with integer slack max(2, 1% of golden); everything
 # else at relative 1e-3.
 #
+# Every question reporting an absolute area or distance carries it, because no
+# convention for either is stated anywhere and none should be: the oracle
+# computes hectares on the WGS84 spheroid only because this Trazo3 release
+# ships no area column, which is an accident of the source data rather than a
+# rule worth imposing. Geodesic area, an equal-area projection, and Brazil
+# Polyconic land within a percent of each other, so the tolerance covers the
+# spread and the session picks its own method.
+#
+# q23 is the exception, and grades strict despite reporting hectares. Integer
+# slack would apply to its field_id as well, since the grader tries column
+# permutations and cannot tell an identifier from a quantity. Neighbouring
+# plots carry adjacent ids, so the slack would credit an answer naming the
+# wrong farm — a worse failure than rejecting a valid area method.
+#
 # Deforestation comes from the era-band columns only; hansen_covered_area is
 # never used. Which land-cover classes fall under the regulation is governed by
 # policies/EUDR_CROPS.md, which the agent is given — the task is to APPLY that
@@ -186,8 +200,9 @@ questions:
     depends_on: ["09"]
     grading: geometry
     question: >
-      Split the matched fields by which inclusion rule admitted them: the
-      single-parcel rule only, the whole-list aggregate rule only, and both.
+      Split the matched fields by which inclusion rule admitted them: those
+      that pass the single-parcel rule, and those admitted only by the
+      whole-list aggregate rule.
     output:
       columns:
         - name: by_single_parcel_rule
@@ -196,9 +211,6 @@ questions:
         - name: by_aggregate_rule_only
           type: integer
           description: fields admitted only by the aggregate rule
-        - name: by_both_rules
-          type: integer
-          description: fields admitted by both rules
       rows: 1
 
   - id: "11"
@@ -268,6 +280,7 @@ questions:
   - id: "15"
     stage: 4
     depends_on: ["09"]
+    grading: geometry
     question: >
       Report the list-level headline: number of parcels, number of matched
       fields, total matched-field hectares, total post-2020 loss hectares, and
@@ -359,6 +372,7 @@ questions:
   - id: "19"
     stage: 4
     depends_on: ["16"]
+    grading: geometry
     question: >
       Total matched-field area by Annex I commodity (in-scope crops), and the
       share of that area carrying any post-2020 loss.
@@ -604,6 +618,7 @@ questions:
   - id: "30"
     stage: 6
     depends_on: ["24", "26", "27", "28"]
+    grading: geometry
     question: >
       For every cadaster non-compliant on an in-scope crop, report its
       top-ranked contact: the cadaster, its Annex I commodity, its post-2020
