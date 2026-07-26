@@ -19,3 +19,6 @@ __pycache__/
 
 # Oracle intermediate extracts (regenerable; the cold source.coop pull)
 fixtures/golden/_work/
+
+# MCP tool caches, local to a checkout
+.serena/
