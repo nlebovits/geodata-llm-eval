@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -58,11 +59,57 @@ def harness_commit() -> str:
         return "unknown"
 
 
-def docker_command(workspace: Path, model_id: str) -> list[str]:
+CREDENTIALS = Path.home() / ".claude" / ".credentials.json"
+
+# The container HOME is a clean /home/runner (see Dockerfile): no CLAUDE.md,
+# no hooks, no MCP config, no memory. A login token is the single host
+# artifact that crosses the boundary, and it crosses as a per-session copy
+# holding nothing else from ~/.claude.
+CONTAINER_CLAUDE_DIR = "/home/runner/.claude"
+
+
+def auth_args(session_home: Path) -> list[str]:
+    """Docker args carrying credentials into the session.
+
+    Prefers a subscription login and falls back to ANTHROPIC_API_KEY, so
+    sessions bill against the plan rather than the API. Raises if neither
+    is available, rather than launching a session that will fail on its
+    first model call.
+
+    The host credentials file is copied into a throwaway per-session home
+    and that copy is mounted read-write: the CLI refreshes an expiring
+    OAuth token by writing the file back, which a read-only mount of the
+    real one would break. The copy dies with the session's temp dir, so a
+    session can neither corrupt nor outlive the host login.
+    """
+    if CREDENTIALS.exists():
+        claude_dir = session_home / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        claude_dir.chmod(0o700)
+        dest = claude_dir / ".credentials.json"
+        shutil.copy(CREDENTIALS, dest)
+        dest.chmod(0o600)
+        return ["-v", f"{claude_dir}:{CONTAINER_CLAUDE_DIR}"]
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return ["-e", "ANTHROPIC_API_KEY"]
+    raise SystemExit(
+        f"No credentials found. Run `claude login` on the host (writes "
+        f"{CREDENTIALS}) or set ANTHROPIC_API_KEY."
+    )
+
+
+def docker_command(workspace: Path, session_home: Path,
+                   model_id: str) -> list[str]:
     return [
         "docker", "run", "--rm",
+        # Run as the invoking user. The mounted credential copy is 0600 and
+        # host-owned, and the CLI has to both read it and write a refreshed
+        # token back; a container uid that isn't the file's owner cannot do
+        # either. The image's own `runner` account can't be relied on for
+        # this, since its uid is fixed at build time and the host's is not.
+        "--user", f"{os.getuid()}:{os.getgid()}",
         "-v", f"{workspace}:/workspace",
-        "-e", "ANTHROPIC_API_KEY",  # pass through if set; else CLI login volume
+        *auth_args(session_home),
         IMAGE,
         "-p", "Read task.md and complete it.",
         "--model", model_id,
@@ -108,7 +155,13 @@ def run_session(model: str, pass_n: int, dry_run: bool,
     out_dir = REPO_ROOT / "results" / model / f"pass-{pass_n}"
 
     with tempfile.TemporaryDirectory(prefix="geodata-eval-") as tmp:
-        workspace = Path(tmp)
+        # Two siblings: only `workspace` is mounted at /workspace, so the
+        # session's credential copy in `home` sits outside the directory
+        # the agent is pointed at.
+        workspace = Path(tmp) / "workspace"
+        session_home = Path(tmp) / "home"
+        workspace.mkdir()
+        session_home.mkdir()
         shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
         shutil.copy(
             REPO_ROOT / "fixtures" / "questions.yaml",
@@ -123,7 +176,7 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             shutil.copy(src, lists_dir / src.name)
         (workspace / "answers").mkdir()
 
-        cmd = docker_command(workspace, model_id)
+        cmd = docker_command(workspace, session_home, model_id)
         if dry_run:
             print(" ".join(cmd))
             return

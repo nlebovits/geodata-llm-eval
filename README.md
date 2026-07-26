@@ -109,11 +109,25 @@ retry harness above the session. Every session's full transcript is committed to
 `results/`, along with token counts and the harness commit hash. Anyone can
 re-grade the committed transcripts without re-running a single model call.
 
+One host artifact crosses into the container: a login token. `harness/run.py`
+copies `~/.claude/.credentials.json` into a throwaway per-session directory and
+mounts that copy at `/home/runner/.claude`, so the CLI can refresh an expiring
+token by writing the file back without touching the host login. The copy dies
+with the session's temp directory. Nothing else from `~/.claude` — no CLAUDE.md,
+hooks, MCP servers, or memory — reaches the session, which is what keeps runs
+comparable across machines. The container runs as the invoking user's uid, since
+the CLI has to read that 0600 copy and write a refreshed token back into it.
+
+Set `ANTHROPIC_API_KEY` instead and the harness passes that through rather than
+mounting anything. With neither available it refuses to start, instead of
+burning a container to fail on the first model call.
+
 ## Cost accounting
 
-Sessions run on a subscription plan and bill nothing directly. We log token
-counts from each session transcript and report imputed dollars at list API
-prices, with input, output, and cache tokens priced separately:
+Sessions run on the subscription plan behind the mounted login and bill nothing
+directly. We log token counts from each session transcript and report imputed
+dollars at list API prices, with input, output, and cache tokens priced
+separately:
 
 | Model      | Input $/MTok | Output $/MTok | Cache write | Cache read |
 |------------|--------------|---------------|-------------|------------|
@@ -129,7 +143,9 @@ figure is a Pareto plot: accuracy on the y-axis, imputed dollars on the x-axis.
 
 ```bash
 pixi install
+pixi run install-hooks                           # credential guard, see below
 pixi run test
+claude login                                     # or export ANTHROPIC_API_KEY
 python oracle/render.py                          # generate golden fixtures
 docker build -t geodata-llm-eval .
 python harness/run.py --model sonnet --passes 10
@@ -137,6 +153,17 @@ python harness/grade.py
 python harness/consistency.py --model sonnet
 python harness/report.py
 ```
+
+`pixi run install-hooks` points git at `hooks/`, which holds a pre-commit guard
+that rejects Anthropic tokens. It checks staged content, not only staged paths:
+`results/` transcripts are committed deliberately for audit, and a session with
+`--dangerously-skip-permissions` can read its own mounted credential copy and
+echo the token into stdout, which becomes a transcript. `.gitignore` cannot
+catch that; the content scan can. Run it once per clone, since git never
+installs hooks from a checkout on its own.
+
+If a token does reach a transcript, treat it as leaked and run `claude login` to
+rotate it. Scrubbing the file is not enough on its own once it has been pushed.
 
 ## Out of scope
 

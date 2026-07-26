@@ -26,8 +26,23 @@ RUN curl -fsSL -o /tmp/duckdb.zip \
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
     && claude --version
 
-# Non-root user with a clean HOME: no CLAUDE.md, no hooks, no MCP config
-RUN useradd -m -s /bin/bash runner
+# Non-root user with a clean HOME: no CLAUDE.md, no hooks, no MCP config.
+#
+# The harness runs this image with `--user <host uid>:<host gid>` so the
+# mounted credential copy is owned by the process that has to read it and
+# write its token refresh back. That uid is not known at build time and is
+# not in /etc/passwd at run time, so HOME is set explicitly and the home
+# tree is left world-writable: any uid Docker is handed can use it. The
+# container is throwaway and holds one session's state, so a permissive
+# HOME inside it costs nothing.
+#
+# The base image already owns uid 1000 as `node`, which is why this cannot
+# just be `useradd -m runner` — that lands on 1001 and cannot read files
+# owned by a host uid of 1000.
+RUN useradd -m -s /bin/bash runner \
+    && mkdir -p /home/runner/.claude \
+    && chmod -R 0777 /home/runner
+ENV HOME=/home/runner
 USER runner
 WORKDIR /workspace
 

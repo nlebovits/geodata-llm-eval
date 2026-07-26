@@ -5,6 +5,16 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Credentials. Sessions mount a copy of the host login (see harness/run.py);
+# nothing token-shaped belongs in this history. The pre-commit hook in hooks/
+# enforces this on content too, since results/ transcripts are committed.
+.credentials.json
+**/.credentials.json
+.claude/
+*.pem
+.env
+.env.*
+
 # results ARE committed for auditability — do not ignore results/
 
 # Oracle intermediate extracts (regenerable; the cold source.coop pull)

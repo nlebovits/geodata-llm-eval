@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Block commits that carry Anthropic credentials.
+
+Two ways a token could reach this history:
+
+1. Someone stages ~/.claude/.credentials.json, or a copy of it.
+2. A session reads its own mounted credential copy and echoes the token
+   into stdout. That stdout becomes results/<model>/pass-N/transcript.jsonl,
+   and transcripts are committed on purpose, for audit.
+
+The second is the one .gitignore cannot catch, so this hook scans staged
+content as well as staged paths. Install with `pixi run install-hooks`.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+
+# Anthropic tokens: sk-ant-api03-… (API keys) and sk-ant-oat01-… (OAuth).
+# The prefix alone is the signal; length and body vary.
+TOKEN = re.compile(rb"sk-ant-[A-Za-z0-9_-]{8,}")
+
+# The credential file's own shape, in case a future token stops matching
+# the prefix above. Both keys must appear for this to fire, so ordinary
+# prose about refresh tokens does not trip it.
+CRED_SHAPE = (re.compile(rb'"accessToken"\s*:'),
+              re.compile(rb'"refreshToken"\s*:'))
+
+BLOCKED_PATHS = re.compile(
+    r"(^|/)\.credentials\.json$"
+    r"|(^|/)\.claude/"
+    r"|(^|/)\.env($|\.)"
+    r"|\.pem$"
+)
+
+
+def staged_paths() -> list[str]:
+    out = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return [line for line in out.splitlines() if line]
+
+
+def staged_blob(path: str) -> bytes:
+    """Content as staged, which is what would actually be committed."""
+    proc = subprocess.run(
+        ["git", "show", f":{path}"], capture_output=True, check=False,
+    )
+    return proc.stdout if proc.returncode == 0 else b""
+
+
+def main() -> int:
+    problems: list[str] = []
+
+    for path in staged_paths():
+        if BLOCKED_PATHS.search(path):
+            problems.append(f"{path}: credential file must never be committed")
+            continue
+
+        blob = staged_blob(path)
+        if not blob:
+            continue
+        if TOKEN.search(blob):
+            line = next(
+                (n for n, ln in enumerate(blob.splitlines(), 1)
+                 if TOKEN.search(ln)),
+                0,
+            )
+            problems.append(f"{path}:{line}: contains an sk-ant-* token")
+        elif all(p.search(blob) for p in CRED_SHAPE):
+            problems.append(f"{path}: looks like a credentials payload")
+
+    if not problems:
+        return 0
+
+    print("pre-commit: refusing to commit credentials\n", file=sys.stderr)
+    for p in problems:
+        print(f"  {p}", file=sys.stderr)
+    print(
+        "\nUnstage the file, or scrub the token from the transcript before\n"
+        "committing. If a token did reach a transcript, treat it as leaked\n"
+        "and run `claude login` to rotate it.\n"
+        "Override only if you are certain this is a false positive:\n"
+        "  git commit --no-verify\n",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
