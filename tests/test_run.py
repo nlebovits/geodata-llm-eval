@@ -334,10 +334,17 @@ def test_a_rerun_leaves_nothing_of_the_run_before_it(tmp_path):
     assert list(out_dir.iterdir()) == []
 
 
-def test_the_container_is_named_and_drops_its_volumes(monkeypatch, tmp_path):
-    """`docker run --rm` keeps anonymous volumes and cleans up only a
-    container it is still attached to. An interrupted run needs the name to
-    find its own container afterwards."""
+def test_the_container_is_named_and_the_image_is_still_the_last_word(
+        monkeypatch, tmp_path):
+    """`docker run --rm` cleans up only a container it is still attached to,
+    so an interrupted run needs the name to remove its own container after
+    the fact.
+
+    The image has to stay the first positional argument. A flag that takes a
+    value (`-v` wants a mount spec) placed before `--name` swallows it, and
+    docker then reads the container name as the image: "pull access denied
+    for geodata-eval-opus-pass5-1378874".
+    """
     fake_credentials(tmp_path, monkeypatch)
     session_home = tmp_path / "home"
     session_home.mkdir()
@@ -345,8 +352,12 @@ def test_the_container_is_named_and_drops_its_volumes(monkeypatch, tmp_path):
     cmd = run.docker_command(tmp_path / "workspace", session_home, "m",
                              "geodata-eval-opus-pass3-42")
 
-    assert cmd[:6] == ["docker", "run", "--rm", "-v", "--name",
+    assert cmd[:5] == ["docker", "run", "--rm", "--name",
                        "geodata-eval-opus-pass3-42"]
+    # Every -v carries its mount spec in the same token, so none can swallow
+    # the argument that follows it.
+    assert all(arg != "-v" or ":" in cmd[i + 1]
+               for i, arg in enumerate(cmd[:-1]))
 
 
 def test_stop_session_removes_a_container_the_client_left_running(monkeypatch):

@@ -117,10 +117,12 @@ def auth_args(session_home: Path) -> list[str]:
 def docker_command(workspace: Path, session_home: Path,
                    model_id: str, container: str) -> list[str]:
     return [
-        # `--rm -v` also drops the anonymous volumes a container accumulates,
-        # which survive `--rm` on its own. `--name` is what lets an
-        # interrupted run find and remove its own container afterwards.
-        "docker", "run", "--rm", "-v", "--name", container,
+        # `--rm` already drops the container's anonymous volumes on exit.
+        # `--name` is what lets an interrupted run find and remove its own
+        # container afterwards. (`-v` belongs on `docker rm`, not here: on
+        # `docker run` it takes a mount spec and would swallow the next
+        # argument.)
+        "docker", "run", "--rm", "--name", container,
         # Run as the invoking user. The mounted credential copy is 0600 and
         # host-owned, and the CLI has to both read it and write a refreshed
         # token back; a container uid that isn't the file's owner cannot do
