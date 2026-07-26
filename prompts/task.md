@@ -24,9 +24,9 @@ scope, and provenance; read the named file for rows.
   property sells into.
   File: `facilities/BR_facilities.parquet`
 
-Each path is relative to its catalog root. The cadastral collection also
-publishes 512 kdtree partitions; the single file above is the one to use.
-DuckDB cannot expand a `*` glob over plain HTTP.
+Each path is relative to its catalog root. The cadastral catalog describes its
+Paraguay and Uruguay collections; the Brazil CAR file above sits beside them at
+the catalog root and is the one this analysis uses.
 
 The data are GeoParquet you can query remotely with DuckDB (`duckdb` is
 installed, with the `spatial` and `httpfs` extensions). Some geometry is stored
