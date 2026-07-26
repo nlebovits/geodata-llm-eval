@@ -1,6 +1,6 @@
 """Build the accuracy grid and Pareto plot from graded sessions.
 
-Reads results/{model}/pass-{n}/{grades.json,meta.json} and writes:
+Reads results/{model}/{run_id}/{grades.json,meta.json} and writes:
     results/summary.csv    one row per session
     results/report.md      per-model table (mean accuracy, cost, spread)
     results/pareto.png     accuracy vs imputed dollars, one point per session
@@ -17,6 +17,8 @@ import json
 import statistics
 import sys
 from pathlib import Path
+
+from layout import is_scored, run_dirs
 
 import matplotlib
 
@@ -36,13 +38,15 @@ MODEL_LABELS = {
 
 def load_sessions(results_dir: Path) -> list[dict]:
     sessions = []
-    for session_dir in sorted(results_dir.glob("*/pass-*")):
+    for session_dir in run_dirs(results_dir):
         grades_path = session_dir / "grades.json"
         meta_path = session_dir / "meta.json"
         if not (grades_path.exists() and meta_path.exists()):
             continue
         grades = json.loads(grades_path.read_text())
         meta = json.loads(meta_path.read_text())
+        if not is_scored(meta):
+            continue
         total = len(grades)
         correct = sum(1 for v in grades.values() if v == "correct")
         near_miss = sum(1 for v in grades.values() if v == "near_miss")
@@ -50,7 +54,8 @@ def load_sessions(results_dir: Path) -> list[dict]:
         slow = meta.get("slow_tool_seconds", 0.0) or 0.0
         sessions.append({
             "model": meta["model"],
-            "pass": meta["pass"],
+            "run_id": meta.get("run_id", session_dir.name),
+            "label": meta.get("label", ""),
             "accuracy": correct / total if total else 0.0,
             "correct": correct,
             "near_miss": near_miss,
@@ -174,9 +179,9 @@ def runtime_lines(sessions: list[dict]) -> list[str]:
 
 
 def write_summary_csv(sessions: list[dict], path: Path) -> None:
-    fields = ["model", "pass", "accuracy", "correct", "near_miss", "total",
-              "cost_usd", "turns", "duration_seconds", "slow_tool_seconds",
-              "timed_out_tool_calls"]
+    fields = ["model", "run_id", "label", "accuracy", "correct", "near_miss",
+              "total", "cost_usd", "turns", "duration_seconds",
+              "slow_tool_seconds", "timed_out_tool_calls"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()

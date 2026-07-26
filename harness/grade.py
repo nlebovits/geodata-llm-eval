@@ -13,7 +13,7 @@ The comparator is deliberately dumb and deterministic:
 Usage:
     python harness/grade.py [--results results/] [--golden fixtures/golden/]
 
-Writes results/{model}/pass-{n}/grades.json per session and prints a
+Writes results/{model}/{run_id}/grades.json per run and prints a
 summary table.
 """
 
@@ -26,6 +26,8 @@ import json
 import math
 import sys
 from pathlib import Path
+
+from layout import is_scored, read_meta, run_dirs, run_name
 
 REL_TOL = 1e-3
 ABS_TOL = 1e-9
@@ -487,7 +489,7 @@ def main() -> int:
         print(f"no golden fixtures in {args.golden}", file=sys.stderr)
         return 1
 
-    session_dirs = sorted(args.results.glob("*/pass-*"))
+    session_dirs = run_dirs(args.results)
     if not session_dirs:
         print(f"no sessions found under {args.results}", file=sys.stderr)
         return 1
@@ -495,9 +497,17 @@ def main() -> int:
     geometry_ids = geometry_graded_ids(args.questions)
     questions = load_questions(args.questions)
 
-    print(f"{'session':<24} {'correct':>8} {'near':>5} {'wrong':>6}"
+    print(f"{'run':<34} {'correct':>8} {'near':>5} {'wrong':>6}"
           f" {'missing':>8} {'broken':>7}")
     for session_dir in session_dirs:
+        meta = read_meta(session_dir)
+        if not is_scored(meta):
+            # A session that wrote nothing never attempted the questions.
+            # Scoring it as thirty wrong answers blames the model for a run
+            # that did not happen, and drags every average it appears in.
+            print(f"{run_name(session_dir):<34} "
+                  f"{meta.get('status', 'unknown')} — not scored")
+            continue
         grades, diffs = grade_session(session_dir, args.golden, geometry_ids)
         (session_dir / "grades.json").write_text(
             json.dumps(grades, indent=2, sort_keys=True) + "\n"
@@ -507,9 +517,9 @@ def main() -> int:
         )
         counts = {k: sum(1 for v in grades.values() if v == k)
                   for k in (CORRECT, NEAR_MISS, WRONG, MISSING, UNPARSEABLE)}
-        label = f"{session_dir.parent.name}/{session_dir.name}"
         print(
-            f"{label:<24} {counts[CORRECT]:>8} {counts[NEAR_MISS]:>5}"
+            f"{run_name(session_dir):<34} {counts[CORRECT]:>8}"
+            f" {counts[NEAR_MISS]:>5}"
             f" {counts[WRONG]:>6} {counts[MISSING]:>8}"
             f" {counts[UNPARSEABLE]:>7}"
         )

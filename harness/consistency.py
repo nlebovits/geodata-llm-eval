@@ -24,6 +24,8 @@ import statistics
 from collections import Counter
 from pathlib import Path
 
+from layout import is_scored, read_meta, run_dirs
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -188,7 +190,8 @@ def main() -> int:
     args = ap.parse_args()
 
     runs = [load_artifact(d / "answers" / "workflow.csv")
-            for d in sorted((args.results / args.model).glob("pass-*"))]
+            for d in run_dirs(args.results, args.model)
+            if is_scored(read_meta(d))]
     runs = [r for r in runs if r]
     if not runs:
         print(f"no workflow artifacts under {args.results / args.model}")

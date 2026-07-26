@@ -7,7 +7,8 @@ host. The model works through the full question set once per session.
 The container workspace receives only prompts/task.md and
 fixtures/questions.yaml — never the golden answers.
 
-Per session, this writes results/{model}/pass-{n}/:
+Per session, this writes results/{model}/{run_id}/, where a run id is
+the UTC start time and the harness commit:
     transcript.jsonl   raw stream-json output from the session
     answers/           the CSVs the agent wrote
     meta.json          model, tokens, turns, imputed cost, harness commit
@@ -20,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -27,6 +29,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,6 +53,11 @@ FOLLOW_WIDTH = 150
 
 # Where a tool call's subject lives, by tool. Falls back to the whole input.
 TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
+
+# A 1 MB range read is big enough to measure a route and small enough that
+# a dead one fails fast. See source-cooperative/data.source.coop#194.
+PROBE_BYTES = 1_048_576
+PROBE_TIMEOUT = 30
 
 # The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
@@ -411,11 +420,13 @@ def clear_pass_dir(out_dir: Path) -> None:
             path.unlink()
 
 
-def run_session(model: str, pass_n: int, dry_run: bool,
-                input_mode: str = "csv", follow: bool = False) -> None:
+def run_session(model: str, dry_run: bool, input_mode: str = "csv",
+                follow: bool = False, label: str = "") -> None:
     model_id = PRICES[model].model_id
-    out_dir = REPO_ROOT / "results" / model / f"pass-{pass_n}"
-    container = f"geodata-eval-{model}-pass{pass_n}-{os.getpid()}"
+    started = datetime.now(timezone.utc)
+    name = run_id(started, harness_commit())
+    out_dir = REPO_ROOT / "results" / model / name
+    container = f"geodata-eval-{model}-{name}-{os.getpid()}"
 
     with tempfile.TemporaryDirectory(prefix="geodata-eval-") as tmp:
         # Two siblings: only `workspace` is mounted at /workspace, so the
@@ -448,9 +459,12 @@ def run_session(model: str, pass_n: int, dry_run: bool,
         out_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = out_dir / "transcript.jsonl"
         errors_path = Path(tmp) / "stderr.log"
-        started = datetime.now(timezone.utc).isoformat()
         started_at = time.monotonic()
-        print(f"[{model}/pass-{pass_n}] starting")
+        catalog_before = source_coop_sample()
+        rate = catalog_before.get("bytes_per_second")
+        speed = f"{rate / 1e6:.1f} MB/s" if rate else "unreachable"
+        print(f"[{model}/{name}] starting"
+              f" (source.coop {speed} via {catalog_before.get('colo') or '?'})")
 
         # Popen rather than run(): a session works remote catalogs for tens of
         # minutes, and a single line at the end cannot tell a run that is
@@ -477,7 +491,7 @@ def run_session(model: str, pass_n: int, dry_run: bool,
                     detail = (f"in {last_tool} {waiting:.0f}s" if waiting
                               else f"last: {last_tool}")
                     print(
-                        f"[{model}/pass-{pass_n}] {elapsed:.0f}m ·"
+                        f"[{model}/{name}] {elapsed:.0f}m ·"
                         f" {turns} turns · {answered}/{question_count()} answers · {detail}",
                         flush=True,
                     )
@@ -493,7 +507,7 @@ def run_session(model: str, pass_n: int, dry_run: bool,
 
         duration = round(time.monotonic() - started_at, 1)
         if proc.returncode != 0:
-            print(f"[{model}/pass-{pass_n}] session exited {proc.returncode}",
+            print(f"[{model}/{name}] session exited {proc.returncode}",
                   file=sys.stderr)
             print(errors_path.read_text(encoding="utf-8")[-2000:],
                   file=sys.stderr)
@@ -507,13 +521,17 @@ def run_session(model: str, pass_n: int, dry_run: bool,
         meta = {
             "model": model,
             "model_id": model_id,
-            "pass": pass_n,
-            "started_utc": started,
+            "run_id": name,
+            "label": label,
+            "started_utc": started.isoformat(),
             "finished_utc": datetime.now(timezone.utc).isoformat(),
             "duration_seconds": duration,
             "exit_code": proc.returncode,
             "harness_commit": harness_commit(),
             "input_mode": input_mode,
+            "golden_fingerprint": golden_fingerprint(),
+            "catalog_at_start": catalog_before,
+            "catalog_at_end": source_coop_sample(),
             **stats,
             **tool_timings(transcript_path),
             "imputed_cost_usd": round(
@@ -527,12 +545,14 @@ def run_session(model: str, pass_n: int, dry_run: bool,
                 6,
             ),
         }
-        (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         waited = meta["slow_tool_seconds"]
         answered = len(list((out_dir / "answers").glob("q*.csv")))
         verdict = session_verdict(answered)
+        meta["answers_written"] = answered
+        meta["status"] = verdict.lower().replace(" ", "_")
+        (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         print(
-            f"[{model}/pass-{pass_n}] {verdict}:"
+            f"[{model}/{name}] {verdict}:"
             f" {answered}/{question_count()} answers,"
             f" {stats['turns']} turns,"
             f" {duration / 60:.0f}m wall"
@@ -542,35 +562,72 @@ def run_session(model: str, pass_n: int, dry_run: bool,
         )
         if not answered:
             print(
-                f"[{model}/pass-{pass_n}] the session ended on its own without"
+                f"[{model}/{name}] the session ended on its own without"
                 f" writing an answer file; nothing resumes a headless run,"
                 f" so work it deferred is lost"
             )
 
 
-def next_free_pass(model: str) -> int:
-    """The lowest pass number with no directory yet.
+def run_id(started: datetime, commit: str) -> str:
+    """A run's directory name: when it started, and the code it ran.
 
-    Runs are the record. Re-running a model wrote over the previous pass's
-    transcript, meta, and answers, so iterating one pass at a time destroyed
-    the pass before it -- including passes already graded, which the audit
-    trail depends on. Numbering forward keeps every run.
+    This used to be `pass-{n}`, a position in a sequence rather than an
+    identity, so two runs could want the same name and the second destroyed
+    the first. Every guard around that -- --force, --start-pass, scanning for
+    the lowest free number -- existed to manage a collision that a name
+    carrying a timestamp cannot have. It sorts chronologically as a string,
+    and says when a run happened and what it ran without opening a file.
     """
-    model_dir = REPO_ROOT / "results" / model
-    n = 1
-    while (model_dir / f"pass-{n}").exists():
-        n += 1
-    return n
+    return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}"
+
+
+def source_coop_sample() -> dict:
+    """How fast the catalogs are answering, right now.
+
+    A session's wall clock is mostly waiting on source.coop, whose throughput
+    varies by more than an order of magnitude with the network route (see
+    source-cooperative/data.source.coop#194). Without a sample beside the run
+    there is no way to tell a slow model from a slow route afterwards, and the
+    route is gone by the time anyone asks.
+    """
+    url = json.loads((REPO_ROOT / "fixtures" / "pins.json")
+                     .read_text(encoding="utf-8"))["catalogs"]["cadastral"]["car_parquet"]
+    request = urllib.request.Request(
+        url, headers={"Range": f"bytes=0-{PROBE_BYTES - 1}"})
+    started = time.monotonic()
+    try:
+        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
+            payload = response.read()
+            colo = (response.headers.get("cf-ray") or "").rsplit("-", 1)[-1]
+    except Exception as exc:                       # noqa: BLE001 - never fatal
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
+    elapsed = time.monotonic() - started
+    return {
+        "ok": len(payload) == PROBE_BYTES,
+        "bytes": len(payload),
+        "seconds": round(elapsed, 2),
+        "bytes_per_second": round(len(payload) / elapsed) if elapsed else None,
+        "colo": colo,
+    }
+
+
+def golden_fingerprint() -> str | None:
+    """A digest of the golden manifest, so a pass records which answers it was
+    graded against. The fixtures are regenerated when the oracle changes, and
+    a score compared against a different set of goldens is not comparable."""
+    manifest = REPO_ROOT / "fixtures" / "golden" / "SHA256SUMS"
+    if not manifest.exists():
+        return None
+    return hashlib.sha256(manifest.read_bytes()).hexdigest()[:12]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", choices=sorted(PRICES), required=True)
     ap.add_argument("--passes", type=int, default=10)
-    ap.add_argument("--start-pass", type=int, default=None,
-                    help="number from here; defaults to the first free pass")
-    ap.add_argument("--force", action="store_true",
-                    help="overwrite an existing pass instead of refusing")
+    ap.add_argument("--label", default="",
+                    help="tag these runs so a comparison can select them "
+                         "later, e.g. --label experiment-1")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the docker command instead of running")
     ap.add_argument("--follow", action="store_true",
@@ -579,26 +636,9 @@ def main() -> int:
                     help="encoding of the input list; see policies/INPUTS.md")
     args = ap.parse_args()
 
-    start = args.start_pass
-    if start is None:
-        start = next_free_pass(args.model)
-        if start > 1 and not args.dry_run:
-            print(f"[{args.model}] existing passes found, starting at {start}")
-
-    wanted = range(start, start + args.passes)
-    if not args.dry_run and not args.force:
-        taken = [n for n in wanted
-                 if (REPO_ROOT / "results" / args.model / f"pass-{n}").exists()]
-        if taken:
-            names = ", ".join(f"pass-{n}" for n in taken)
-            raise SystemExit(
-                f"{names} already exist under results/{args.model}. Drop "
-                f"--start-pass to number forward, or pass --force to "
-                f"overwrite them."
-            )
-
-    for n in wanted:
-        run_session(args.model, n, args.dry_run, args.input_mode, args.follow)
+    for _ in range(args.passes):
+        run_session(args.model, args.dry_run, args.input_mode, args.follow,
+                    args.label)
     return 0
 
 

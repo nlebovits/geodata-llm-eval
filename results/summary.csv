@@ -1,0 +1,4 @@
+model,run_id,label,accuracy,correct,near_miss,total,cost_usd,turns,duration_seconds,slow_tool_seconds,timed_out_tool_calls
+haiku,20260726T104048Z-57b97ee,,0.13333333333333333,4,2,30,0.501057,103,0.0,0.0,0
+opus,20260726T114646Z-7f8fb7a,,0.7,21,2,30,5.164397,152,1858.2,1350.0,4
+opus,20260726T165606Z-40c072f,,0.7333333333333333,22,2,30,3.107675,114,900.2,330.0,1

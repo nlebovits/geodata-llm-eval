@@ -1,0 +1,19 @@
+{
+  "model": "haiku",
+  "model_id": "claude-haiku-4-5",
+  "started_utc": "2026-07-26T10:40:48.176255+00:00",
+  "finished_utc": "2026-07-26T10:47:53.441839+00:00",
+  "exit_code": 0,
+  "harness_commit": "57b97eefc41870fd3d6bdde77d6522a52ed0a8f4",
+  "input_mode": "csv",
+  "turns": 103,
+  "input_tokens": 312,
+  "output_tokens": 27344,
+  "cache_creation_tokens": 59607,
+  "cache_read_tokens": 2895160,
+  "imputed_cost_usd": 0.501057,
+  "run_id": "20260726T104048Z-57b97ee",
+  "label": "",
+  "answers_written": 30,
+  "status": "done"
+}

@@ -1,0 +1,14 @@
+mbmode24,mb_class,annex1_commodity,in_scope,caveat
+15,Pasture,cattle,1,
+39,Soybean,soya,1,
+35,Palm Oil,oil palm,1,mixed_detection_quality
+46,Coffee,coffee,1,mixed_detection_quality
+21,Mosaic of Uses,cattle,1,assumed_pasture
+9,Forest Plantation,,0,unreliable_detection
+18,Agriculture,,0,
+20,Sugarcane,,0,
+40,Rice,,0,
+41,Other Temporary Crops,,0,
+47,Citrus,,0,
+48,Other Perennial,,0,
+62,Cotton,,0,

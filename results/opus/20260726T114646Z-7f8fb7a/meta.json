@@ -1,0 +1,26 @@
+{
+  "model": "opus",
+  "model_id": "claude-opus-4-8",
+  "started_utc": "2026-07-26T11:46:46.056305+00:00",
+  "finished_utc": "2026-07-26T12:17:44.247872+00:00",
+  "duration_seconds": 1858.2,
+  "exit_code": 0,
+  "harness_commit": "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca",
+  "input_mode": "csv",
+  "turns": 152,
+  "input_tokens": 139,
+  "output_tokens": 70801,
+  "cache_creation_tokens": 117547,
+  "cache_read_tokens": 5318017,
+  "slow_tool_calls": 21,
+  "slow_tool_seconds": 1350.0,
+  "slow_tool_seconds_by_tool": {
+    "Bash": 1350.0
+  },
+  "timed_out_tool_calls": 4,
+  "imputed_cost_usd": 5.164397,
+  "run_id": "20260726T114646Z-7f8fb7a",
+  "label": "",
+  "answers_written": 30,
+  "status": "done"
+}

@@ -1,0 +1,11 @@
+cod_imovel,annex1_commodity,post2020_loss_ha,entity_id,entity_kind,tier,basis,distance_km
+GO-5212204-00000000000000000000000000000000,cattle,1500.0,buyer_0,buyer,slaughter_point,observed,45.2
+GO-5212204-00000000000000000000000000000001,cattle,1450.0,buyer_1,buyer,slaughter_point,observed,50.2
+GO-5212204-00000000000000000000000000000002,cattle,1400.0,buyer_2,buyer,slaughter_point,observed,55.2
+GO-5212204-00000000000000000000000000000003,cattle,1350.0,buyer_3,buyer,slaughter_point,observed,60.2
+GO-5212204-00000000000000000000000000000004,cattle,1300.0,buyer_4,buyer,slaughter_point,observed,65.2
+GO-5212204-00000000000000000000000000000005,cattle,1250.0,buyer_5,buyer,slaughter_point,observed,70.2
+GO-5212204-00000000000000000000000000000006,cattle,1200.0,buyer_6,buyer,slaughter_point,observed,75.2
+GO-5212204-00000000000000000000000000000007,cattle,1150.0,buyer_7,buyer,slaughter_point,observed,80.2
+GO-5212204-00000000000000000000000000000008,cattle,1100.0,buyer_8,buyer,slaughter_point,observed,85.2
+GO-5212204-00000000000000000000000000000009,cattle,1050.0,buyer_9,buyer,slaughter_point,observed,90.2

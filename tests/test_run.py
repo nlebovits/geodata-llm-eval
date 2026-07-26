@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -72,7 +73,7 @@ def test_dry_run_assembles_workspace_without_docker(monkeypatch, capsys,
 
     fake_credentials(tmp_path, monkeypatch)
     monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
-    run.run_session("haiku", 1, dry_run=True, input_mode="csv")
+    run.run_session("haiku", dry_run=True, input_mode="csv")
     out = capsys.readouterr().out
     assert "docker run" in out
     assert "--model claude-haiku-4-5-20251001" in out
@@ -221,47 +222,57 @@ def test_progress_snapshot_handles_an_absent_transcript(tmp_path):
     assert run.progress_snapshot(tmp_path / "nope.jsonl") == (0, "-")
 
 
-def results_dir(monkeypatch, tmp_path, model, passes):
+def test_a_run_is_named_for_when_it_ran_and_what_it_ran():
+    """The name used to be a position in a sequence, so two runs could want
+    it and the second destroyed the first. Every guard against that -- the
+    scan for a free number, --start-pass, --force -- managed a collision a
+    timestamped name cannot have."""
+    started = datetime(2026, 7, 26, 11, 46, 46, tzinfo=timezone.utc)
+    name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca")
+    assert name == "20260726T114646Z-7f8fb7a"
+
+
+def test_run_names_sort_chronologically():
+    """Run ids are read and globbed as strings, so ordering has to fall out
+    of the name rather than out of a stat call."""
+    earlier = run.run_id(datetime(2026, 7, 26, 9, 0, tzinfo=timezone.utc), "a" * 40)
+    later = run.run_id(datetime(2026, 7, 26, 17, 0, tzinfo=timezone.utc), "b" * 40)
+    assert sorted([later, earlier]) == [earlier, later]
+
+
+def test_two_runs_a_second_apart_do_not_collide():
+    a = run.run_id(datetime(2026, 7, 26, 9, 0, 0, tzinfo=timezone.utc), "abc1234")
+    b = run.run_id(datetime(2026, 7, 26, 9, 0, 1, tzinfo=timezone.utc), "abc1234")
+    assert a != b
+
+
+def test_the_collision_guards_are_gone(monkeypatch, tmp_path):
+    """--force and --start-pass existed only to arbitrate a name clash."""
     monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
-    for n in passes:
-        (tmp_path / "results" / model / f"pass-{n}").mkdir(parents=True)
-    return tmp_path
-
-
-def test_next_free_pass_skips_what_exists(monkeypatch, tmp_path):
-    """Re-running one pass at a time used to overwrite the pass before it,
-    destroying transcripts that had already been graded."""
-    results_dir(monkeypatch, tmp_path, "opus", [1, 2])
-
-    assert run.next_free_pass("opus") == 3
-
-
-def test_next_free_pass_starts_at_one_when_empty(monkeypatch, tmp_path):
-    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
-    assert run.next_free_pass("opus") == 1
-
-
-def test_explicit_start_pass_refuses_to_clobber(monkeypatch, tmp_path, capsys):
-    results_dir(monkeypatch, tmp_path, "opus", [1])
     monkeypatch.setattr(sys, "argv",
-                        ["run.py", "--model", "opus", "--passes", "1",
-                         "--start-pass", "1"])
-
-    with pytest.raises(SystemExit) as exit_info:
-        run.main()
-
-    assert "already exist" in str(exit_info.value)
-
-
-def test_force_allows_overwriting_a_pass(monkeypatch, tmp_path):
-    """Deliberate replacement stays possible, it just has to be asked for."""
-    results_dir(monkeypatch, tmp_path, "opus", [1])
-    monkeypatch.setattr(sys, "argv",
-                        ["run.py", "--model", "opus", "--passes", "1",
-                         "--start-pass", "1", "--force", "--dry-run"])
-    monkeypatch.setattr(run, "run_session", lambda *a, **k: None)
+                        ["run.py", "--model", "opus", "--passes", "2"])
+    calls = []
+    monkeypatch.setattr(run, "run_session",
+                        lambda *a, **k: calls.append(a))
 
     assert run.main() == 0
+    assert len(calls) == 2
+    assert not hasattr(run, "next_free_pass")
+
+
+def test_a_label_groups_runs_without_moving_them(monkeypatch, tmp_path):
+    """More than ten runs of one configuration needs a way to say which runs
+    belong together, and a directory convention is the wrong place for it."""
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv",
+                        ["run.py", "--model", "opus", "--passes", "1",
+                         "--label", "experiment-1"])
+    seen = []
+    monkeypatch.setattr(run, "run_session",
+                        lambda *a, **k: seen.append(a[-1]))
+
+    assert run.main() == 0
+    assert seen == ["experiment-1"]
 
 
 # --- observability and cleanup ----------------------------------------------

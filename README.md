@@ -130,6 +130,32 @@ retry harness above the session. Every session's full transcript is committed to
 `results/`, along with token counts and the harness commit hash. Anyone can
 re-grade the committed transcripts without re-running a single model call.
 
+A run lands in `results/{model}/{run_id}/`, where the run id is its UTC start
+time and the harness commit:
+
+```
+results/opus/20260726T165606Z-40c072f/
+```
+
+The name is the identity, so runs never collide and never overwrite each
+other, they sort chronologically, and a directory listing already says when
+each ran and against what code. Group runs for a comparison with `--label`,
+which is recorded in `meta.json` rather than imposed on the directory tree, so
+a run can join a comparison without being moved.
+
+Alongside the token counts, each `meta.json` records how fast source.coop was
+answering at the start and end of the run, and a fingerprint of the golden
+manifest. Session wall clock is mostly time spent waiting on the catalogs,
+whose throughput varies by more than an order of magnitude with the network
+route, and the fixtures are regenerated whenever the oracle changes. Without
+both recorded, a slow model and a slow route look identical afterwards, and
+two scores computed against different fixtures look comparable.
+
+A session that ends without writing an answer file is marked
+`produced_nothing` and left out of every average. It measured nothing about
+the model, and counting it as thirty wrong answers blames the model for a run
+that did not happen. The run stays on disk for the audit trail.
+
 One host artifact crosses into the container: a login token. `harness/run.py`
 copies `~/.claude/.credentials.json` into a throwaway per-session directory and
 mounts that copy at `/home/runner/.claude`, so the CLI can refresh an expiring

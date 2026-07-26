@@ -17,11 +17,12 @@ QUESTIONS = [
 
 
 def _session(tmp, model, pass_n, grades, cost, runtime=None):
-    d = tmp / model / f"pass-{pass_n}"
+    run_id = f"2026072{pass_n}T120000Z-abc1234"
+    d = tmp / model / run_id
     (d / "answers").mkdir(parents=True)
     (d / "grades.json").write_text(json.dumps(grades))
-    meta = {"model": model, "pass": pass_n, "imputed_cost_usd": cost,
-            "turns": 12}
+    meta = {"model": model, "run_id": run_id, "label": "",
+            "status": "done", "imputed_cost_usd": cost, "turns": 12}
     meta.update(runtime or {})
     (d / "meta.json").write_text(json.dumps(meta))
 
@@ -89,3 +90,31 @@ def test_report_without_consistency_file_still_renders(tmp_path):
     text = out.read_text()
     assert "Accuracy by workflow stage" in text
     assert "Cross-run consistency" not in text  # no consistency.json present
+
+
+def test_a_run_that_wrote_nothing_stays_out_of_the_averages(tmp_path):
+    """A session that ended without attempting the questions is not thirty
+    wrong answers. Scoring it as one blamed the model for a run that never
+    happened and dragged every average it appeared in."""
+    results = tmp_path / "results"
+    _session(results, "opus", 1,
+             {"q01": "correct", "q02": "correct", "q03": "correct"}, 1.0)
+    _session(results, "opus", 2, {}, 2.0)
+    aborted = next(d for d in (results / "opus").iterdir()
+                   if "20260722" in d.name)
+    meta = json.loads((aborted / "meta.json").read_text())
+    meta["status"] = "produced_nothing"
+    (aborted / "meta.json").write_text(json.dumps(meta))
+
+    sessions = report.load_sessions(results)
+
+    assert [s["accuracy"] for s in sessions] == [1.0]
+    assert sessions[0]["run_id"].startswith("20260721T")
+
+
+def test_sessions_carry_their_run_id_and_label(tmp_path):
+    results = tmp_path / "results"
+    _session(results, "opus", 1, {"q01": "correct"}, 1.0)
+    (sess,) = report.load_sessions(results)
+    assert sess["run_id"] == "20260721T120000Z-abc1234"
+    assert sess["label"] == ""
