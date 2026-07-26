@@ -16,12 +16,14 @@ QUESTIONS = [
 ]
 
 
-def _session(tmp, model, pass_n, grades, cost):
+def _session(tmp, model, pass_n, grades, cost, runtime=None):
     d = tmp / model / f"pass-{pass_n}"
     (d / "answers").mkdir(parents=True)
     (d / "grades.json").write_text(json.dumps(grades))
-    (d / "meta.json").write_text(json.dumps({
-        "model": model, "pass": pass_n, "imputed_cost_usd": cost, "turns": 12}))
+    meta = {"model": model, "pass": pass_n, "imputed_cost_usd": cost,
+            "turns": 12}
+    meta.update(runtime or {})
+    (d / "meta.json").write_text(json.dumps(meta))
 
 
 def test_stage_grid_and_consistency_render(tmp_path):
@@ -49,6 +51,32 @@ def test_stage_grid_and_consistency_render(tmp_path):
     assert "GO-1" in text
     # oracle deviation column is present
     assert "0.400" in text
+
+
+def test_runtime_breakdown_is_reported_next_to_accuracy(tmp_path):
+    """A run that spent 73% of its wall clock waiting on source.coop scores
+    worse for reasons that are not the model's; the report has to say so."""
+    results = tmp_path / "results"
+    _session(results, "opus", 1,
+             {"q01": "correct", "q02": "wrong", "q03": "near_miss"}, 1.2,
+             runtime={"duration_seconds": 1858.2, "slow_tool_calls": 21,
+                      "slow_tool_seconds": 1350.0, "timed_out_tool_calls": 4})
+    sessions = report.load_sessions(results)
+    assert sessions[0]["near_miss"] == 1
+    assert round(sessions[0]["slow_tool_share"], 2) == 0.73
+
+    out = results / "report.md"
+    report.write_report_md(sessions, out, QUESTIONS, results)
+    text = out.read_text()
+    assert "## Runtime" in text
+    assert "73%" in text          # share of wall clock inside slow calls
+    assert "31m" in text          # wall clock
+    assert "| 4 |" in text        # tool timeouts
+
+    report.write_summary_csv(sessions, results / "summary.csv")
+    header, row = results.joinpath("summary.csv").read_text().splitlines()[:2]
+    assert "timed_out_tool_calls" in header and "near_miss" in header
+    assert row.endswith("1858.2,1350.0,4")
 
 
 def test_report_without_consistency_file_still_renders(tmp_path):

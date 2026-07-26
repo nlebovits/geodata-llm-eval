@@ -45,14 +45,22 @@ def load_sessions(results_dir: Path) -> list[dict]:
         meta = json.loads(meta_path.read_text())
         total = len(grades)
         correct = sum(1 for v in grades.values() if v == "correct")
+        near_miss = sum(1 for v in grades.values() if v == "near_miss")
+        duration = meta.get("duration_seconds", 0.0) or 0.0
+        slow = meta.get("slow_tool_seconds", 0.0) or 0.0
         sessions.append({
             "model": meta["model"],
             "pass": meta["pass"],
             "accuracy": correct / total if total else 0.0,
             "correct": correct,
+            "near_miss": near_miss,
             "total": total,
             "cost_usd": meta.get("imputed_cost_usd", 0.0),
             "turns": meta.get("turns", 0),
+            "duration_seconds": duration,
+            "slow_tool_seconds": slow,
+            "slow_tool_share": slow / duration if duration else 0.0,
+            "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
             "grades": grades,
         })
     return sessions
@@ -135,8 +143,40 @@ def consistency_lines(results_dir: Path) -> list[str]:
     return lines
 
 
+def runtime_lines(sessions: list[dict]) -> list[str]:
+    """Wall clock, and how much of it went to waiting on remote reads.
+
+    A session that loses a third of its turns to source.coop timeouts scores
+    worse for reasons that have nothing to do with the model. Printing the
+    share next to accuracy makes a degraded run visible instead of inferred.
+    """
+    if not sessions:
+        return []
+    lines = ["## Runtime", "",
+             "Slow-call share is time inside tool calls slow enough to emit a",
+             "heartbeat, over wall clock. A high share with timeouts means the",
+             "run was degraded by the network, not by the model.", "",
+             "| Model | Mean wall clock | In slow tool calls | Timed-out calls |",
+             "|-------|-----------------|--------------------|-----------------|"]
+    for model in MODEL_ORDER:
+        rows = [s for s in sessions if s["model"] == model]
+        if not rows:
+            continue
+        wall = statistics.mean([s["duration_seconds"] for s in rows])
+        share = statistics.mean([s["slow_tool_share"] for s in rows])
+        timeouts = sum(s["timed_out_tool_calls"] for s in rows)
+        lines.append(
+            f"| {MODEL_LABELS[model]} | {wall / 60:.0f}m"
+            f" | {share:.0%} | {timeouts} |"
+        )
+    lines.append("")
+    return lines
+
+
 def write_summary_csv(sessions: list[dict], path: Path) -> None:
-    fields = ["model", "pass", "accuracy", "correct", "total", "cost_usd", "turns"]
+    fields = ["model", "pass", "accuracy", "correct", "near_miss", "total",
+              "cost_usd", "turns", "duration_seconds", "slow_tool_seconds",
+              "timed_out_tool_calls"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -153,8 +193,13 @@ def write_report_md(sessions: list[dict], path: Path,
         "golden fixture. Cost is imputed from logged tokens at list API",
         "prices (see harness/pricing.py).",
         "",
-        "| Model | Passes | Mean accuracy | Accuracy range | Mean cost (USD) |",
-        "|-------|--------|---------------|----------------|-----------------|",
+        "Near misses clear ten times the grading tolerance but not the",
+        "tolerance itself: computed right, formatted or rounded differently.",
+        "",
+        "| Model | Passes | Mean accuracy | Accuracy range | Mean near misses"
+        " | Mean cost (USD) |",
+        "|-------|--------|---------------|----------------|------------------"
+        "|-----------------|",
     ]
     for model in MODEL_ORDER:
         rows = [s for s in sessions if s["model"] == model]
@@ -162,13 +207,16 @@ def write_report_md(sessions: list[dict], path: Path,
             continue
         accs = [s["accuracy"] for s in rows]
         costs = [s["cost_usd"] for s in rows]
+        near = statistics.mean([s["near_miss"] for s in rows])
         lines.append(
             f"| {MODEL_LABELS[model]} | {len(rows)}"
             f" | {statistics.mean(accs):.1%}"
             f" | {min(accs):.1%} – {max(accs):.1%}"
+            f" | {near:.1f}"
             f" | ${statistics.mean(costs):.4f} |"
         )
     lines.append("")
+    lines += runtime_lines(sessions)
     lines += stage_grid_lines(sessions, questions or [])
     if results_dir is not None:
         lines += consistency_lines(results_dir)
