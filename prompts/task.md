@@ -56,10 +56,13 @@ the task and is governed by `EUDR_CROPS.md` — not by anything in this prompt.
 
 ## Your output
 
-This session runs once and is not resumed. Nothing wakes it up later, no one
-reads a note you leave for a future turn, and any work you defer is lost when
-the session ends. Write each answer to disk as soon as you have it, rather
-than holding results to write at the end.
+Do the work in the foreground, and write each answer to disk as soon as you
+have it rather than holding results to write at the end. Nothing survives the
+end of your turn: a query you hand to a background task, a command you leave
+polling, a wake-up you schedule, and a note you leave for a later turn are all
+killed when the turn ends, and their output is gone with them. Backgrounding a
+slow query and yielding to wait for it loses the query. Wait for it instead —
+a twenty-minute query that returns beats one you never see.
 
 Answer every question in `questions.yaml`. For each, write one CSV to
 `answers/q{id}.csv` matching that question's output contract: the specified
@@ -80,6 +83,10 @@ columns `cod_imovel`, `annex1_commodity`, `post2020_loss_ha`,
 - Query the remote data directly. Do not download whole files when a targeted
   query will do.
 - If a query errors, read the error and fix your approach.
+- Run one DuckDB process at a time. A database file takes a single writer, so
+  a second process opening it fails with `Conflicting lock is held`, and
+  waiting inside that second process for the first to finish is a deadlock.
+  Keep one process, or give each concurrent query its own database file.
 - Answer every question, even if uncertain. A best-effort answer beats a missing
   file.
 - Do not fabricate numbers. Every value must come from a query you actually ran.

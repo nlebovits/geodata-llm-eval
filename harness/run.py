@@ -7,6 +7,10 @@ host. The model works through the full question set once per session.
 The container workspace receives only prompts/task.md and
 fixtures/questions.yaml — never the golden answers.
 
+A session that ends its turn with questions still unanswered is resumed
+into the same session id, with a prompt naming what is missing, up to
+--max-attempts times. Its transcript holds every attempt.
+
 Per session, this writes results/{model}/{run_id}/, where a run id is
 the UTC start time and the harness commit:
     transcript.jsonl   raw stream-json output from the session
@@ -45,6 +49,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # without burying the two lines that matter.
 HEARTBEAT_SECONDS = 60
 POLL_SECONDS = 2
+
+# A headless session ends its turn when the model stops calling tools, which
+# is not the same as finishing the work: a session that parks an expensive
+# query in the background and yields, expecting to be woken, is never woken.
+# Its container dies with the background task still running. Rather than
+# score that as a model that answered four questions, the harness resumes the
+# same session and says what is missing. Attempts are bounded because a model
+# that stops for a reason other than waiting will stop again.
+MAX_ATTEMPTS = 3
+
+INITIAL_PROMPT = "Read task.md and complete it."
 
 # --follow truncates each tool call to one line of this width. A session
 # writes multi-line heredocs of SQL; the point of following is to see what it
@@ -124,7 +139,10 @@ def auth_args(session_home: Path) -> list[str]:
 
 
 def docker_command(workspace: Path, session_home: Path,
-                   model_id: str, container: str) -> list[str]:
+                   model_id: str, container: str,
+                   prompt: str = INITIAL_PROMPT,
+                   resume_session: str | None = None) -> list[str]:
+    resume = ["--resume", resume_session] if resume_session else []
     return [
         # `--rm` already drops the container's anonymous volumes on exit.
         # `--name` is what lets an interrupted run find and remove its own
@@ -141,7 +159,8 @@ def docker_command(workspace: Path, session_home: Path,
         "-v", f"{workspace}:/workspace",
         *auth_args(session_home),
         IMAGE,
-        "-p", "Read task.md and complete it.",
+        "-p", prompt,
+        *resume,
         "--model", model_id,
         "--output-format", "stream-json",
         "--verbose",
@@ -170,26 +189,48 @@ def read_records(transcript_path: Path):
                 continue
 
 
+# Usage field in a `result` record -> the name meta.json reports it under.
+USAGE_FIELDS = {
+    "input_tokens": "input_tokens",
+    "output_tokens": "output_tokens",
+    "cache_creation_input_tokens": "cache_creation_tokens",
+    "cache_read_input_tokens": "cache_read_tokens",
+}
+
+
 def parse_result_record(transcript_path: Path) -> dict:
     """Pull token counts and turn count from the stream-json transcript.
 
-    The final `result` record carries cumulative usage; turn count is the
-    number of assistant records.
+    A `result` record carries the cumulative usage of one CLI invocation, and
+    a resumed session appends a second one. Taking the last record would bill
+    the run for its final attempt alone, so the counts are summed: every
+    attempt spent real tokens, and the imputed cost has to say so. Turn count
+    is the number of assistant records.
     """
-    usage: dict = {}
+    totals = dict.fromkeys(USAGE_FIELDS.values(), 0)
     turns = 0
     for record in read_records(transcript_path):
         if record.get("type") == "assistant":
             turns += 1
         if record.get("type") == "result":
             usage = record.get("usage") or {}
-    return {
-        "turns": turns,
-        "input_tokens": usage.get("input_tokens", 0),
-        "output_tokens": usage.get("output_tokens", 0),
-        "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
-        "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
-    }
+            for field, name in USAGE_FIELDS.items():
+                totals[name] += usage.get(field) or 0
+    return {"turns": turns, **totals}
+
+
+def session_id(transcript_path: Path) -> str | None:
+    """The id `--resume` needs to continue this session.
+
+    Every stream-json record carries it, and it holds across a resume, so
+    the last one that has it is the id of the session on disk.
+    """
+    found = None
+    for record in read_records(transcript_path):
+        value = record.get("session_id")
+        if isinstance(value, str) and value:
+            found = value
+    return found
 
 
 # The CLI caps a Bash call here. A call reported at or above the cap was
@@ -252,15 +293,60 @@ def tool_subject(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True)
 
 
+def question_ids() -> list[str]:
+    """The question ids a complete session answers, in spec order."""
+    text = (REPO_ROOT / "fixtures" / "questions.yaml").read_text("utf-8")
+    ids = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("- id:"):
+            ids.append(stripped.split(":", 1)[1].strip().strip("\"'"))
+    return ids
+
+
 def question_count() -> int:
     """How many answers a complete session writes, read from the spec.
 
     Hard-coding 30 beside a spec that defines the questions invites the two to
     drift, and the progress line would then under- or over-report forever.
     """
-    text = (REPO_ROOT / "fixtures" / "questions.yaml").read_text("utf-8")
-    return sum(1 for line in text.splitlines()
-               if line.lstrip().startswith("- id:"))
+    return len(question_ids())
+
+
+def answer_name(question_id: str) -> str:
+    """The answer file a question is written to, as task.md names it."""
+    return f"q{question_id}"
+
+
+def missing_answers(out_dir: Path) -> list[str]:
+    """Answer files a complete session would have written and this one has not."""
+    written = {path.stem for path in (out_dir / "answers").glob("q*.csv")}
+    return [answer_name(qid) for qid in question_ids()
+            if answer_name(qid) not in written]
+
+
+def resume_prompt(missing: list[str]) -> str:
+    """What a resumed session is told about why it is running again.
+
+    It ended its turn with work outstanding, most often after handing an
+    expensive query to a background task and yielding to wait for it. Nothing
+    was waiting: the container exited and took the task with it. So the nudge
+    names the questions still unanswered and rules out the move that lost the
+    last attempt, rather than repeating the original instruction and letting
+    the session make the same bet twice.
+    """
+    listed = ", ".join(missing[:10])
+    if len(missing) > 10:
+        listed += f", and {len(missing) - 10} more"
+    return (
+        f"Your previous turn ended with {len(missing)} of {question_count()} "
+        f"answers unwritten: {listed}. Nothing was waiting for you. Any "
+        "background task or scheduled wake-up you left running was killed "
+        "when your turn ended, and its output is gone. Redo that work in the "
+        "foreground, waiting for each query to return before you move on, "
+        "and write each answer to answers/<question-id>.csv as soon as you "
+        "have it. Re-read task.md if you need the output contracts."
+    )
 
 
 def session_verdict(answered: int) -> str:
@@ -421,7 +507,8 @@ def clear_pass_dir(out_dir: Path) -> None:
 
 
 def run_session(model: str, dry_run: bool, input_mode: str = "csv",
-                follow: bool = False, label: str = "") -> None:
+                follow: bool = False, label: str = "",
+                max_attempts: int = MAX_ATTEMPTS) -> None:
     model_id = PRICES[model].model_id
     started = datetime.now(timezone.utc)
     name = run_id(started, harness_commit())
@@ -466,51 +553,92 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
         print(f"[{model}/{name}] starting"
               f" (source.coop {speed} via {catalog_before.get('colo') or '?'})")
 
-        # Popen rather than run(): a session works remote catalogs for tens of
-        # minutes, and a single line at the end cannot tell a run that is
-        # progressing from one that is wedged. stderr goes to a file because a
-        # pipe nobody drains fills its buffer and deadlocks the container.
-        with open(transcript_path, "w", encoding="utf-8") as transcript, \
-                open(errors_path, "w", encoding="utf-8") as errors:
-            proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
-                                    text=True)
-            next_beat = started_at + HEARTBEAT_SECONDS
-            follower = Follower() if follow else None
-            try:
-                while proc.poll() is None:
-                    time.sleep(POLL_SECONDS)
-                    if follower:
-                        follower.consume(transcript_path)
-                    if time.monotonic() < next_beat:
-                        continue
-                    next_beat = time.monotonic() + HEARTBEAT_SECONDS
-                    turns, last_tool = progress_snapshot(transcript_path)
-                    elapsed = (time.monotonic() - started_at) / 60
-                    answered = len(list((out_dir / "answers").glob("q*.csv")))
-                    waiting = follower.running_for() if follower else 0.0
-                    detail = (f"in {last_tool} {waiting:.0f}s" if waiting
-                              else f"last: {last_tool}")
-                    print(
-                        f"[{model}/{name}] {elapsed:.0f}m ·"
-                        f" {turns} turns · {answered}/{question_count()} answers · {detail}",
-                        flush=True,
-                    )
-            finally:
-                # Ctrl-C kills this process, not the container it started, and
-                # `docker run --rm` only cleans up after a container it is
-                # still attached to exits. Without this the session keeps
-                # running headless, holding the mounted credential copy open
-                # and writing into a transcript nobody reads.
-                stop_session(proc, container)
-            if follower:
-                follower.consume(transcript_path)
+        follower = Follower() if follow else None
+
+        def stream(cmd: list[str], container_name: str, mode: str) -> int:
+            """Run one invocation to completion, printing progress.
+
+            Popen rather than run(): a session works remote catalogs for tens
+            of minutes, and a single line at the end cannot tell a run that is
+            progressing from one that is wedged. stderr goes to a file because
+            a pipe nobody drains fills its buffer and deadlocks the container.
+            Both files are opened in the caller's mode so a resumed attempt
+            adds to the record of the first rather than erasing it.
+            """
+            with open(transcript_path, mode, encoding="utf-8") as transcript, \
+                    open(errors_path, mode, encoding="utf-8") as errors:
+                proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
+                                        text=True)
+                next_beat = time.monotonic() + HEARTBEAT_SECONDS
+                try:
+                    while proc.poll() is None:
+                        time.sleep(POLL_SECONDS)
+                        if follower:
+                            follower.consume(transcript_path)
+                        if time.monotonic() < next_beat:
+                            continue
+                        next_beat = time.monotonic() + HEARTBEAT_SECONDS
+                        turns, last_tool = progress_snapshot(transcript_path)
+                        elapsed = (time.monotonic() - started_at) / 60
+                        # Counted in the workspace, which is where the session
+                        # writes. The results directory only receives them
+                        # once the session is over.
+                        answered = question_count() - len(
+                            missing_answers(workspace))
+                        waiting = follower.running_for() if follower else 0.0
+                        detail = (f"in {last_tool} {waiting:.0f}s" if waiting
+                                  else f"last: {last_tool}")
+                        print(
+                            f"[{model}/{name}] {elapsed:.0f}m ·"
+                            f" {turns} turns · {answered}/{question_count()}"
+                            f" answers · {detail}",
+                            flush=True,
+                        )
+                finally:
+                    # Ctrl-C kills this process, not the container it started,
+                    # and `docker run --rm` only cleans up after a container it
+                    # is still attached to exits. Without this the session
+                    # keeps running headless, holding the mounted credential
+                    # copy open and writing into a transcript nobody reads.
+                    stop_session(proc, container_name)
+                if follower:
+                    follower.consume(transcript_path)
+            if proc.returncode != 0:
+                print(f"[{model}/{name}] session exited {proc.returncode}",
+                      file=sys.stderr)
+                print(errors_path.read_text(encoding="utf-8")[-2000:],
+                      file=sys.stderr)
+            return proc.returncode
+
+        attempts = 0
+        returncode = stream(cmd, container, "w")
+        while True:
+            attempts += 1
+            missing = missing_answers(workspace)
+            if not missing or attempts >= max_attempts:
+                break
+            # The session id survives in the mounted home, so the same session
+            # can be handed back its own history. Without one there is nothing
+            # to resume into, and starting a fresh session would answer the
+            # remaining questions without the context that produced the first
+            # answers.
+            resume = session_id(transcript_path)
+            if not resume:
+                print(f"[{model}/{name}] no session id in the transcript;"
+                      f" cannot resume")
+                break
+            print(f"[{model}/{name}] resuming: {len(missing)} of"
+                  f" {question_count()} answers missing"
+                  f" (attempt {attempts + 1} of {max_attempts})", flush=True)
+            returncode = stream(
+                docker_command(workspace, session_home, model_id,
+                               f"{container}-{attempts + 1}",
+                               resume_prompt(missing), resume),
+                f"{container}-{attempts + 1}",
+                "a",
+            )
 
         duration = round(time.monotonic() - started_at, 1)
-        if proc.returncode != 0:
-            print(f"[{model}/{name}] session exited {proc.returncode}",
-                  file=sys.stderr)
-            print(errors_path.read_text(encoding="utf-8")[-2000:],
-                  file=sys.stderr)
 
         answers_out = out_dir / "answers"
         if answers_out.exists():
@@ -526,7 +654,8 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             "started_utc": started.isoformat(),
             "finished_utc": datetime.now(timezone.utc).isoformat(),
             "duration_seconds": duration,
-            "exit_code": proc.returncode,
+            "exit_code": returncode,
+            "attempts": attempts,
             "harness_commit": harness_commit(),
             "input_mode": input_mode,
             "golden_fingerprint": golden_fingerprint(),
@@ -559,12 +688,13 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             f" ({waited / 60:.0f}m in slow tool calls,"
             f" {meta['timed_out_tool_calls']} timed out),"
             f" ${meta['imputed_cost_usd']:.4f} imputed"
+            + (f", {attempts} attempts" if attempts > 1 else "")
         )
-        if not answered:
+        if answered < question_count():
             print(
-                f"[{model}/{name}] the session ended on its own without"
-                f" writing an answer file; nothing resumes a headless run,"
-                f" so work it deferred is lost"
+                f"[{model}/{name}] the session stopped short of the question"
+                f" set {attempts} time(s) and was resumed each time; whatever"
+                f" it deferred on its last turn is lost"
             )
 
 
@@ -634,11 +764,14 @@ def main() -> int:
                     help="print each tool call as the session makes it")
     ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
                     help="encoding of the input list; see policies/INPUTS.md")
+    ap.add_argument("--max-attempts", type=int, default=MAX_ATTEMPTS,
+                    help="how many times a session that stops with questions "
+                         "unanswered is resumed (1 disables resuming)")
     args = ap.parse_args()
 
     for _ in range(args.passes):
         run_session(args.model, args.dry_run, args.input_mode, args.follow,
-                    args.label)
+                    args.label, max_attempts=args.max_attempts)
     return 0
 
 

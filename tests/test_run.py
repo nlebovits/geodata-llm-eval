@@ -4,6 +4,7 @@ never the golden fixtures. Does not require Docker."""
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -510,11 +511,240 @@ def test_question_count_comes_from_the_spec():
     assert run.question_count() == text.count("\n  - id:")
 
 
-def test_the_prompt_tells_the_session_it_will_not_be_resumed():
-    """A session deferred its remaining work with ScheduleWakeup and ended its
-    turn. Nothing resumes a headless container, so the run cost $2 and wrote
-    no answers. The environment fact belongs in the prompt; the method for
-    finishing on time does not."""
+def test_the_prompt_rules_out_backgrounding_the_work():
+    """One session parked an 8.4M-row join in a background task and ended its
+    turn to wait for it; the container exited and killed the task. "Nothing
+    wakes it up later" did not survive contact with a tool that offers to do
+    exactly that, so the prompt names the move rather than the consequence."""
     task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
-    assert "runs once and is not resumed" in task
-    assert "deferred" in task or "defer" in task
+    assert "foreground" in task
+    assert "background" in task
+    assert "killed when the turn ends" in task
+
+
+def test_the_prompt_warns_about_the_duckdb_writer_lock():
+    """A second duckdb process on the same database file fails with
+    "Conflicting lock is held". One session spent ten turns polling /proc for
+    the pid holding it, in a container with no ps."""
+    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    assert "conflicting lock is held" in task
+    assert "one duckdb process at a time" in task
+
+
+def test_question_ids_are_the_question_count():
+    """The resume prompt names ids; the progress line counts them. Both read
+    the same spec, so they cannot disagree about what a full run is."""
+    ids = run.question_ids()
+    assert len(ids) == run.question_count()
+    assert len(set(ids)) == len(ids)
+    assert run.answer_name(ids[0]) == "q01", "task.md asks for answers/q{id}.csv"
+
+
+def test_missing_answers_names_what_the_session_still_owes(tmp_path):
+    """A resumed session is told which questions to do, not how many."""
+    (tmp_path / "answers").mkdir()
+    everything = [run.answer_name(qid) for qid in run.question_ids()]
+    for name in everything[:3]:
+        (tmp_path / "answers" / f"{name}.csv").write_text("x\n")
+
+    missing = run.missing_answers(tmp_path)
+
+    assert missing == everything[3:]
+    assert run.missing_answers(tmp_path / "empty") == everything
+
+
+def test_the_resume_prompt_says_the_background_work_is_gone(tmp_path):
+    """Handing the session back the original instruction invites the same bet
+    a second time. The nudge says what was lost and what is outstanding."""
+    prompt = run.resume_prompt(["q05", "q06"]).lower()
+
+    assert "q05" in prompt and "q06" in prompt
+    assert "background" in prompt
+    assert "foreground" in prompt
+
+
+def test_the_resume_prompt_stays_short_when_everything_is_missing():
+    """A session that stops at question four owes 26 ids. Listing all of them
+    buries the instruction they are attached to."""
+    prompt = run.resume_prompt(
+        [run.answer_name(qid) for qid in run.question_ids()])
+
+    assert prompt.count("q0") + prompt.count("q1") + prompt.count("q2") <= 12
+    assert "more" in prompt
+
+
+def test_a_resumed_attempt_asks_for_its_own_session(monkeypatch, tmp_path):
+    """Resuming into a fresh session would answer the remaining questions
+    without the context that produced the first answers. The id is what makes
+    it the same session, and it survives in the mounted home."""
+    fake_credentials(tmp_path, monkeypatch)
+    session_home = tmp_path / "home"
+    session_home.mkdir()
+
+    cmd = run.docker_command(tmp_path / "workspace", session_home, "m", "c1",
+                             "keep going", "sess-1234")
+
+    assert cmd[cmd.index("--resume") + 1] == "sess-1234"
+    assert cmd[cmd.index("-p") + 1] == "keep going"
+    assert cmd.index(run.IMAGE) < cmd.index("--resume")
+
+
+def test_the_first_attempt_does_not_resume_anything(monkeypatch, tmp_path):
+    fake_credentials(tmp_path, monkeypatch)
+    session_home = tmp_path / "home"
+    session_home.mkdir()
+
+    cmd = run.docker_command(tmp_path / "workspace", session_home, "m", "c1")
+
+    assert "--resume" not in cmd
+    assert cmd[cmd.index("-p") + 1] == run.INITIAL_PROMPT
+
+
+def test_the_session_id_is_the_last_one_the_transcript_carries(tmp_path):
+    path = write_transcript(tmp_path, [
+        {"type": "system", "session_id": "sess-1"},
+        {"type": "assistant", "session_id": "sess-1"},
+        {"type": "result", "session_id": "sess-1"},
+    ])
+
+    assert run.session_id(path) == "sess-1"
+    assert run.session_id(tmp_path / "absent.jsonl") is None
+
+
+def fake_repo(tmp_path, monkeypatch):
+    """A repo root a session can be assembled from, outside the real one."""
+    root = tmp_path / "repo"
+    for name in ("prompts", "policies", "fixtures"):
+        shutil.copytree(REPO_ROOT / name, root / name)
+    monkeypatch.setattr(run, "REPO_ROOT", root)
+    return root
+
+
+def test_a_session_that_stops_short_is_resumed(monkeypatch, tmp_path):
+    """A session ended its turn with four answers written and an 8.4M-row join
+    backgrounded, and the harness scored that as the run. The same session is
+    handed back its own id and told what is missing, and the second attempt
+    finishes the set."""
+    root = fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+    calls = []
+
+    class FakePopen:
+        """Writes the answers of an attempt, then exits like a real one."""
+
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            calls.append(cmd)
+            mount = next(a for a in cmd if a.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            names = [run.answer_name(q) for q in run.question_ids()]
+            for name in names if len(calls) > 1 else names[:4]:
+                (answers / f"{name}.csv").write_text("value\n1\n")
+            stdout.write(json.dumps({
+                "type": "result", "session_id": "sess-9",
+                "usage": {"input_tokens": 3, "output_tokens": 1},
+            }) + "\n")
+            self.returncode = 0
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+
+    run.run_session("haiku", dry_run=False)
+
+    assert len(calls) == 2, "a session that stopped short was not resumed"
+    assert "--resume" in calls[1]
+    assert calls[1][calls[1].index("--resume") + 1] == "sess-9"
+
+    meta = json.loads(next(root.glob("results/haiku/*/meta.json")).read_text())
+    assert meta["attempts"] == 2
+    assert meta["answers_written"] == run.question_count()
+    assert meta["status"] == "done"
+    assert meta["input_tokens"] == 6, "both attempts' tokens are the run's"
+
+
+def test_a_complete_session_is_not_resumed(monkeypatch, tmp_path):
+    """Resuming a session that finished would spend a second run's tokens to
+    be told there is nothing to do."""
+    fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+    calls = []
+
+    class FakePopen:
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            calls.append(cmd)
+            mount = next(a for a in cmd if a.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            for qid in run.question_ids():
+                path = answers / f"{run.answer_name(qid)}.csv"
+                path.write_text("value\n1\n")
+            stdout.write(json.dumps({"session_id": "s"}) + "\n")
+            self.returncode = 0
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+
+    run.run_session("haiku", dry_run=False)
+
+    assert len(calls) == 1
+
+
+def test_resuming_is_bounded(monkeypatch, tmp_path):
+    """A session that stops for a reason other than waiting stops again. The
+    attempts are capped so a wedged model cannot spend a run's budget twice
+    over."""
+    fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+    calls = []
+
+    class FakePopen:
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            calls.append(cmd)
+            stdout.write(json.dumps({"session_id": "s"}) + "\n")
+            self.returncode = 0
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+
+    run.run_session("haiku", dry_run=False, max_attempts=2)
+
+    assert len(calls) == 2
+    assert run.MAX_ATTEMPTS > 1, "the default must allow at least one resume"
+
+
+def test_usage_is_summed_across_attempts(tmp_path):
+    """Each invocation closes with its own cumulative `result` record. Reading
+    only the last one bills a resumed run for its final attempt alone, and the
+    imputed cost then understates what the run actually spent."""
+    usage = {"input_tokens": 10, "output_tokens": 2,
+             "cache_creation_input_tokens": 5, "cache_read_input_tokens": 7}
+    path = write_transcript(tmp_path, [
+        {"type": "assistant"},
+        {"type": "result", "usage": usage},
+        {"type": "assistant"},
+        {"type": "result", "usage": usage},
+    ])
+
+    stats = run.parse_result_record(path)
+
+    assert stats["turns"] == 2
+    assert stats["input_tokens"] == 20
+    assert stats["output_tokens"] == 4
+    assert stats["cache_creation_tokens"] == 10
+    assert stats["cache_read_tokens"] == 14
