@@ -1,0 +1,26 @@
+{
+  "experiment": "mt-adversarial",
+  "title": "Input robustness: malformed cadastral portfolios",
+  "summary": "A second, separable experiment. Where experiment 1 (Goias) feeds a clean 117-property list, this one feeds a deliberately messy portfolio of Mato Grosso soy properties carrying post-2020 deforestation, in three encodings, seeded with defects. It measures whether a model applies policies/INPUTS.md faithfully: dedupe, resolve points and ID-less geometries against CAR, and report the truly unresolvable rather than dropping it.",
+  "region": {
+    "state": "MT",
+    "municipalities": ["Alta Floresta", "Juara", "Nova Canaa do Norte", "Tabapora", "Itauba"]
+  },
+  "selection": {
+    "commodity_class": 39,
+    "commodity_label": "Soybean (Mapbiomas 39)",
+    "require_post2020_loss": true,
+    "sample_size": 15,
+    "seed": 42,
+    "note": "Clean base cadasters = CAR parcels in the listed municipios that contain at least one soy field with post-2020 Hansen loss. Sampled deterministically by seed."
+  },
+  "defects": {
+    "duplicate_cadasters": 3,
+    "centroid_rows": 3,
+    "polygons_without_id": 2,
+    "centroids_without_id": 2,
+    "note": "Counts of injected malformed rows, each drawn from the clean sample. See INPUTS.md for the required handling of each."
+  },
+  "encodings": ["csv", "geometry", "split"],
+  "extend": "Add a municipio to region.municipalities, change commodity_class (e.g. 15 pasture -> cattle) or the defect counts, or add a new region block and re-run build_inputs.py. New defect kinds go in build_inputs.py's DEFECTS registry, documented in the README."
+}

@@ -55,12 +55,27 @@ One variable: the model. Everything else is fixed.
 
 - **Models:** Claude Haiku 4.5, Sonnet 5, Opus 4.8
 - **Passes:** 10 independent sessions per model, 30 sessions total
-- **Input (experiment 1):** a 117-property Goiás portfolio (`fixtures/lists/`).
-  A Mato Grosso adversarial set with malformed inputs drives the follow-up, via
-  `--input-mode {csv,geometry,split}`.
 - **Data:** stays remote on source.coop. Cloud-native range-request access is
   the point of the exercise, not an inconvenience to cache away.
 - **Sampling:** default temperature, so the 10 passes form a real distribution.
+
+## Experiments
+
+Each experiment fixes the workflow and varies one thing. They are separable and
+extendable — a new experiment is a new input plus its own oracle, not a change
+to the harness.
+
+- **Experiment 1 — Goiás compliance baseline.** A clean 117-property portfolio
+  (`fixtures/lists/goias-sample.csv`) graded against 30 oracle-generated goldens
+  (`fixtures/golden/`). Measures whether a model can run the EUDR workflow at
+  all. This is the experiment the rest of this README describes.
+- **Experiment 2 — Input robustness** (`experiments/mt-adversarial/`). The same
+  workflow, fed a deliberately malformed Mato Grosso soy portfolio in three
+  encodings (`--input-mode {csv,geometry,split}`), seeded with duplicates,
+  centroid-for-polygon rows, and ID-less geometries. Measures whether a model
+  applies `policies/INPUTS.md` — resolving and reconciling the mess rather than
+  dropping it. Self-contained and config-driven; see its
+  [README](experiments/mt-adversarial/README.md).
 
 ## The oracle
 

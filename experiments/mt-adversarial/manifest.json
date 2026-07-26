@@ -1,0 +1,131 @@
+{
+  "experiment": "mt-adversarial",
+  "seed": 42,
+  "n_clean_sample": 15,
+  "n_emitted_rows": 18,
+  "defect_counts": {
+    "centroid": 3,
+    "centroid_no_id": 2,
+    "clean": 8,
+    "duplicate": 3,
+    "no_id": 2
+  },
+  "distinct_origin_cadasters": 15,
+  "expected_resolution": {
+    "clean": "resolve by cod_imovel",
+    "duplicate": "dedupe on (id, geometry); report the removed count",
+    "centroid": "id present -> resolve by id; flag point-precision geometry",
+    "no_id": "resolve by geometric match to the containing CAR parcel",
+    "centroid_no_id": "resolve by point-in-parcel; ambiguous or outside -> unresolvable"
+  },
+  "ground_truth_rows": [
+    [
+      0,
+      "MT-5105101-98A85E38FD884DA1B3F4F6788106DFC9",
+      "clean",
+      "MT-5105101-98A85E38FD884DA1B3F4F6788106DFC9"
+    ],
+    [
+      1,
+      "MT-5105101-98A85E38FD884DA1B3F4F6788106DFC9",
+      "duplicate",
+      "MT-5105101-98A85E38FD884DA1B3F4F6788106DFC9"
+    ],
+    [
+      2,
+      "MT-5104559-3F18841FFBAE4F5FB315F03A7E7B0849",
+      "clean",
+      "MT-5104559-3F18841FFBAE4F5FB315F03A7E7B0849"
+    ],
+    [
+      3,
+      "MT-5104559-3F18841FFBAE4F5FB315F03A7E7B0849",
+      "duplicate",
+      "MT-5104559-3F18841FFBAE4F5FB315F03A7E7B0849"
+    ],
+    [
+      4,
+      "MT-5106216-5276640FD61045BF9026EE6DE666EE6B",
+      "clean",
+      "MT-5106216-5276640FD61045BF9026EE6DE666EE6B"
+    ],
+    [
+      5,
+      "MT-5106216-5276640FD61045BF9026EE6DE666EE6B",
+      "duplicate",
+      "MT-5106216-5276640FD61045BF9026EE6DE666EE6B"
+    ],
+    [
+      6,
+      "MT-5100250-65CE2556980C44D7BF20DA735DDCAF03",
+      "centroid",
+      "MT-5100250-65CE2556980C44D7BF20DA735DDCAF03"
+    ],
+    [
+      7,
+      "MT-5104559-09422F229BFA4561AB5604128E48547A",
+      "centroid",
+      "MT-5104559-09422F229BFA4561AB5604128E48547A"
+    ],
+    [
+      8,
+      "MT-5106216-F0228EC841C24B508938984214C5EAD6",
+      "centroid",
+      "MT-5106216-F0228EC841C24B508938984214C5EAD6"
+    ],
+    [
+      9,
+      "",
+      "no_id",
+      "MT-5100250-66DBCBC7A1E84C418C65D3ECDDF96C01"
+    ],
+    [
+      10,
+      "",
+      "no_id",
+      "MT-5106216-AE7F77407B864E24A24D201613780EAE"
+    ],
+    [
+      11,
+      "",
+      "centroid_no_id",
+      "MT-5106216-D9960ECDC7974B36BF4AB38AEE372C21"
+    ],
+    [
+      12,
+      "",
+      "centroid_no_id",
+      "MT-5104559-42C9EE1EFB2C4B4888CF079598D7307C"
+    ],
+    [
+      13,
+      "MT-5107941-0F0557A79DE145B09F2D4789EC398BCA",
+      "clean",
+      "MT-5107941-0F0557A79DE145B09F2D4789EC398BCA"
+    ],
+    [
+      14,
+      "MT-5104559-5CF68CC6C3DF4B4A868EBFC00C0D2615",
+      "clean",
+      "MT-5104559-5CF68CC6C3DF4B4A868EBFC00C0D2615"
+    ],
+    [
+      15,
+      "MT-5107941-9E411B23B72340348E327370B656A986",
+      "clean",
+      "MT-5107941-9E411B23B72340348E327370B656A986"
+    ],
+    [
+      16,
+      "MT-5104559-5F3F1A5D727A4CDC90CA866C686AB46B",
+      "clean",
+      "MT-5104559-5F3F1A5D727A4CDC90CA866C686AB46B"
+    ],
+    [
+      17,
+      "MT-5104559-F7831313E8154816B1FCBB87133B1D97",
+      "clean",
+      "MT-5104559-F7831313E8154816B1FCBB87133B1D97"
+    ]
+  ]
+}

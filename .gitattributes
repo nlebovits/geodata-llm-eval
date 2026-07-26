@@ -10,3 +10,5 @@ fixtures/lists/*.csv    text eol=lf
 *.yaml  text eol=lf
 *.md    text eol=lf
 *.tmpl  text eol=lf
+experiments/*/inputs/*.csv text eol=lf
+experiments/*/manifest.json text eol=lf

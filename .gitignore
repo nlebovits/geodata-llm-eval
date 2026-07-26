@@ -9,3 +9,6 @@ __pycache__/
 
 # Oracle intermediate extracts (regenerable; the cold source.coop pull)
 fixtures/golden/_work/
+
+# experiment 2 remote extract cache (regenerable)
+experiments/*/_cache/
