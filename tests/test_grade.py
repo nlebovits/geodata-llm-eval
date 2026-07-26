@@ -8,10 +8,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 from grade import (  # noqa: E402
     CORRECT,
     MISSING,
+    NEAR_MISS,
     UNPARSEABLE,
     WRONG,
     compare,
+    diff_summary,
+    diff_table,
+    evaluate_question,
     grade_question,
+    grade_session,
     load_table,
     stage_summary,
     values_match,
@@ -174,6 +179,117 @@ def test_conditional_equals_raw_when_all_dependencies_pass():
     assert s[2]["raw"] == 0.5
     assert s[2]["n_eligible"] == 2
     assert s[2]["conditional"] == 0.5
+
+
+# --- rounding and boolean presentation -------------------------------------
+
+def test_answer_is_rounded_to_goldens_precision():
+    # The oracle rounds to one decimal; comparing the unrounded answer against
+    # 3.5 at 1e-3 failed on the rounding, not on the analysis.
+    assert values_match(3.4921141716569464, 3.5)
+    assert values_match(6.250278390494227, 6.3)
+    assert values_match(0.12932424484070615, 0.1)  # 29% raw relative error
+
+
+def test_rounding_does_not_excuse_a_wrong_value():
+    assert not values_match(3.9, 3.5)
+    assert not values_match(0.2, 0.1)
+
+
+def test_full_precision_golden_still_grades_on_tolerance():
+    # Nothing to round to here, so the 1e-3 tolerance governs as before.
+    assert values_match(152.38912659, 152.38912661)
+    assert not values_match(152.9, 152.38912661)  # 0.33% off
+
+
+def test_boolean_casing_folds():
+    for written in ("true", "True", "TRUE", "  true "):
+        assert values_match(written, "True")
+    assert values_match("false", "False")
+    assert not values_match("true", "False")
+
+
+def test_boolean_words_match_one_and_zero():
+    assert values_match(1, "True")
+    assert values_match(0, "False")
+    assert not values_match(1, "False")
+
+
+def test_counts_are_not_read_as_booleans():
+    # 1 vs 0 stays a count comparison when no boolean word is in play.
+    assert not values_match(1, 0)
+    assert values_match(1, 1)
+
+
+# --- near miss --------------------------------------------------------------
+
+def test_near_miss_for_an_answer_just_outside_tolerance(tmp_path):
+    golden = write(tmp_path, "g.csv", "value\n1000.123456\n")
+    answer = write(tmp_path, "a.csv", "value\n1002.0\n")   # 0.19% off
+    assert grade_question(answer, golden) == NEAR_MISS
+
+
+def test_wrong_stays_wrong_when_the_answer_is_far_out(tmp_path):
+    golden = write(tmp_path, "g.csv", "value\n1000.123456\n")
+    answer = write(tmp_path, "a.csv", "value\n1530.0\n")   # 53% off
+    assert grade_question(answer, golden) == WRONG
+
+
+def test_near_miss_carries_its_diffs(tmp_path):
+    golden = write(tmp_path, "g.csv", "value\n1000.123456\n")
+    answer = write(tmp_path, "a.csv", "value\n1002.0\n")
+    outcome, diffs = evaluate_question(answer, golden)
+    assert outcome == NEAR_MISS
+    assert diffs[0]["column"] == "value"
+    assert diffs[0]["near_miss"] is True
+
+
+# --- diffs ------------------------------------------------------------------
+
+def test_diff_names_the_failing_cells_only():
+    golden = [["santa_cruz", 1523.0], ["beni", 847.0]]
+    answer = [["beni", 847.0], ["santa_cruz", 1999.0]]
+    diffs = diff_table(answer, golden, golden_header=["region", "count"])
+    assert len(diffs) == 1
+    d = diffs[0]
+    assert (d["column"], d["golden"], d["answer"]) == ("count", 1523.0, 1999.0)
+    assert d["rel_error"] == round(476.0 / 1523.0, 6)
+
+
+def test_diff_survives_a_column_permutation():
+    golden = [["beni", 847.0]]
+    answer = [[999.0, "beni"]]
+    diffs = diff_table(answer, golden, golden_header=["region", "count"])
+    assert [d["column"] for d in diffs] == ["count"]
+
+
+def test_diff_reports_shape_when_row_counts_differ():
+    diffs = diff_table([[1.0]], [[1.0], [2.0]])
+    assert diffs == [{"kind": "shape", "golden_rows": 2, "answer_rows": 1,
+                      "golden_columns": 1, "answer_columns": 1}]
+
+
+def test_diff_summary_counts_cells_and_names_columns():
+    golden = [[1.0, 10.0], [2.0, 20.0]]
+    answer = [[1.0, 99.0], [2.0, 98.0]]
+    diffs = diff_table(answer, golden, golden_header=["id", "value"])
+    assert diff_summary(diffs) == "2 cells in value, worst 890.0%"
+
+
+def test_grade_session_returns_grades_and_diffs(tmp_path):
+    golden_dir = tmp_path / "golden"
+    golden_dir.mkdir()
+    (golden_dir / "q01.csv").write_text("value\n10.0\n")
+    (golden_dir / "q02.csv").write_text("value\n10.0\n")
+    session = tmp_path / "session"
+    (session / "answers").mkdir(parents=True)
+    (session / "answers" / "q01.csv").write_text("value\n10.0\n")
+    (session / "answers" / "q02.csv").write_text("value\n25.0\n")
+
+    grades, diffs = grade_session(session, golden_dir)
+    assert grades == {"q01": CORRECT, "q02": WRONG}
+    assert list(diffs) == ["q02"]
+    assert diffs["q02"][0]["golden"] == 10.0
 
 
 def test_transitive_dependency_failure_propagates():

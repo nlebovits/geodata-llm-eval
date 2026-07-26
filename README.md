@@ -83,6 +83,20 @@ Grading is executable, not model-judged. The comparator compares each session's
   choices move those answers.
 - Rows compare as multisets; column order and names are ignored.
 - A missing or unparseable answer fails, recorded separately from a wrong one.
+- Each answer cell is rounded to the precision the golden cell carries before
+  comparison, and boolean spellings (`true`, `True`, `1`) fold together. The
+  oracle rounds most float columns to one decimal, so an unrounded `3.492`
+  against a golden `3.5` used to fail at 1e-3 on the rounding rather than on
+  the analysis. The benchmark measures whether a session can compute the
+  workflow; output precision is not part of the test.
+- An answer that misses its tolerance but clears ten times it grades
+  `near_miss` rather than `wrong`, which separates a rounding artifact from an
+  answer that is off by half.
+
+Every failure is written to `diffs.json` beside `grades.json`, one record per
+mismatched cell: question, column, golden value, answer value, and relative
+error. Where the tables differ in shape the record says so instead. Triage
+starts from that file rather than from a manual CSV join.
 
 Because the stages are dependent, the harness reports two numbers per stage:
 **raw accuracy** (correct / all) and **conditional accuracy** (correct given
