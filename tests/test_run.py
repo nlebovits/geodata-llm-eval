@@ -150,3 +150,72 @@ def test_credentials_never_land_inside_the_mounted_workspace(monkeypatch,
     run.auth_args(session_home)
 
     assert not list(workspace.rglob("*credentials*"))
+
+
+def write_transcript(tmp_path, records):
+    path = tmp_path / "transcript.jsonl"
+    path.write_text(
+        "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8",
+    )
+    return path
+
+
+def heartbeat(call_id, tool, seconds):
+    return {"type": "tool_heartbeat", "tool_use_id": call_id,
+            "tool_name": tool, "elapsed_time_seconds": seconds}
+
+
+def test_tool_timings_take_the_last_heartbeat_per_call(tmp_path):
+    """Heartbeats report a running elapsed for one call, so summing them all
+    would count a single slow query several times over."""
+    path = write_transcript(tmp_path, [
+        heartbeat("a", "Bash", 30),
+        heartbeat("a", "Bash", 60),
+        heartbeat("a", "Bash", 90),
+    ])
+
+    timings = run.tool_timings(path)
+
+    assert timings["slow_tool_calls"] == 1
+    assert timings["slow_tool_seconds"] == 90
+    assert timings["slow_tool_seconds_by_tool"] == {"Bash": 90.0}
+
+
+def test_tool_timings_count_calls_that_hit_the_cap(tmp_path):
+    """A call at the cap was killed, not answered. That is the difference
+    between a slow query and one that never returned, and a run whose wall
+    clock is mostly killed queries has measured nothing."""
+    path = write_transcript(tmp_path, [
+        heartbeat("a", "Bash", run.TOOL_TIMEOUT_SECONDS),
+        heartbeat("b", "Bash", run.TOOL_TIMEOUT_SECONDS - 1),
+    ])
+
+    assert run.tool_timings(path)["timed_out_tool_calls"] == 1
+
+
+def test_tool_timings_survive_a_transcript_still_being_written(tmp_path):
+    """The heartbeat reads a file the container has open, so the last line is
+    routinely half-written."""
+    path = write_transcript(tmp_path, [heartbeat("a", "Bash", 30)])
+    with open(path, "a", encoding="utf-8") as f:
+        f.write('{"type": "tool_hea')
+
+    assert run.tool_timings(path)["slow_tool_calls"] == 1
+
+
+def test_progress_snapshot_reports_turns_and_the_last_tool(tmp_path):
+    path = write_transcript(tmp_path, [
+        {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Read"}]}},
+        {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "thinking"},
+            {"type": "tool_use", "name": "Bash"}]}},
+        {"type": "user", "message": {"content": []}},
+    ])
+
+    assert run.progress_snapshot(path) == (2, "Bash")
+
+
+def test_progress_snapshot_handles_an_absent_transcript(tmp_path):
+    """The first heartbeat can land before the container writes a line."""
+    assert run.progress_snapshot(tmp_path / "nope.jsonl") == (0, "-")

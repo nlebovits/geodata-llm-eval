@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +34,13 @@ from pricing import PRICES, imputed_cost_usd
 
 IMAGE = "geodata-llm-eval"
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# How often the run prints where a session has got to, and how often it
+# checks whether the container has exited. A session runs for tens of
+# minutes, so a minute between lines is frequent enough to show progress
+# without burying the two lines that matter.
+HEARTBEAT_SECONDS = 60
+POLL_SECONDS = 2
 
 # The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
@@ -119,6 +127,27 @@ def docker_command(workspace: Path, session_home: Path,
     ]
 
 
+def read_records(transcript_path: Path):
+    """Yield the parseable records of a transcript.
+
+    Tolerates a truncated final line, so this works on a transcript the
+    session is still writing.
+    """
+    try:
+        handle = open(transcript_path, encoding="utf-8")
+    except FileNotFoundError:
+        return
+    with handle as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
 def parse_result_record(transcript_path: Path) -> dict:
     """Pull token counts and turn count from the stream-json transcript.
 
@@ -127,19 +156,11 @@ def parse_result_record(transcript_path: Path) -> dict:
     """
     usage: dict = {}
     turns = 0
-    with open(transcript_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if record.get("type") == "assistant":
-                turns += 1
-            if record.get("type") == "result":
-                usage = record.get("usage") or {}
+    for record in read_records(transcript_path):
+        if record.get("type") == "assistant":
+            turns += 1
+        if record.get("type") == "result":
+            usage = record.get("usage") or {}
     return {
         "turns": turns,
         "input_tokens": usage.get("input_tokens", 0),
@@ -147,6 +168,62 @@ def parse_result_record(transcript_path: Path) -> dict:
         "cache_creation_tokens": usage.get("cache_creation_input_tokens", 0),
         "cache_read_tokens": usage.get("cache_read_input_tokens", 0),
     }
+
+
+# The CLI caps a Bash call here. A call reported at or above the cap was
+# killed rather than answered, which is the difference between a query that
+# was slow and one that never returned.
+TOOL_TIMEOUT_SECONDS = 120
+
+
+def tool_timings(transcript_path: Path) -> dict:
+    """Where a session spent its wall clock.
+
+    The CLI emits heartbeat records carrying a running `elapsed_time_seconds`
+    for calls slow enough to need one, so the last heartbeat per tool_use_id
+    is a lower bound on that call's duration. Short calls emit none and are
+    invisible here, which is the point: this measures the tail.
+
+    Remote reads dominate a run of this benchmark, so a total duration on its
+    own cannot distinguish a session that thought for half an hour from one
+    that waited on source.coop for half an hour.
+    """
+    longest: dict[str, tuple[str, float]] = {}
+    for record in read_records(transcript_path):
+        seconds = record.get("elapsed_time_seconds")
+        call_id = record.get("tool_use_id")
+        if seconds is None or call_id is None:
+            continue
+        name = record.get("tool_name") or "unknown"
+        if call_id not in longest or seconds > longest[call_id][1]:
+            longest[call_id] = (name, float(seconds))
+
+    per_tool: dict[str, float] = {}
+    for name, seconds in longest.values():
+        per_tool[name] = round(per_tool.get(name, 0.0) + seconds, 1)
+    timed_out = sum(
+        1 for _, s in longest.values() if s >= TOOL_TIMEOUT_SECONDS
+    )
+    return {
+        "slow_tool_calls": len(longest),
+        "slow_tool_seconds": round(sum(s for _, s in longest.values()), 1),
+        "slow_tool_seconds_by_tool": per_tool,
+        "timed_out_tool_calls": timed_out,
+    }
+
+
+def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
+    """Turns so far and the most recent tool call, from a partial transcript."""
+    turns = 0
+    last_tool = "-"
+    for record in read_records(transcript_path):
+        if record.get("type") != "assistant":
+            continue
+        turns += 1
+        for block in (record.get("message") or {}).get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                last_tool = block.get("name", "-")
+    return turns, last_tool
 
 
 def run_session(model: str, pass_n: int, dry_run: bool,
@@ -183,16 +260,39 @@ def run_session(model: str, pass_n: int, dry_run: bool,
 
         out_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = out_dir / "transcript.jsonl"
+        errors_path = Path(tmp) / "stderr.log"
         started = datetime.now(timezone.utc).isoformat()
+        started_at = time.monotonic()
         print(f"[{model}/pass-{pass_n}] starting")
 
-        with open(transcript_path, "w", encoding="utf-8") as transcript:
-            proc = subprocess.run(cmd, stdout=transcript, stderr=subprocess.PIPE,
-                                  text=True)
+        # Popen rather than run(): a session works remote catalogs for tens of
+        # minutes, and a single line at the end cannot tell a run that is
+        # progressing from one that is wedged. stderr goes to a file because a
+        # pipe nobody drains fills its buffer and deadlocks the container.
+        with open(transcript_path, "w", encoding="utf-8") as transcript, \
+                open(errors_path, "w", encoding="utf-8") as errors:
+            proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
+                                    text=True)
+            next_beat = started_at + HEARTBEAT_SECONDS
+            while proc.poll() is None:
+                time.sleep(POLL_SECONDS)
+                if time.monotonic() < next_beat:
+                    continue
+                next_beat = time.monotonic() + HEARTBEAT_SECONDS
+                turns, last_tool = progress_snapshot(transcript_path)
+                elapsed = (time.monotonic() - started_at) / 60
+                print(
+                    f"[{model}/pass-{pass_n}] {elapsed:.0f}m"
+                    f" {turns} turns, last: {last_tool}",
+                    flush=True,
+                )
+
+        duration = round(time.monotonic() - started_at, 1)
         if proc.returncode != 0:
             print(f"[{model}/pass-{pass_n}] session exited {proc.returncode}",
                   file=sys.stderr)
-            print(proc.stderr[-2000:], file=sys.stderr)
+            print(errors_path.read_text(encoding="utf-8")[-2000:],
+                  file=sys.stderr)
 
         answers_out = out_dir / "answers"
         if answers_out.exists():
@@ -206,10 +306,12 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             "pass": pass_n,
             "started_utc": started,
             "finished_utc": datetime.now(timezone.utc).isoformat(),
+            "duration_seconds": duration,
             "exit_code": proc.returncode,
             "harness_commit": harness_commit(),
             "input_mode": input_mode,
             **stats,
+            **tool_timings(transcript_path),
             "imputed_cost_usd": round(
                 imputed_cost_usd(
                     model,
@@ -222,9 +324,13 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             ),
         }
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+        waited = meta["slow_tool_seconds"]
         print(
             f"[{model}/pass-{pass_n}] done:"
             f" {stats['turns']} turns,"
+            f" {duration / 60:.0f}m wall"
+            f" ({waited / 60:.0f}m in slow tool calls,"
+            f" {meta['timed_out_tool_calls']} timed out),"
             f" ${meta['imputed_cost_usd']:.4f} imputed"
         )
 
