@@ -5,6 +5,7 @@ skipped until the oracle has run). They guard the invariants the grader relies
 on: 30 questions, six stages, a dependency graph that points strictly backward,
 and a prompt that does not leak the EUDR scope answer.
 """
+import json
 from pathlib import Path
 
 import yaml
@@ -65,3 +66,30 @@ def test_geometry_questions_are_marked():
     by_id = {q["id"]: q for q in load()["questions"]}
     for qid in ("08", "09", "26"):
         assert by_id[qid].get("grading") == "geometry", qid
+
+
+def test_prompt_names_the_files_the_oracle_reads():
+    """The session and the grader must query the same bytes.
+
+    Catalog metadata alone does not get an agent to those files: the cadastral
+    collection advertises its data as a `kdtree_cell=*/*.parquet` glob, which
+    DuckDB cannot expand over plain HTTP, and the single-file parquet the
+    oracle reads is not listed as an asset. So the prompt names the files, and
+    this pins the prompt to the oracle's pins.
+    """
+    pins = json.loads(
+        (REPO / "fixtures" / "pins.json").read_text(encoding="utf-8")
+    )["catalogs"]
+    prompt = (REPO / "prompts" / "task.md").read_text(encoding="utf-8")
+
+    reads = [
+        pins["trazo"]["goias_parquet"],
+        pins["cadastral"]["car_parquet"],
+        pins["facilities"]["facilities_parquet"],
+    ]
+    for url in reads:
+        name = url.rsplit("/", 1)[-1]
+        assert name in prompt, (
+            f"prompts/task.md must name {name}; the agent cannot reach it "
+            f"from catalog metadata alone"
+        )

@@ -9,14 +9,24 @@ data catalogs on Source Cooperative.
 Start from each catalog's own metadata (STAC `catalog.json`, README, `llms.txt`
 where present). Do not assume a schema; discover it.
 
+Each catalog below names the file to query. Read the metadata for structure,
+scope, and provenance; read the named file for rows.
+
 - **Field boundaries** — https://data.source.coop/wri-data-lab/trazofields/
   Agricultural fields delineated from satellite imagery, carrying Hansen
   forest-loss attributes and a MapBiomas land-cover class per field.
+  Goiás: `trazo3-fields/trazo3_brazil_goias_2024.parquet`
 - **Cadastral parcels** — https://data.source.coop/tristangruppwri/cadastral/
   Brazilian CAR rural-property boundaries, keyed by `cod_imovel`.
+  File: `Brazil_CAR_AREA_IMOVEL.parquet`
 - **Commodity infrastructure** — https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/
   Silos, slaughterhouses, mills, and cooperative membership — the midstream a
   property sells into.
+  File: `facilities/BR_facilities.parquet`
+
+Each path is relative to its catalog root. The cadastral collection also
+publishes 512 kdtree partitions; the single file above is the one to use.
+DuckDB cannot expand a `*` glob over plain HTTP.
 
 The data are GeoParquet you can query remotely with DuckDB (`duckdb` is
 installed, with the `spatial` and `httpfs` extensions). Some geometry is stored
