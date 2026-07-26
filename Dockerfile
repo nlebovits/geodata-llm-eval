@@ -6,7 +6,11 @@
 FROM node:22-bookworm-slim
 
 ARG CLAUDE_CODE_VERSION=2.1.218
-ARG DUCKDB_VERSION=1.3.2
+# Must match fixtures/pins.json. The catalogs are GeoParquet 2.0.0, which
+# spatial rejects before 1.5: every read fails with "Geoparquet version
+# 2.0.0 is not supported", so the whole spatial half of the workflow is
+# unreachable and a session can only guess at it.
+ARG DUCKDB_VERSION=1.5.5
 
 # Retries + no pipelining: the default mirror route drops connections
 RUN apt-get -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 update \

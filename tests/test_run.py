@@ -1,16 +1,37 @@
 """Session assembly: the workspace gets the policies and the input list, and
 never the golden fixtures. Does not require Docker."""
 
+import json
 import os
+import re
 import sys
 from pathlib import Path
 
 import pytest
 
-HARNESS = Path(__file__).resolve().parent.parent / "harness"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HARNESS = REPO_ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 
 import run  # noqa: E402
+
+
+def test_image_duckdb_matches_the_pin():
+    """The oracle and the session must read the catalogs with the same engine.
+    A stale image pin silently voids a whole run: the catalogs are GeoParquet
+    2.0.0, spatial rejects that before 1.5, and a session that cannot read a
+    geometry answers the spatial stages from guesswork instead of failing."""
+    pinned = json.loads(
+        (REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8")
+    )["duckdb_version"]
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    match = re.search(r"^ARG DUCKDB_VERSION=(\S+)", dockerfile, re.MULTILINE)
+    assert match, "Dockerfile must pin DUCKDB_VERSION"
+    assert match.group(1) == pinned, (
+        f"Dockerfile pins DuckDB {match.group(1)}, fixtures/pins.json pins "
+        f"{pinned}; rebuild the image after changing either"
+    )
 
 
 def test_list_files_resolves_each_mode():
