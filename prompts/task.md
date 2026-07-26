@@ -83,6 +83,10 @@ columns `cod_imovel`, `annex1_commodity`, `post2020_loss_ha`,
 - Query the remote data directly. Do not download whole files when a targeted
   query will do.
 - If a query errors, read the error and fix your approach.
+- Set `threads` to 2 before a large remote scan. The catalogs sit behind a proxy
+  that resets connections under a burst of range requests, and DuckDB issues one
+  per row group per thread. `Failure when receiving data from the peer` means you
+  asked for too much at once; the retry costs more than the parallelism saved.
 - Run one DuckDB process at a time. A database file takes a single writer, so
   a second process opening it fails with `Conflicting lock is held`, and
   waiting inside that second process for the first to finish is a deadlock.

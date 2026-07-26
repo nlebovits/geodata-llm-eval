@@ -531,6 +531,16 @@ def test_the_prompt_warns_about_the_duckdb_writer_lock():
     assert "one duckdb process at a time" in task
 
 
+def test_the_prompt_caps_concurrency_on_remote_scans():
+    """data.source.coop fronts S3 with a proxy that resets connections under a
+    burst of range requests, and DuckDB opens one per row group per thread. A
+    run whose big scans die on "Failure when receiving data from the peer" has
+    measured the proxy, not the model."""
+    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    assert "threads" in task
+    assert "failure when receiving data from the peer" in task
+
+
 def test_question_ids_are_the_question_count():
     """The resume prompt names ids; the progress line counts them. Both read
     the same spec, so they cannot disagree about what a full run is."""
