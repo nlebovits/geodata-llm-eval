@@ -143,16 +143,27 @@ figure is a Pareto plot: accuracy on the y-axis, imputed dollars on the x-axis.
 
 ```bash
 pixi install
-pixi run install-hooks                           # credential guard, see below
+pixi run install-hooks                    # credential guard, see below
 pixi run test
-claude login                                     # or export ANTHROPIC_API_KEY
-python oracle/render.py                          # generate golden fixtures
+claude login                              # or export ANTHROPIC_API_KEY
 docker build -t geodata-llm-eval .
-python harness/run.py --model sonnet --passes 10
-python harness/grade.py
-python harness/consistency.py --model sonnet
-python harness/report.py
+pixi run python harness/run.py --model sonnet --passes 10
+pixi run python harness/grade.py
+pixi run python harness/consistency.py --model sonnet
+pixi run python harness/report.py
 ```
+
+Run everything through `pixi run`. The oracle needs `duckdb` and the report
+needs `matplotlib`, and neither is on a system interpreter.
+
+The golden fixtures are committed, so a run needs no generation step. To
+rebuild them from the vendored SQL and check they still reproduce:
+
+```bash
+pixi run python oracle/render.py
+```
+
+That takes a while and hits the live catalogs, which throttle.
 
 `pixi run install-hooks` points git at `hooks/`, which holds a pre-commit guard
 that rejects Anthropic tokens. It checks staged content, not only staged paths:
