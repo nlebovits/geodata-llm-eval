@@ -30,6 +30,15 @@ from pathlib import Path
 REL_TOL = 1e-3
 ABS_TOL = 1e-9
 
+# Geometry-graded questions (grading: geometry in questions.yaml) compute areas,
+# distances, or geometric thresholds, where reasonable method choices — spherical
+# vs ellipsoidal distance, the choice of equal-area projection — shift results
+# slightly. Their floats grade looser, and their integer counts allow an absolute
+# slack of max(2, 1% of golden) so a handful of boundary fields either way does
+# not fail an otherwise-correct answer.
+GEOM_REL_TOL = 1e-2
+GEOM_INT_SLACK = 2
+
 # Grade outcomes
 CORRECT = "correct"
 WRONG = "wrong"
@@ -74,18 +83,22 @@ def load_table(path: Path) -> list[list[object]] | None:
     return [[_parse_cell(c) for c in row] for row in body]
 
 
-def values_match(a: object, b: object) -> bool:
+def values_match(a: object, b: object, geometry: bool = False) -> bool:
     a_num = isinstance(a, (int, float)) and not isinstance(a, bool)
     b_num = isinstance(b, (int, float)) and not isinstance(b, bool)
     if a_num and b_num:
         if isinstance(a, int) and isinstance(b, int):
+            if geometry:
+                return abs(a - b) <= max(GEOM_INT_SLACK, 0.01 * abs(b))
             return a == b
-        return math.isclose(float(a), float(b), rel_tol=REL_TOL, abs_tol=ABS_TOL)
+        rel = GEOM_REL_TOL if geometry else REL_TOL
+        return math.isclose(float(a), float(b), rel_tol=rel, abs_tol=ABS_TOL)
     return a == b
 
 
 def _rows_match_under_permutation(
-    answer: list[list[object]], golden: list[list[object]], perm: tuple[int, ...]
+    answer: list[list[object]], golden: list[list[object]], perm: tuple[int, ...],
+    geometry: bool = False,
 ) -> bool:
     """Check answer rows == golden rows as multisets, with answer columns
     reordered by perm."""
@@ -93,7 +106,7 @@ def _rows_match_under_permutation(
     for a_row in answer:
         projected = [a_row[i] for i in perm]
         for idx, g_row in enumerate(remaining):
-            if all(values_match(p, g) for p, g in zip(projected, g_row)):
+            if all(values_match(p, g, geometry) for p, g in zip(projected, g_row)):
                 del remaining[idx]
                 break
         else:
@@ -101,7 +114,8 @@ def _rows_match_under_permutation(
     return not remaining
 
 
-def compare(answer: list[list[object]], golden: list[list[object]]) -> bool:
+def compare(answer: list[list[object]], golden: list[list[object]],
+            geometry: bool = False) -> bool:
     """True if the answer table matches golden up to row order and
     column permutation."""
     if len(answer) != len(golden):
@@ -112,12 +126,13 @@ def compare(answer: list[list[object]], golden: list[list[object]]) -> bool:
     if len(answer[0]) != n_cols:
         return False
     for perm in itertools.permutations(range(n_cols)):
-        if _rows_match_under_permutation(answer, golden, perm):
+        if _rows_match_under_permutation(answer, golden, perm, geometry):
             return True
     return False
 
 
-def grade_question(answer_path: Path, golden_path: Path) -> str:
+def grade_question(answer_path: Path, golden_path: Path,
+                   geometry: bool = False) -> str:
     golden = load_table(golden_path)
     if golden is None:
         raise ValueError(f"golden fixture unreadable: {golden_path}")
@@ -126,23 +141,110 @@ def grade_question(answer_path: Path, golden_path: Path) -> str:
     answer = load_table(answer_path)
     if answer is None:
         return UNPARSEABLE
-    return CORRECT if compare(answer, golden) else WRONG
+    return CORRECT if compare(answer, golden, geometry) else WRONG
 
 
-def grade_session(session_dir: Path, golden_dir: Path) -> dict[str, str]:
-    """Grade every golden question against a session's answers/ dir."""
+def geometry_graded_ids(questions_path: Path) -> set[str]:
+    """The set of question ids marked `grading: geometry` in questions.yaml.
+
+    Returns an empty set if the file or PyYAML is unavailable, so grading still
+    runs (every question then uses the strict tolerance).
+    """
+    try:
+        import yaml
+    except ImportError:
+        return set()
+    if not questions_path.exists():
+        return set()
+    spec = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
+    return {f"q{q['id']}" for q in spec.get("questions", [])
+            if q.get("grading") == "geometry"}
+
+
+def grade_session(session_dir: Path, golden_dir: Path,
+                  geometry_ids: set[str] | None = None) -> dict[str, str]:
+    """Grade every golden question against a session's answers/ dir.
+
+    geometry_ids (question ids like 'q08') grade with the looser geometry
+    tolerance; pass the result of geometry_graded_ids().
+    """
+    geometry_ids = geometry_ids or set()
     grades: dict[str, str] = {}
     for golden_path in sorted(golden_dir.glob("q*.csv")):
         qid = golden_path.stem
         answer_path = session_dir / "answers" / f"{qid}.csv"
-        grades[qid] = grade_question(answer_path, golden_path)
+        grades[qid] = grade_question(
+            answer_path, golden_path, geometry=qid in geometry_ids)
     return grades
+
+
+def _deps_all_correct(qid: str, by_id: dict, grades: dict) -> bool:
+    """True if every transitive dependency of qid graded correct.
+
+    Transitive, not direct: a question whose parent was itself downstream of a
+    wrong answer cannot be evidence about the model's ability at that step, so it
+    is excluded from conditional accuracy. Question ids in depends_on are bare
+    ('05'); grades are keyed 'q05'.
+    """
+    for dep in by_id[qid].get("depends_on", []):
+        if grades.get(f"q{dep}") != CORRECT:
+            return False
+        if not _deps_all_correct(dep, by_id, grades):
+            return False
+    return True
+
+
+def stage_summary(grades: dict, questions: list) -> dict:
+    """Per-stage raw and conditional accuracy.
+
+    raw          — correct / all questions in the stage.
+    conditional  — correct / questions whose dependencies all graded correct,
+                   i.e. accuracy on the questions the model actually had a fair
+                   shot at. None when no question in the stage was eligible.
+
+    The gap between the two is the error-propagation signal: a stage with high
+    raw but low conditional accuracy is failing on its own merits, while the
+    reverse means it is mostly inheriting upstream errors.
+    """
+    by_id = {q["id"]: q for q in questions}
+    out: dict = {}
+    for stage in sorted({q["stage"] for q in questions}):
+        in_stage = [q for q in questions if q["stage"] == stage]
+        n = len(in_stage)
+        n_correct = sum(1 for q in in_stage
+                        if grades.get(f"q{q['id']}") == CORRECT)
+        eligible = [q for q in in_stage
+                    if _deps_all_correct(q["id"], by_id, grades)]
+        n_elig = len(eligible)
+        n_elig_correct = sum(1 for q in eligible
+                             if grades.get(f"q{q['id']}") == CORRECT)
+        out[stage] = {
+            "n": n,
+            "raw": n_correct / n if n else None,
+            "n_eligible": n_elig,
+            "conditional": (n_elig_correct / n_elig) if n_elig else None,
+        }
+    return out
+
+
+def load_questions(questions_path: Path) -> list:
+    """questions.yaml questions list, or [] if unavailable."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    if not questions_path.exists():
+        return []
+    return yaml.safe_load(questions_path.read_text(encoding="utf-8"))\
+        .get("questions", [])
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path, default=Path("results"))
     ap.add_argument("--golden", type=Path, default=Path("fixtures/golden"))
+    ap.add_argument("--questions", type=Path,
+                    default=Path("fixtures/questions.yaml"))
     args = ap.parse_args()
 
     golden_files = list(args.golden.glob("q*.csv"))
@@ -155,9 +257,12 @@ def main() -> int:
         print(f"no sessions found under {args.results}", file=sys.stderr)
         return 1
 
+    geometry_ids = geometry_graded_ids(args.questions)
+    questions = load_questions(args.questions)
+
     print(f"{'session':<24} {'correct':>8} {'wrong':>6} {'missing':>8} {'broken':>7}")
     for session_dir in session_dirs:
-        grades = grade_session(session_dir, args.golden)
+        grades = grade_session(session_dir, args.golden, geometry_ids)
         (session_dir / "grades.json").write_text(
             json.dumps(grades, indent=2, sort_keys=True) + "\n"
         )
@@ -168,6 +273,14 @@ def main() -> int:
             f"{label:<24} {counts[CORRECT]:>8} {counts[WRONG]:>6}"
             f" {counts[MISSING]:>8} {counts[UNPARSEABLE]:>7}"
         )
+        if questions:
+            summary = stage_summary(grades, questions)
+            for stage, s in summary.items():
+                raw = f"{s['raw']:.2f}" if s["raw"] is not None else "  - "
+                cond = (f"{s['conditional']:.2f}"
+                        if s["conditional"] is not None else "  - ")
+                print(f"    stage {stage}: raw {raw}  conditional {cond}"
+                      f"  ({s['n_eligible']}/{s['n']} eligible)")
     return 0
 
 

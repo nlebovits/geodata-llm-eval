@@ -1,0 +1,102 @@
+-- ---------------------------------------------------------------------------
+-- match.sql.tmpl  →  sql/out/list/<id>/match.sql
+-- Match fields to the list's cadastral parcels per the documented ruleset
+-- (see MATCHING.md). A field is INCLUDED if EITHER:
+--   (1) >= contain_threshold of its area is inside a SINGLE listed parcel, or
+--   (2) >= contain_threshold of its area is inside the buffered UNION of ALL
+--       listed parcels (handles fields split across touching / neighbour parcels
+--       and CAR sliver gaps).
+-- Areas are compared as ratios in EPSG:4326, so the CRS cancels out.
+--
+-- Placeholders: ${CAD_PARQUET} ${FIELDS_RAW_PARQUET} ${MATCHED_PARQUET}
+--               ${CAD_MATCHED_PARQUET} ${CONTAIN_THRESHOLD} ${GAP_DEG}
+-- ---------------------------------------------------------------------------
+INSTALL spatial; LOAD spatial;
+
+CREATE OR REPLACE TABLE cad    AS SELECT * FROM read_parquet('${CAD_PARQUET}');
+CREATE OR REPLACE TABLE fields AS SELECT * FROM read_parquet('${FIELDS_RAW_PARQUET}');
+
+-- (1) Single-parcel containment fraction, per (field, parcel) that intersect.
+CREATE OR REPLACE TABLE ov AS
+SELECT f.Id AS field_id,
+       c.cod_imovel,
+       ST_Area(ST_Intersection(f.geometry, c.geometry)) AS inter_area,
+       ST_Area(f.geometry)                              AS field_area
+FROM fields f
+JOIN cad c ON ST_Intersects(f.geometry, c.geometry);
+
+CREATE OR REPLACE TABLE single AS
+SELECT field_id,
+       max(inter_area / nullif(field_area, 0))  AS max_single_frac,
+       arg_max(cod_imovel, inter_area)          AS primary_cod_imovel
+FROM ov
+GROUP BY field_id;
+
+-- (2) Whole-list containment against the buffered, dissolved union of parcels.
+CREATE OR REPLACE TABLE listgeom AS
+SELECT ST_Union_Agg(ST_Buffer(geometry, ${GAP_DEG})) AS g FROM cad;
+
+CREATE OR REPLACE TABLE agg AS
+SELECT f.Id AS field_id,
+       ST_Area(ST_Intersection(f.geometry, l.g)) / nullif(ST_Area(f.geometry), 0)
+         AS union_frac
+FROM fields f, listgeom l
+WHERE ST_Intersects(f.geometry, l.g);
+
+-- Decision: pass either test; carry the audit trail (which test, the fractions).
+CREATE OR REPLACE TABLE decision AS
+SELECT f.Id                                    AS field_id,
+       round(coalesce(s.max_single_frac, 0), 4) AS max_single_frac,
+       round(coalesce(a.union_frac, 0), 4)      AS union_frac,
+       s.primary_cod_imovel,
+       (coalesce(s.max_single_frac, 0) >= ${CONTAIN_THRESHOLD}) AS by_primary,
+       (coalesce(a.union_frac, 0)      >= ${CONTAIN_THRESHOLD}) AS by_aggregate
+FROM fields f
+LEFT JOIN single s ON s.field_id = f.Id
+LEFT JOIN agg    a ON a.field_id = f.Id;
+
+-- Matched fields: attributes + geometry + why-included flags.
+CREATE OR REPLACE TABLE matched_fields AS
+SELECT d.field_id            AS Id,
+       d.primary_cod_imovel  AS cod_imovel,
+       d.max_single_frac,
+       d.union_frac,
+       d.by_primary,
+       d.by_aggregate,
+       f.* EXCLUDE (Id, geometry),
+       f.geometry
+FROM decision d
+JOIN fields f ON f.Id = d.field_id
+WHERE (d.by_primary OR d.by_aggregate)
+  AND d.primary_cod_imovel IS NOT NULL;
+
+COPY matched_fields TO '${MATCHED_PARQUET}' (FORMAT PARQUET);
+
+-- Enriched parcels: CAR attributes + per-parcel rollup + geometry (for the map).
+CREATE OR REPLACE TABLE cad_enriched AS
+SELECT c.cod_imovel, c.municipio, c.num_area,
+       c.ind_status, c.ind_tipo, c.des_condic,
+       count(m.Id)                                              AS n_fields,
+       round(coalesce(sum(m.field_area_ha), 0), 1)             AS matched_field_ha,
+       round(coalesce(sum(m.post2020_loss_ha), 0), 2)          AS post2020_loss_ha,
+       coalesce(sum(CASE WHEN m.has_post2020_loss THEN 1 ELSE 0 END), 0)
+                                                                AS n_fields_post2020_loss,
+       (coalesce(sum(m.post2020_loss_ha), 0) = 0)              AS deforestation_free,
+       -- centroid + dominant crop for the cooperative match (coop_match.sql):
+       -- cx/cy avoid a geometry round-trip; dominant_mb routes grain vs cattle.
+       ST_X(ST_Centroid(c.geometry))                           AS cx,
+       ST_Y(ST_Centroid(c.geometry))                           AS cy,
+       mode(m.mbmode24)                                        AS dominant_mb,
+       c.geometry
+FROM cad c
+LEFT JOIN matched_fields m ON m.cod_imovel = c.cod_imovel
+GROUP BY c.cod_imovel, c.municipio, c.num_area,
+         c.ind_status, c.ind_tipo, c.des_condic, c.geometry;
+
+COPY cad_enriched TO '${CAD_MATCHED_PARQUET}' (FORMAT PARQUET);
+
+SELECT (SELECT count(*) FROM matched_fields)                       AS matched_fields,
+       (SELECT count(*) FROM matched_fields WHERE by_primary)      AS by_primary,
+       (SELECT count(*) FROM matched_fields
+          WHERE by_aggregate AND NOT by_primary)                   AS by_aggregate_only,
+       (SELECT count(*) FROM cad)                                  AS parcels;

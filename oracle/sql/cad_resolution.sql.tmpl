@@ -1,0 +1,14 @@
+-- q05: how many listed ids resolve to a CAR parcel, and how many are missing.
+-- Counts distinct ids: a listed id that appears several times in CAR still
+-- resolves once. CAD_PARQUET holds the parcels cad_extract pulled for the list.
+CREATE OR REPLACE VIEW _q AS
+WITH list AS (
+    SELECT DISTINCT CAST(${ID_COLUMN} AS VARCHAR) AS cod_imovel
+    FROM read_csv_auto('${LIST_CSV}')
+),
+found AS (
+    SELECT DISTINCT cod_imovel FROM read_parquet('${CAD_PARQUET}')
+)
+SELECT (SELECT count(*) FROM list)                                 AS list_ids,
+       (SELECT count(*) FROM found)                                AS found_in_car,
+       (SELECT count(*) FROM list) - (SELECT count(*) FROM found)  AS missing;

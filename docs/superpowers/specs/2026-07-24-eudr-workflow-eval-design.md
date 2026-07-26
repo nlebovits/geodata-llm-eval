@@ -39,6 +39,25 @@ CSV comparator, imputed-cost accounting, committed transcripts. What is wrong
 is the task: one catalog too few and one dimension too flat. `rural-land` is
 not a competing home; it becomes the **oracle**.
 
+## Decision: policy-fed dependent flow, not method-blind standalone (TG, 2026-07-24)
+
+An existing branch, `nlebovits/geodata-llm-eval@feat/question-set`, already has a
+30-question set that is deliberately **method-blind** (the prompt names no
+columns, CRS, or functions) and **standalone** (each question independent). We do
+**not** rebase onto it or adopt its stance.
+
+The whole point of this eval is the opposite: mount the policy documents
+(`MATCHING.md`, `COOPS.md`, `EUDR_CROPS.md`) and measure whether a model can
+*implement a written compliance spec* against live data — the actual EUDR job.
+Standalone questions were the flagged weakness in the original design; the six
+dependent stages, where an error in matching visibly propagates into
+deforestation and infrastructure, are the feature, not a thing to dilute.
+
+One idea from that branch is orthogonal and worth taking: geometry-sensitive
+grading tolerance (`GEOM_REL_TOL = 1e-2`, integer slack) for questions whose
+answers move under reasonable projection/distance choices. Fold that into
+`grade.py` (Task B6) without adopting the method-blind framing.
+
 ## The three catalogs (the agent's entire world)
 
 | Catalog | Role | Status |

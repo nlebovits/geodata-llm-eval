@@ -13,6 +13,8 @@ from grade import (  # noqa: E402
     compare,
     grade_question,
     load_table,
+    stage_summary,
+    values_match,
 )
 
 
@@ -118,3 +120,65 @@ class TestGradeQuestion:
         golden = write(tmp_path, "g.csv", GOLDEN)
         answer = write(tmp_path, "a.csv", "")
         assert grade_question(answer, golden) == UNPARSEABLE
+
+
+# --- geometry tolerance ----------------------------------------------------
+
+def test_geometry_int_slack_allows_small_boundary_difference():
+    # 502 vs 500 matched fields: two boundary fields either way, within slack.
+    assert values_match(502, 500, geometry=True)
+    assert not values_match(502, 500, geometry=False)
+
+
+def test_geometry_int_slack_uses_one_percent_on_large_counts():
+    # 1% of 10000 is 100, so 10090 passes under geometry, fails under strict.
+    assert values_match(10090, 10000, geometry=True)
+    assert not values_match(10090, 10000, geometry=False)
+
+
+def test_geometry_float_tolerance_is_one_percent():
+    assert values_match(101.0, 100.0, geometry=True)      # 1% off, ok
+    assert not values_match(102.0, 100.0, geometry=True)  # 2% off, fails
+    assert not values_match(100.5, 100.0, geometry=False)  # strict rejects 0.5%
+
+
+def test_geometry_flag_threads_through_compare():
+    golden = [[500]]
+    answer = [[502]]
+    assert compare(answer, golden, geometry=True)
+    assert not compare(answer, golden, geometry=False)
+
+
+# --- dependency-aware stage summary ----------------------------------------
+
+QUESTIONS = [
+    {"id": "01", "stage": 1, "depends_on": []},
+    {"id": "02", "stage": 2, "depends_on": ["01"]},
+    {"id": "03", "stage": 2, "depends_on": ["02"]},
+]
+
+
+def test_conditional_accuracy_excludes_questions_with_failed_dependencies():
+    # q03 depended on q02, which was wrong -> q03's failure is not evidence
+    # about q03, so it must not count against conditional accuracy.
+    grades = {"q01": CORRECT, "q02": WRONG, "q03": WRONG}
+    s = stage_summary(grades, QUESTIONS)
+    assert s[2]["raw"] == 0.0
+    assert s[2]["n_eligible"] == 1          # only q02 had all deps correct
+    assert s[2]["conditional"] == 0.0
+
+
+def test_conditional_equals_raw_when_all_dependencies_pass():
+    grades = {"q01": CORRECT, "q02": CORRECT, "q03": WRONG}
+    s = stage_summary(grades, QUESTIONS)
+    assert s[2]["raw"] == 0.5
+    assert s[2]["n_eligible"] == 2
+    assert s[2]["conditional"] == 0.5
+
+
+def test_transitive_dependency_failure_propagates():
+    # q01 wrong makes both q02 and q03 ineligible, not just q02.
+    grades = {"q01": WRONG, "q02": WRONG, "q03": WRONG}
+    s = stage_summary(grades, QUESTIONS)
+    assert s[2]["n_eligible"] == 0
+    assert s[2]["conditional"] is None

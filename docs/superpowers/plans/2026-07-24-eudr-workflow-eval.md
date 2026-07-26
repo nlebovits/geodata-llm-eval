@@ -22,12 +22,53 @@
 - Coop policy constants: `max_candidates = 5`, `min_candidates = 2`, `intake_km = 100`, `intake_km_ceiling = 300`, `proximity_override_km = 10`, `min_capacity_t = 1000`.
 - Distances in EPSG:5880. Areal ratios in EPSG:4326 (CRS cancels).
 - Golden fixtures are never mounted into a session container.
+- Geometry-sensitive questions grade looser: `GEOM_REL_TOL = 1e-2` and integer
+  slack `max(2, 1% of golden)`, because equal-area projection and spherical vs
+  ellipsoidal distance choices move those answers. Non-geometry questions stay
+  at `REL_TOL = 1e-3`. (Idea borrowed from `feat/question-set`; the method-blind
+  standalone framing of that branch is **not** adopted — see design doc.)
+- The eval is policy-fed by design: `MATCHING.md`, `COOPS.md`, `EUDR_CROPS.md`
+  are mounted into the session. Do not make questions method-blind.
 
 ---
 
-# Phase A — `wri/rural-land`
+# Phase A — `wri/rural-land`  ✅ COMPLETE (2026-07-24)
 
-Five changes. Merge before Phase B starts; Phase B pins the resulting commit SHA.
+Done on branch `eudr-eval-oracle`, 7 commits, full suite green (31 passed).
+The plan below is the original design; the executed work diverged where live
+inspection of `main` (already ahead of the planning zip) required it. Actual
+commits:
+
+```
+42f6837 docs: point COOPS.md at the shared routing table
+fdd4db6 feat: route delivery tiers through the crop routing table
+dc537af docs: clarify that the 4 ha rule is a floor, not a ceiling
+b401cc2 feat: build the EUDR scope tables as a build step
+43b8eba feat: add the EUDR Annex I scope and crop routing tables
+70949f2 feat: derive all forest loss from the Hansen era bands
+0cc3a8a feat: read the cooperative product from Source Cooperative
+```
+
+Deltas from the plan as written:
+- **A2 was wider:** `p01_overview` and `p04_lossyear_histogram` also used
+  `hansen_loss_area`; `p05_unit_reconciliation` was deleted (it existed only to
+  measure the ~3× anomaly). A `band_loss_area` column now carries the era-band
+  sum through both pipelines.
+- **A4 scope vs routing split into two tables**, because sugarcane is outside
+  Annex I but still routes to a mill and class 18 keeps both silo and mill —
+  one column could not express that. `EUDR_CROPS.md` + `eudr_crops.sql.tmpl`
+  hold both.
+- **`coop_match` rewrite is not purely behaviour-preserving.** Classes with an
+  existing rule are unchanged (proven by the unaltered routing test suite).
+  Three classes deliberately change: Mosaic(21)→slaughter; Coffee(46) and
+  Palm(35)→no delivery tier at all (TG confirmed: hand no logistics to coffee
+  or palm). Each pinned by a new test.
+- **A5 (`--emit-golden`) dropped as unnecessary:** `build_lists.sh` step 5
+  already writes `$OUTDIR/<query>.csv` per provenance query. The oracle reads
+  those directly.
+- **`pins` block lives in `lists.json`**, not a separate file.
+
+The plan text below is retained for provenance. Phase B is the remaining work.
 
 ### Task A0: Clone and branch
 
@@ -175,9 +216,20 @@ duckdb -c "SELECT round(sum(band_loss_area)/10000, 1) AS band_total,
 Expected: the two values are equal. If they differ, `band_loss_area` was
 computed with a missing `coalesce` and NULL bands are dropping rows.
 
-- [ ] **Step 3: Apply the same column removal to the AOI template**
+- [ ] **Step 3: Apply the same column removal to the AOI pipeline**
 
-`grep -n hansen_covered_area sql/extract.sql.tmpl` and remove it the same way. The AOI pipeline is not part of the eval but must not keep a column the README no longer explains.
+Two files, not one:
+
+- `sql/extract.sql.tmpl:31` — remove `hansen_covered_area,` and the comment at
+  line 35 that explains the ~3× inflation.
+- `sql/prov/p05_unit_reconciliation.sql.tmpl` — **delete the file.** This query
+  exists solely to measure the `covered_over_field ≈ 3.0` anomaly. With the
+  column gone it has nothing to reconcile. Remove its entry from `units.json`
+  and from `scripts/report.py`'s provenance list, or the AOI build will fail
+  looking for it.
+
+The AOI pipeline is not part of the eval, but it must not keep a column the
+README no longer explains.
 
 - [ ] **Step 4: Delete the unit caveat from `README.md`**
 
@@ -266,21 +318,49 @@ delivery tier they route to. Changing policy = editing this file and
 Regulation (EU) 2023/1115 Annex I covers cattle, cocoa, coffee, oil palm,
 rubber, soya and wood.
 
-| `mbmode24` | Class | Annex I commodity | In scope | Caveat | Routed tier |
-|---|---|---|---|---|---|
-| 15 | Pasture | cattle | yes | | `slaughter_point` |
-| 39 | Soybean | soya | yes | | `intake_point` |
-| 35 | Palm Oil | oil palm | yes | `mixed_detection_quality` | `no_tier` |
-| 46 | Coffee | coffee | yes | `mixed_detection_quality` | `no_tier` |
-| 21 | Mosaic of Uses | cattle | yes | `assumed_pasture` | `slaughter_point` |
-| 9 | Forest Plantation | wood | no | `unreliable_detection` | — |
-| 18 | Agriculture | | no | | — |
-| 20 | Sugarcane | | no | | — |
-| 40 | Rice | | no | | — |
-| 41 | Other Temporary Crops | | no | | — |
-| 47 | Citrus | | no | | — |
-| 48 | Other Perennial | | no | | — |
-| 62 | Cotton | | no | | — |
+**EUDR scope and delivery routing are two different questions.** Sugarcane is
+outside Annex I but still routes to a mill; Agriculture is an ambiguous parent
+class that can *be* cane, so it keeps both a silo and a mill. Collapsing the two
+into one column would delete working routing, so they are two tables.
+
+### Scope (EUDR)
+
+| `mbmode24` | Class | Annex I commodity | In scope | Caveat |
+|---|---|---|---|---|
+| 15 | Pasture | cattle | yes | |
+| 39 | Soybean | soya | yes | |
+| 35 | Palm Oil | oil palm | yes | `mixed_detection_quality` |
+| 46 | Coffee | coffee | yes | `mixed_detection_quality` |
+| 21 | Mosaic of Uses | cattle | yes | `assumed_pasture` |
+| 9 | Forest Plantation | wood | no | `unreliable_detection` |
+| 18 | Agriculture | | no | |
+| 20 | Sugarcane | | no | |
+| 40 | Rice | | no | |
+| 41 | Other Temporary Crops | | no | |
+| 47 | Citrus | | no | |
+| 48 | Other Perennial | | no | |
+| 62 | Cotton | | no | |
+
+### Routing (logistics)
+
+One row per (class, tier); a class may have several. This reproduces exactly
+what `coop_match.sql.tmpl` does on `main` today.
+
+| `mbmode24` | Class | Delivery tiers |
+|---|---|---|
+| 15 | Pasture | `slaughter_point` |
+| 21 | Mosaic of Uses | `slaughter_point` |
+| 20 | Sugarcane | `mill_point` |
+| 39 | Soybean | `intake_point` |
+| 41 | Other Temporary Crops | `intake_point` |
+| 18 | Agriculture | `intake_point`, `mill_point` |
+| 35 | Palm Oil | none — no infrastructure in the product |
+| 46 | Coffee | none — no infrastructure in the product |
+
+`gravity_catchment` follows `intake_point`: it models a silo draw-area, so it
+survives wherever `intake_point` does. Classes absent from this table keep every
+tier, matching today's "unknown → keep everything" behaviour. `membership_muni`
+is never routed away.
 
 ## Two different reasons to exclude
 
@@ -300,11 +380,15 @@ present in Brazil (TG, 2026-07-24).
   less reliable than for row crops and pasture.
 - `unreliable_detection` — detection is not good enough to report at all.
 
-## `no_tier`
+## Commodities with no infrastructure
 
-Coffee and oil palm have no delivery infrastructure in
-`soft-commodity-infrastructure`. They route to `no_tier`, which is reported, not
-hidden. Do not substitute a grain silo for a coffee or palm facility.
+Coffee and oil palm are in EUDR scope but have **no rows in the routing table**,
+because `soft-commodity-infrastructure` carries no facility tier for them — the
+catalog's own `llms.txt` says rice, cotton, coffee and palm have no
+authoritative open geolocated source. A cadaster on those crops keeps its
+membership candidate and no delivery candidate, and `l09` reports `no_match`.
+Do not substitute a grain silo for a coffee or palm facility: reporting the gap
+is the correct output.
 ```
 
 - [ ] **Step 2: Write `sql/list/eudr_crops.sql.tmpl`**
@@ -321,56 +405,92 @@ CREATE OR REPLACE TABLE eudr_crops (
     mb_class          VARCHAR,
     annex1_commodity  VARCHAR,
     in_scope          BOOLEAN,
-    caveat            VARCHAR,
-    routed_tier       VARCHAR
+    caveat            VARCHAR
 );
 
 INSERT INTO eudr_crops VALUES
-    (15, 'Pasture',               'cattle',   TRUE,  '',                         'slaughter_point'),
-    (39, 'Soybean',               'soya',     TRUE,  '',                         'intake_point'),
-    (35, 'Palm Oil',              'oil palm', TRUE,  'mixed_detection_quality',  'no_tier'),
-    (46, 'Coffee',                'coffee',   TRUE,  'mixed_detection_quality',  'no_tier'),
-    (21, 'Mosaic of Uses',        'cattle',   TRUE,  'assumed_pasture',          'slaughter_point'),
-    ( 9, 'Forest Plantation',     'wood',     FALSE, 'unreliable_detection',     NULL),
-    (18, 'Agriculture',           NULL,       FALSE, '',                         NULL),
-    (20, 'Sugarcane',             NULL,       FALSE, '',                         NULL),
-    (40, 'Rice',                  NULL,       FALSE, '',                         NULL),
-    (41, 'Other Temporary Crops', NULL,       FALSE, '',                         NULL),
-    (47, 'Citrus',                NULL,       FALSE, '',                         NULL),
-    (48, 'Other Perennial',       NULL,       FALSE, '',                         NULL),
-    (62, 'Cotton',                NULL,       FALSE, '',                         NULL);
+    (15, 'Pasture',               'cattle',   TRUE,  ''),
+    (39, 'Soybean',               'soya',     TRUE,  ''),
+    (35, 'Palm Oil',              'oil palm', TRUE,  'mixed_detection_quality'),
+    (46, 'Coffee',                'coffee',   TRUE,  'mixed_detection_quality'),
+    (21, 'Mosaic of Uses',        'cattle',   TRUE,  'assumed_pasture'),
+    ( 9, 'Forest Plantation',     'wood',     FALSE, 'unreliable_detection'),
+    (18, 'Agriculture',           NULL,       FALSE, ''),
+    (20, 'Sugarcane',             NULL,       FALSE, ''),
+    (40, 'Rice',                  NULL,       FALSE, ''),
+    (41, 'Other Temporary Crops', NULL,       FALSE, ''),
+    (47, 'Citrus',                NULL,       FALSE, ''),
+    (48, 'Other Perennial',       NULL,       FALSE, ''),
+    (62, 'Cotton',                NULL,       FALSE, '');
 
-COPY eudr_crops TO '${EUDR_CROPS_PARQUET}' (FORMAT PARQUET);
-SELECT count(*) AS n_classes,
-       count(*) FILTER (WHERE in_scope) AS n_in_scope
-FROM eudr_crops;
+-- Routing is separate from scope: sugarcane is outside Annex I but still
+-- delivers to a mill, and Agriculture (18) is MapBiomas' generic parent class
+-- that can BE cane, so it keeps both a silo and a mill. One row per allowed
+-- (class, tier). A class absent here keeps every tier.
+CREATE OR REPLACE TABLE crop_routing (mbmode24 INTEGER, tier VARCHAR);
+
+INSERT INTO crop_routing VALUES
+    (15, 'slaughter_point'),
+    (21, 'slaughter_point'),
+    (20, 'mill_point'),
+    (39, 'intake_point'),
+    (41, 'intake_point'),
+    (18, 'intake_point'),
+    (18, 'mill_point');
+-- 35 (palm) and 46 (coffee) are deliberately absent with no rows: in EUDR
+-- scope, but the product carries no facility tier for them. Their delivery
+-- candidates are dropped and l09 reports no_match — the gap is surfaced, not
+-- filled with an unrelated facility.
+
+COPY eudr_crops   TO '${EUDR_CROPS_PARQUET}'   (FORMAT PARQUET);
+COPY crop_routing TO '${CROP_ROUTING_PARQUET}' (FORMAT PARQUET);
+
+SELECT (SELECT count(*) FROM eudr_crops)                        AS n_classes,
+       (SELECT count(*) FROM eudr_crops WHERE in_scope)         AS n_in_scope,
+       (SELECT count(DISTINCT mbmode24) FROM crop_routing)      AS n_routed;
 ```
+
+Add `CROP_ROUTING_PARQUET` to `substitutions()` in Phase B alongside
+`EUDR_CROPS_PARQUET`.
 
 - [ ] **Step 3: Replace the inline routing in `coop_match.sql.tmpl`**
 
-Delete the two `DELETE FROM candidates` statements at lines 95-100 and substitute:
+`main` currently has **four** `DELETE FROM candidates` statements (pasture,
+sugarcane, soy/agriculture/other-temporary, and the mill drop) — not the two the
+older revision had. Delete all four, plus the comment block above them, and
+substitute the table-driven version below. It must reproduce today's behaviour
+exactly, including class 18 keeping both silo and mill.
 
 ```sql
 -- Commodity routing via the Annex I table (see EUDR_CROPS.md). A cadaster keeps
 -- only the delivery tier its dominant crop routes to. Crops routing to no_tier
 -- keep no delivery candidate at all — the gap is reported by l09, not papered
 -- over with an unrelated facility. membership is never routed away.
-CREATE OR REPLACE TABLE crops AS
-SELECT * FROM read_parquet('${EUDR_CROPS_PARQUET}');
+-- Commodity routing via the tables in EUDR_CROPS.md. A cadaster keeps only the
+-- delivery tiers its dominant crop allows. Classes with no routing row keep
+-- nothing (palm, coffee: no infrastructure exists — l09 reports no_match rather
+-- than substituting an unrelated facility). Classes absent from the table
+-- entirely keep everything (unknown crop). gravity_catchment rides with
+-- intake_point, since it models a silo draw-area. membership is never routed away.
+CREATE OR REPLACE TABLE routing AS
+SELECT * FROM read_parquet('${CROP_ROUTING_PARQUET}');
 
--- One row per (cadaster, delivery tier) that survives routing. A cadaster whose
--- dominant class is absent from crops keeps every tier — the previous
--- "unknown → keep both" behaviour. gravity_catchment rides along with
--- intake_point, since it models a silo draw-area.
 CREATE OR REPLACE TABLE allowed_tiers AS
 SELECT c.cod_imovel, t.tier
 FROM cad c
-LEFT JOIN crops k ON k.mbmode24 = c.dominant_mb
 CROSS JOIN (SELECT unnest(['intake_point', 'slaughter_point',
                            'mill_point', 'gravity_catchment']) AS tier) t
-WHERE k.mbmode24 IS NULL
-   OR t.tier = k.routed_tier
-   OR (t.tier = 'gravity_catchment' AND k.routed_tier = 'intake_point');
+WHERE
+    -- unknown class: keep every tier
+    NOT EXISTS (SELECT 1 FROM read_parquet('${EUDR_CROPS_PARQUET}') k
+                WHERE k.mbmode24 = c.dominant_mb)
+    -- known class: keep the tiers it routes to
+ OR EXISTS (SELECT 1 FROM routing r
+            WHERE r.mbmode24 = c.dominant_mb AND r.tier = t.tier)
+    -- gravity follows intake
+ OR (t.tier = 'gravity_catchment'
+     AND EXISTS (SELECT 1 FROM routing r
+                 WHERE r.mbmode24 = c.dominant_mb AND r.tier = 'intake_point'));
 
 DELETE FROM candidates
  WHERE tier IN ('intake_point', 'slaughter_point', 'mill_point', 'gravity_catchment')
@@ -380,10 +500,23 @@ DELETE FROM candidates
          AND a.tier = candidates.tier);
 ```
 
-A `no_tier` commodity produces no rows in `allowed_tiers`, so every delivery
-candidate is deleted and `l09` reports it as `no_match` — the gap surfaces
-instead of being filled with an unrelated facility. `membership_muni` is never
-in the delete list, so the relationship candidate always survives.
+- [ ] **Step 3b: Prove the rewrite is behaviour-preserving**
+
+This replaces working routing, so verify against the old code before trusting
+it. On the Goiás list, compare candidate sets before and after:
+
+```bash
+git stash                      # old inline routing
+bash scripts/build_lists.sh
+duckdb -c "COPY (SELECT cod_imovel, entity_id, tier FROM read_parquet('data/list/goias-sample/candidates.parquet') ORDER BY 1,2,3) TO '/tmp/before.csv' (HEADER);"
+git stash pop                  # new table-driven routing
+bash scripts/build_lists.sh
+duckdb -c "COPY (SELECT cod_imovel, entity_id, tier FROM read_parquet('data/list/goias-sample/candidates.parquet') ORDER BY 1,2,3) TO '/tmp/after.csv' (HEADER);"
+diff /tmp/before.csv /tmp/after.csv && echo "IDENTICAL"
+```
+
+Expected: `IDENTICAL`. Any diff means the table lost a routing rule — most
+likely class 18, which must keep **both** `intake_point` and `mill_point`.
 
 - [ ] **Step 4: Change the smallholder threshold in `l01`**
 
@@ -1190,15 +1323,25 @@ Covers q24–q26, q29, q30, then emits everything.
 -- q24: how each flagged cadaster's dominant crop routes to a delivery tier.
 CREATE OR REPLACE VIEW _q AS
 SELECT c.cod_imovel,
-       CAST(c.dominant_mb AS INTEGER)        AS dominant_mb,
-       coalesce(k.annex1_commodity, '')      AS annex1_commodity,
-       coalesce(k.routed_tier, 'unknown')    AS routed_tier
+       CAST(c.dominant_mb AS INTEGER)                     AS dominant_mb,
+       coalesce(k.annex1_commodity, '')                   AS annex1_commodity,
+       coalesce(string_agg(r.tier, '|' ORDER BY r.tier),
+                CASE WHEN k.mbmode24 IS NULL THEN 'unknown'
+                     ELSE 'no_tier' END)                  AS routed_tier
 FROM read_parquet('${CAD_MATCHED_PARQUET}') c
 LEFT JOIN read_parquet('${EUDR_CROPS_PARQUET}') k
   ON k.mbmode24 = CAST(c.dominant_mb AS INTEGER)
+LEFT JOIN read_parquet('${CROP_ROUTING_PARQUET}') r
+  ON r.mbmode24 = CAST(c.dominant_mb AS INTEGER)
 WHERE NOT c.deforestation_free
+GROUP BY c.cod_imovel, c.dominant_mb, k.annex1_commodity, k.mbmode24
 ORDER BY c.cod_imovel;
 ```
+
+A class routing to more than one tier (18 → silo *and* mill) joins them with
+`|`, so the answer stays one row per cadaster. `no_tier` means a known class
+with no infrastructure (palm, coffee); `unknown` means a class absent from the
+scope table entirely.
 
 `coop_coverage.sql.tmpl`:
 
