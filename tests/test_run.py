@@ -274,37 +274,126 @@ def transcript_line(name, payload):
     }) + "\n"
 
 
+def result_line(call_id, text, is_error=False):
+    return json.dumps({
+        "type": "user",
+        "message": {"content": [{
+            "type": "tool_result", "tool_use_id": call_id,
+            "is_error": is_error,
+            "content": [{"type": "text", "text": text}]}]},
+    }) + "\n"
+
+
+def call_line(call_id, name, payload):
+    return json.dumps({
+        "type": "assistant",
+        "message": {"content": [{
+            "type": "tool_use", "id": call_id, "name": name,
+            "input": payload}]},
+    }) + "\n"
+
+
+def heartbeat_line(call_id, seconds):
+    return json.dumps({
+        "type": "tool_progress", "tool_use_id": f"{call_id}-hb",
+        "parent_tool_use_id": call_id, "tool_name": "Bash",
+        "elapsed_time_seconds": seconds, "heartbeat": True,
+    }) + "\n"
+
+
 def test_follow_prints_each_tool_call_as_it_lands(tmp_path, capsys):
     """Watching a running session meant tailing the transcript in a second
     terminal and reassembling it with jq. --follow does it in place."""
     path = tmp_path / "transcript.jsonl"
-    path.write_text(transcript_line("Bash", {"command": "duckdb -c 'SELECT 1'"}))
+    path.write_text(call_line("t1", "Bash", {"command": "duckdb -c 'SELECT 1'"}))
 
-    offset = run.follow_transcript(path, 0)
-    assert "→ Bash: duckdb -c 'SELECT 1'" in capsys.readouterr().out
+    follower = run.Follower()
+    follower.consume(path)
+    assert "Bash      duckdb -c 'SELECT 1'" in capsys.readouterr().out
 
-    # A second call prints only what arrived since.
+    # A second consume prints only what arrived since.
     with open(path, "a", encoding="utf-8") as fh:
-        fh.write(transcript_line("Write", {"file_path": "/workspace/q01.csv"}))
-    run.follow_transcript(path, offset)
+        fh.write(call_line("t2", "Write", {"file_path": "/workspace/q01.csv"}))
+    follower.consume(path)
     out = capsys.readouterr().out
     assert "q01.csv" in out and "duckdb" not in out
+
+
+def test_follow_times_each_call_and_names_the_failures(tmp_path, capsys):
+    """A call and its result are two records. Printing only the call made a
+    failed query look exactly like a successful one."""
+    path = tmp_path / "transcript.jsonl"
+    ticks = iter([100.0, 112.5, 112.5, 118.0])
+    follower = run.Follower(clock=lambda: next(ticks))
+
+    path.write_text(
+        call_line("t1", "Bash", {"command": "duckdb < build.sql"})
+        + result_line("t1", "Invalid Error: Failure receiving data from peer",
+                      is_error=True)
+        + call_line("t2", "Bash", {"command": "echo ok"})
+        + result_line("t2", "ok")
+    )
+    follower.consume(path)
+    out = capsys.readouterr().out
+
+    assert "FAILED after 12.5s: Invalid Error: Failure receiving data" in out
+    assert "↳ 5.5s" in out
+
+
+def test_follow_shows_a_pulse_while_a_call_blocks(tmp_path, capsys):
+    """A four-minute query printed nothing at all, which is why a working
+    session and a dead one looked the same."""
+    path = tmp_path / "transcript.jsonl"
+    follower = run.Follower()
+    path.write_text(
+        call_line("t1", "Bash", {"command": "duckdb < slow.sql"})
+        + heartbeat_line("t1", 30)      # under the interval, stays quiet
+        + heartbeat_line("t1", 60)
+        + heartbeat_line("t1", 90)      # under the interval again
+        + heartbeat_line("t1", 120)
+    )
+    follower.consume(path)
+    beats = [ln for ln in capsys.readouterr().out.splitlines()
+             if "still running" in ln]
+    assert [b.split(", ")[-1] for b in beats] == ["60s", "120s"]
+
+
+def test_follow_reports_how_long_the_current_call_has_blocked(tmp_path):
+    """The periodic summary said "last: Bash" whether that call started two
+    seconds or four minutes ago."""
+    path = tmp_path / "transcript.jsonl"
+    ticks = iter([1000.0, 1240.0])
+    follower = run.Follower(clock=lambda: next(ticks))
+    path.write_text(call_line("t1", "Bash", {"command": "duckdb < slow.sql"}))
+
+    follower.consume(path)
+    assert follower.running_for() == 240.0
+
+
+def test_follow_forgets_a_call_once_it_finishes(tmp_path):
+    path = tmp_path / "transcript.jsonl"
+    follower = run.Follower()
+    path.write_text(call_line("t1", "Bash", {"command": "echo hi"})
+                    + result_line("t1", "hi"))
+    follower.consume(path)
+    assert follower.running_for() == 0.0
 
 
 def test_follow_waits_for_a_half_written_record(tmp_path, capsys):
     """The harness reads the transcript while the container writes it, so the
     last line is regularly incomplete. Parsing it would drop the record."""
     path = tmp_path / "transcript.jsonl"
-    whole = transcript_line("Bash", {"command": "echo one"})
+    whole = call_line("t1", "Bash", {"command": "echo one"})
     path.write_text(whole + '{"type": "assistant", "mess')
 
-    offset = run.follow_transcript(path, 0)
-    assert offset == len(whole.encode())
+    follower = run.Follower()
+    follower.consume(path)
+    assert follower.offset == len(whole.encode())
     assert "echo one" in capsys.readouterr().out
 
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(whole + transcript_line("Bash", {"command": "echo two"}))
-    run.follow_transcript(path, offset)
+        fh.write(whole + call_line("t2", "Bash", {"command": "echo two"}))
+    follower.consume(path)
     assert "echo two" in capsys.readouterr().out
 
 
@@ -312,10 +401,10 @@ def test_follow_collapses_a_multiline_command_to_one_line(tmp_path, capsys):
     """Sessions write heredocs of SQL. The transcript keeps the full text; the
     terminal gets one line per call."""
     path = tmp_path / "transcript.jsonl"
-    path.write_text(transcript_line(
-        "Bash", {"command": "cat > q.sql <<'EOF'\nSELECT 1;\nEOF"}))
+    path.write_text(call_line(
+        "t1", "Bash", {"command": "cat > q.sql <<'EOF'\nSELECT 1;\nEOF"}))
 
-    run.follow_transcript(path, 0)
+    run.Follower().consume(path)
     printed = capsys.readouterr().out.strip().splitlines()
     assert len(printed) == 1
     assert len(printed[0]) <= run.FOLLOW_WIDTH
@@ -393,3 +482,28 @@ def test_stop_session_terminates_a_client_still_running(monkeypatch):
 
     run.stop_session(Running(), "c")
     assert events == ["terminate", "wait"]
+
+
+def test_a_session_that_writes_nothing_is_not_reported_as_done():
+    """Two passes ended having written no answer at all and both printed
+    "done", which reads as success until grading contradicts it an hour
+    later."""
+    assert run.session_verdict(0) == "PRODUCED NOTHING"
+    assert run.session_verdict(17) == "INCOMPLETE"
+    assert run.session_verdict(run.question_count()) == "done"
+
+
+def test_question_count_comes_from_the_spec():
+    """A hard-coded 30 beside a spec that defines the questions drifts."""
+    text = (REPO_ROOT / "fixtures" / "questions.yaml").read_text("utf-8")
+    assert run.question_count() == text.count("\n  - id:")
+
+
+def test_the_prompt_tells_the_session_it_will_not_be_resumed():
+    """A session deferred its remaining work with ScheduleWakeup and ended its
+    turn. Nothing resumes a headless container, so the run cost $2 and wrote
+    no answers. The environment fact belongs in the prompt; the method for
+    finishing on time does not."""
+    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    assert "runs once and is not resumed" in task
+    assert "deferred" in task or "defer" in task

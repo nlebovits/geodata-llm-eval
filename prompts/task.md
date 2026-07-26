@@ -56,6 +56,11 @@ the task and is governed by `EUDR_CROPS.md` — not by anything in this prompt.
 
 ## Your output
 
+This session runs once and is not resumed. Nothing wakes it up later, no one
+reads a note you leave for a future turn, and any work you defer is lost when
+the session ends. Write each answer to disk as soon as you have it, rather
+than holding results to write at the end.
+
 Answer every question in `questions.yaml`. For each, write one CSV to
 `answers/q{id}.csv` matching that question's output contract: the specified
 columns, meanings, and types. Column *names* are yours; column *meanings* and

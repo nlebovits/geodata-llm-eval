@@ -226,41 +226,143 @@ def tool_timings(transcript_path: Path) -> dict:
 
 
 def tool_subject(payload: dict) -> str:
-    """The interesting part of a tool call's input, as one line."""
+    """The interesting part of a tool call's input, as one line.
+
+    Session scratch paths carry a session uuid and a task id, which is 90
+    characters of noise per line and pushes the command off the right edge.
+    Only the tail of a path identifies anything a reader wants.
+    """
     for key in TOOL_SUBJECT_KEYS:
         value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            return " ".join(value.split())
+        if not isinstance(value, str) or not value.strip():
+            continue
+        line = " ".join(value.split())
+        if key in ("file_path", "path") and line.count("/") > 2:
+            return ".../" + "/".join(line.rsplit("/", 2)[-2:])
+        return line
     return json.dumps(payload, sort_keys=True)
 
 
-def follow_transcript(transcript_path: Path, offset: int) -> int:
-    """Print tool calls written since `offset`; return the new offset.
+def question_count() -> int:
+    """How many answers a complete session writes, read from the spec.
 
-    Reads bytes rather than lines so a partially-written final record is left
-    for the next poll instead of being parsed as truncated JSON.
+    Hard-coding 30 beside a spec that defines the questions invites the two to
+    drift, and the progress line would then under- or over-report forever.
     """
-    try:
-        with open(transcript_path, "rb") as handle:
-            handle.seek(offset)
-            data = handle.read()
-    except FileNotFoundError:
-        return offset
+    text = (REPO_ROOT / "fixtures" / "questions.yaml").read_text("utf-8")
+    return sum(1 for line in text.splitlines()
+               if line.lstrip().startswith("- id:"))
 
-    complete = data.rfind(b"\n") + 1
-    for raw in data[:complete].splitlines():
+
+def session_verdict(answered: int) -> str:
+    """How a finished session is announced.
+
+    A run that ends without writing anything costs as much as one that works
+    and used to print the same word. Two of them read as successes until
+    grading contradicted it an hour later, so the headline says which it was.
+    """
+    if answered == 0:
+        return "PRODUCED NOTHING"
+    if answered < question_count():
+        return "INCOMPLETE"
+    return "done"
+
+
+def result_text(block: dict) -> str:
+    """A tool result's text, whatever shape the record put it in."""
+    content = block.get("content")
+    if isinstance(content, list):
+        content = "".join(part.get("text", "") for part in content
+                          if isinstance(part, dict))
+    return " ".join(str(content or "").split())
+
+
+class Follower:
+    """Renders a running session's transcript as it is written.
+
+    A tool call is two events: the call, and the result that says how long it
+    took and whether it worked. Printing only the first made a failed query
+    and a successful one look identical, and left a four-minute wait looking
+    like a session that had stopped. Pairing them by tool_use_id, and passing
+    the heartbeats through, is what makes the terminal readable.
+    """
+
+    def __init__(self, clock=time.monotonic) -> None:
+        self.offset = 0
+        self.clock = clock
+        self.pending: dict[str, tuple[str, float]] = {}
+        self.beat_shown: dict[str, float] = {}
+
+    def stamp(self) -> str:
+        return datetime.now().strftime("%H:%M:%S")
+
+    def running_for(self) -> float:
+        """Seconds the oldest unfinished call has been going, 0 when idle."""
+        if not self.pending:
+            return 0.0
+        return self.clock() - min(start for _, start in self.pending.values())
+
+    def consume(self, transcript_path: Path) -> None:
+        """Print everything written since the last call.
+
+        Reads bytes rather than lines so a partially-written final record
+        waits for the next poll instead of parsing as truncated JSON.
+        """
         try:
-            record = json.loads(raw)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            continue
-        if record.get("type") != "assistant":
-            continue
-        for block in record.get("message", {}).get("content", []) or []:
-            if block.get("type") != "tool_use":
+            with open(transcript_path, "rb") as handle:
+                handle.seek(self.offset)
+                data = handle.read()
+        except FileNotFoundError:
+            return
+        complete = data.rfind(b"\n") + 1
+        self.offset += complete
+        for raw in data[:complete].splitlines():
+            try:
+                self.emit(json.loads(raw))
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            line = f"    → {block.get('name')}: {tool_subject(block.get('input', {}))}"
-            print(line[:FOLLOW_WIDTH], flush=True)
-    return offset + complete
+
+    def emit(self, record: dict) -> None:
+        if record.get("type") == "tool_progress":
+            self.emit_heartbeat(record)
+            return
+        for block in record.get("message", {}).get("content", []) or []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                self.emit_call(block)
+            elif block.get("type") == "tool_result":
+                self.emit_result(block)
+
+    def emit_call(self, block: dict) -> None:
+        name = block.get("name", "?")
+        self.pending[block.get("id")] = (name, self.clock())
+        line = (f"  {self.stamp()} {name[:9]:<9} "
+                f"{tool_subject(block.get('input', {}))}")
+        print(line[:FOLLOW_WIDTH], flush=True)
+
+    def emit_result(self, block: dict) -> None:
+        call_id = block.get("tool_use_id")
+        _name, start = self.pending.pop(call_id, ("?", None))
+        self.beat_shown.pop(call_id, None)
+        took = f"{self.clock() - start:.1f}s" if start is not None else "?"
+        if block.get("is_error"):
+            line = (f"  {self.stamp()} {'':<9}   ↳ FAILED after {took}: "
+                    f"{result_text(block)}")
+        else:
+            line = f"  {self.stamp()} {'':<9}   ↳ {took}"
+        print(line[:FOLLOW_WIDTH], flush=True)
+
+    def emit_heartbeat(self, record: dict) -> None:
+        """One line a minute while a call runs, so a long wait shows a pulse
+        instead of silence."""
+        call_id = record.get("parent_tool_use_id") or record.get("tool_use_id")
+        seconds = float(record.get("elapsed_time_seconds") or 0)
+        if seconds - self.beat_shown.get(call_id, 0.0) < HEARTBEAT_SECONDS:
+            return
+        self.beat_shown[call_id] = seconds
+        print(f"  {self.stamp()} {'':<9}   ↳ still running, {seconds:.0f}s",
+              flush=True)
 
 
 def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
@@ -359,20 +461,24 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
                                     text=True)
             next_beat = started_at + HEARTBEAT_SECONDS
-            followed = 0
+            follower = Follower() if follow else None
             try:
                 while proc.poll() is None:
                     time.sleep(POLL_SECONDS)
-                    if follow:
-                        followed = follow_transcript(transcript_path, followed)
+                    if follower:
+                        follower.consume(transcript_path)
                     if time.monotonic() < next_beat:
                         continue
                     next_beat = time.monotonic() + HEARTBEAT_SECONDS
                     turns, last_tool = progress_snapshot(transcript_path)
                     elapsed = (time.monotonic() - started_at) / 60
+                    answered = len(list((out_dir / "answers").glob("q*.csv")))
+                    waiting = follower.running_for() if follower else 0.0
+                    detail = (f"in {last_tool} {waiting:.0f}s" if waiting
+                              else f"last: {last_tool}")
                     print(
-                        f"[{model}/pass-{pass_n}] {elapsed:.0f}m"
-                        f" {turns} turns, last: {last_tool}",
+                        f"[{model}/pass-{pass_n}] {elapsed:.0f}m ·"
+                        f" {turns} turns · {answered}/{question_count()} answers · {detail}",
                         flush=True,
                     )
             finally:
@@ -382,8 +488,8 @@ def run_session(model: str, pass_n: int, dry_run: bool,
                 # running headless, holding the mounted credential copy open
                 # and writing into a transcript nobody reads.
                 stop_session(proc, container)
-            if follow:
-                follow_transcript(transcript_path, followed)
+            if follower:
+                follower.consume(transcript_path)
 
         duration = round(time.monotonic() - started_at, 1)
         if proc.returncode != 0:
@@ -423,14 +529,23 @@ def run_session(model: str, pass_n: int, dry_run: bool,
         }
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         waited = meta["slow_tool_seconds"]
+        answered = len(list((out_dir / "answers").glob("q*.csv")))
+        verdict = session_verdict(answered)
         print(
-            f"[{model}/pass-{pass_n}] done:"
+            f"[{model}/pass-{pass_n}] {verdict}:"
+            f" {answered}/{question_count()} answers,"
             f" {stats['turns']} turns,"
             f" {duration / 60:.0f}m wall"
             f" ({waited / 60:.0f}m in slow tool calls,"
             f" {meta['timed_out_tool_calls']} timed out),"
             f" ${meta['imputed_cost_usd']:.4f} imputed"
         )
+        if not answered:
+            print(
+                f"[{model}/pass-{pass_n}] the session ended on its own without"
+                f" writing an answer file; nothing resumes a headless run,"
+                f" so work it deferred is lost"
+            )
 
 
 def next_free_pass(model: str) -> int:
