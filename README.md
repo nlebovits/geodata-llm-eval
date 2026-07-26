@@ -168,7 +168,7 @@ pixi run install-hooks                    # credential guard, see below
 pixi run test
 claude login                              # or export ANTHROPIC_API_KEY
 docker build -t geodata-llm-eval .
-pixi run python harness/run.py --model sonnet --passes 10
+pixi run python harness/run.py --model sonnet --passes 10 --follow
 pixi run python harness/grade.py
 pixi run python harness/consistency.py --model sonnet
 pixi run python harness/report.py
@@ -176,6 +176,15 @@ pixi run python harness/report.py
 
 Run everything through `pixi run`. The oracle needs `duckdb` and the report
 needs `matplotlib`, and neither is on a system interpreter.
+
+`--follow` prints each tool call as the session makes it, one line apiece.
+Without it a run reports a heartbeat once a minute, which tells you a session
+is alive but not what it is doing, and a session stuck polling its own
+background job looks the same as one making progress. Every session cleans up
+after itself either way: the container is named and force-removed on exit, so
+interrupting a run with Ctrl-C leaves nothing behind, and a pass directory is
+emptied before it is rewritten so no artifact of an earlier attempt survives
+into the next.
 
 The golden fixtures are committed, so a run needs no generation step. To
 rebuild them from the vendored SQL and check they still reproduce:

@@ -131,7 +131,7 @@ def test_container_runs_as_the_host_user(monkeypatch, tmp_path):
     session_home = tmp_path / "home"
     session_home.mkdir()
 
-    cmd = run.docker_command(tmp_path / "workspace", session_home, "m")
+    cmd = run.docker_command(tmp_path / "workspace", session_home, "m", "c1")
 
     assert "--user" in cmd, "container must not run as a build-time uid"
     assert cmd[cmd.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
@@ -262,3 +262,123 @@ def test_force_allows_overwriting_a_pass(monkeypatch, tmp_path):
     monkeypatch.setattr(run, "run_session", lambda *a, **k: None)
 
     assert run.main() == 0
+
+
+# --- observability and cleanup ----------------------------------------------
+
+def transcript_line(name, payload):
+    return json.dumps({
+        "type": "assistant",
+        "message": {"content": [
+            {"type": "tool_use", "name": name, "input": payload}]},
+    }) + "\n"
+
+
+def test_follow_prints_each_tool_call_as_it_lands(tmp_path, capsys):
+    """Watching a running session meant tailing the transcript in a second
+    terminal and reassembling it with jq. --follow does it in place."""
+    path = tmp_path / "transcript.jsonl"
+    path.write_text(transcript_line("Bash", {"command": "duckdb -c 'SELECT 1'"}))
+
+    offset = run.follow_transcript(path, 0)
+    assert "→ Bash: duckdb -c 'SELECT 1'" in capsys.readouterr().out
+
+    # A second call prints only what arrived since.
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(transcript_line("Write", {"file_path": "/workspace/q01.csv"}))
+    run.follow_transcript(path, offset)
+    out = capsys.readouterr().out
+    assert "q01.csv" in out and "duckdb" not in out
+
+
+def test_follow_waits_for_a_half_written_record(tmp_path, capsys):
+    """The harness reads the transcript while the container writes it, so the
+    last line is regularly incomplete. Parsing it would drop the record."""
+    path = tmp_path / "transcript.jsonl"
+    whole = transcript_line("Bash", {"command": "echo one"})
+    path.write_text(whole + '{"type": "assistant", "mess')
+
+    offset = run.follow_transcript(path, 0)
+    assert offset == len(whole.encode())
+    assert "echo one" in capsys.readouterr().out
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(whole + transcript_line("Bash", {"command": "echo two"}))
+    run.follow_transcript(path, offset)
+    assert "echo two" in capsys.readouterr().out
+
+
+def test_follow_collapses_a_multiline_command_to_one_line(tmp_path, capsys):
+    """Sessions write heredocs of SQL. The transcript keeps the full text; the
+    terminal gets one line per call."""
+    path = tmp_path / "transcript.jsonl"
+    path.write_text(transcript_line(
+        "Bash", {"command": "cat > q.sql <<'EOF'\nSELECT 1;\nEOF"}))
+
+    run.follow_transcript(path, 0)
+    printed = capsys.readouterr().out.strip().splitlines()
+    assert len(printed) == 1
+    assert len(printed[0]) <= run.FOLLOW_WIDTH
+
+
+def test_a_rerun_leaves_nothing_of_the_run_before_it(tmp_path):
+    """A pass is one session's record. Grades and answers surviving from the
+    previous attempt read as part of the new run and are not."""
+    out_dir = tmp_path / "pass-1"
+    (out_dir / "answers").mkdir(parents=True)
+    (out_dir / "answers" / "q01.csv").write_text("value\n1\n")
+    (out_dir / "grades.json").write_text("{}")
+    (out_dir / "transcript.jsonl").write_text("stale\n")
+
+    run.clear_pass_dir(out_dir)
+    assert list(out_dir.iterdir()) == []
+
+
+def test_the_container_is_named_and_drops_its_volumes(monkeypatch, tmp_path):
+    """`docker run --rm` keeps anonymous volumes and cleans up only a
+    container it is still attached to. An interrupted run needs the name to
+    find its own container afterwards."""
+    fake_credentials(tmp_path, monkeypatch)
+    session_home = tmp_path / "home"
+    session_home.mkdir()
+
+    cmd = run.docker_command(tmp_path / "workspace", session_home, "m",
+                             "geodata-eval-opus-pass3-42")
+
+    assert cmd[:6] == ["docker", "run", "--rm", "-v", "--name",
+                       "geodata-eval-opus-pass3-42"]
+
+
+def test_stop_session_removes_a_container_the_client_left_running(monkeypatch):
+    """Ctrl-C kills the docker client, not the container it started."""
+    calls = []
+    monkeypatch.setattr(run.subprocess, "run",
+                        lambda cmd, **kw: calls.append(cmd))
+
+    class Finished:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+    run.stop_session(Finished(), "geodata-eval-opus-pass3-42")
+    assert calls == [["docker", "rm", "-f", "-v",
+                      "geodata-eval-opus-pass3-42"]]
+
+
+def test_stop_session_terminates_a_client_still_running(monkeypatch):
+    monkeypatch.setattr(run.subprocess, "run", lambda cmd, **kw: None)
+    events = []
+
+    class Running:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            events.append("terminate")
+
+        def wait(self, timeout=None):
+            events.append("wait")
+
+    run.stop_session(Running(), "c")
+    assert events == ["terminate", "wait"]

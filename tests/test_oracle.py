@@ -103,6 +103,51 @@ def test_q23_keeps_a_numeric_field_id_out_of_integer_slack():
     assert q23.get("grading") != "geometry"
 
 
+class _FlakyConnection:
+    """Fails the first `failures` executions with `error`, then succeeds."""
+
+    def __init__(self, error, failures):
+        self.error, self.failures, self.calls = error, failures, 0
+
+    def execute(self, sql, params=None):
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise self.error
+
+
+def test_a_truncated_remote_read_is_retried(monkeypatch, tmp_path):
+    """A throttled range request comes back short, and DuckDB reports the
+    truncated body as a corrupt Parquet page rather than as an I/O error. Its
+    own http_retries never see it, so the stage is retried here."""
+    monkeypatch.setattr(render.time, "sleep", lambda _s: None)
+    con = _FlakyConnection(duckdb.Error("TProtocolException: Invalid data"), 2)
+    render.run_stage(con, "eudr_crops", render.substitutions(PINS, tmp_path))
+    assert con.calls == 3
+
+
+def test_a_sql_error_fails_on_the_first_attempt(monkeypatch, tmp_path):
+    """A broken template fails identically every time; retrying it only delays
+    the traceback."""
+    monkeypatch.setattr(render.time, "sleep", lambda _s: None)
+    con = _FlakyConnection(duckdb.Error("Binder Error: no such column"), 2)
+    with pytest.raises(duckdb.Error):
+        render.run_stage(con, "eudr_crops",
+                         render.substitutions(PINS, tmp_path))
+    assert con.calls == 1
+
+
+def test_remote_reads_are_configured_to_outlast_a_slow_route():
+    """DuckDB defaults to a 30 s HTTP timeout, and the CAR scan runs longer
+    than that on a slow route."""
+    con = duckdb.connect()
+    render.tune_for_remote_reads(con)
+    settings = dict(con.execute(
+        "SELECT name, value FROM duckdb_settings() WHERE name IN "
+        "('http_timeout', 'http_retries')").fetchall())
+    assert int(settings["http_timeout"]) >= 120
+    assert int(settings["http_retries"]) >= 5
+
+
 def test_substitution_leaves_no_placeholders(tmp_path):
     subs = render.substitutions(PINS, tmp_path)
     seen = set()

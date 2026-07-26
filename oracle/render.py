@@ -22,6 +22,7 @@ import csv
 import hashlib
 import json
 import string
+import time
 from pathlib import Path
 
 import duckdb
@@ -139,6 +140,39 @@ def render_sql(stem: str, subs: dict) -> str:
     return string.Template(template).substitute(subs)
 
 
+# The CAR extract full-scans a 3.7 GB remote file with no bbox covering column
+# to skip row groups with, so it reads for a while and is exposed to anything
+# that interrupts a long transfer.
+#
+# On some network routes source.coop delivers far less than the range it
+# promised and closes: the response carries the right content-length, the body
+# stops after a few hundred KB, and DuckDB parses the remainder as a Parquet
+# page header and reports "TProtocolException: Invalid data". That reads as a
+# corrupt file and is a dropped connection. See
+# https://github.com/source-cooperative/data.source.coop/issues/194 -- it is
+# route-dependent, and switching VPN exit turned a hard failure into a
+# one-minute run, so nothing here can fix it. These settings only keep the
+# scan patient enough to survive a slow-but-working route.
+HTTP_SETTINGS = {
+    "http_timeout": 300,
+    "http_retries": 10,
+    "http_retry_wait_ms": 1000,
+    "http_retry_backoff": 2,
+    "http_keep_alive": True,
+    "enable_http_metadata_cache": True,
+}
+
+# DuckDB retries an HTTP error, not a body that arrived short under a success
+# status, so a stage that dies mid-scan is retried here from the top.
+STAGE_ATTEMPTS = 3
+
+
+def tune_for_remote_reads(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute("INSTALL httpfs; LOAD httpfs;")
+    for name, value in HTTP_SETTINGS.items():
+        con.execute(f"SET {name} = ?", [value])
+
+
 def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
                 force: bool = False) -> None:
     """Run the pipeline so every question query has its inputs on disk.
@@ -147,6 +181,7 @@ def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
     exists (unless force). match/coop_match rebuild the in-memory tables the
     query views read (e.g. `decision`), so they always run — cheap and local.
     """
+    tune_for_remote_reads(con)
     for stage in PIPELINE:
         out_key = CACHEABLE.get(stage)
         if out_key and not force and Path(subs[out_key]).exists():
@@ -159,7 +194,42 @@ def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
             print(f"[{stage}] cached — skipping remote pull", flush=True)
             continue
         print(f"[{stage}] running", flush=True)
-        con.execute(render_sql(stage, subs))
+        run_stage(con, stage, subs)
+
+
+def run_stage(con: duckdb.DuckDBPyConnection, stage: str, subs: dict) -> None:
+    """Execute one pipeline stage, retrying a read that source.coop truncated.
+
+    Only I/O-shaped failures are retried. A SQL error in a template fails the
+    same way every time, and retrying it twice more just delays the traceback.
+    """
+    sql = render_sql(stage, subs)
+    for attempt in range(1, STAGE_ATTEMPTS + 1):
+        try:
+            con.execute(sql)
+            return
+        except duckdb.Error as exc:
+            if attempt == STAGE_ATTEMPTS or not _is_transport_error(exc):
+                raise
+            wait = 5 * attempt
+            print(f"[{stage}] {type(exc).__name__}: {exc} — retry "
+                  f"{attempt}/{STAGE_ATTEMPTS - 1} in {wait}s", flush=True)
+            time.sleep(wait)
+
+
+TRANSPORT_MARKERS = (
+    "tprotocolexception",   # truncated body parsed as a Parquet page header
+    "invalid data",
+    "http error",
+    "connection",
+    "timeout",
+    "curl",
+)
+
+
+def _is_transport_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in TRANSPORT_MARKERS)
 
 
 def write_csv(rows: list, columns: list, path: Path) -> None:

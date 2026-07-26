@@ -42,6 +42,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HEARTBEAT_SECONDS = 60
 POLL_SECONDS = 2
 
+# --follow truncates each tool call to one line of this width. A session
+# writes multi-line heredocs of SQL; the point of following is to see what it
+# is doing now, and the transcript keeps the full text either way.
+FOLLOW_WIDTH = 150
+
+# Where a tool call's subject lives, by tool. Falls back to the whole input.
+TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
+
 # The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
 INPUT_FILES = {
@@ -107,9 +115,12 @@ def auth_args(session_home: Path) -> list[str]:
 
 
 def docker_command(workspace: Path, session_home: Path,
-                   model_id: str) -> list[str]:
+                   model_id: str, container: str) -> list[str]:
     return [
-        "docker", "run", "--rm",
+        # `--rm -v` also drops the anonymous volumes a container accumulates,
+        # which survive `--rm` on its own. `--name` is what lets an
+        # interrupted run find and remove its own container afterwards.
+        "docker", "run", "--rm", "-v", "--name", container,
         # Run as the invoking user. The mounted credential copy is 0600 and
         # host-owned, and the CLI has to both read it and write a refreshed
         # token back; a container uid that isn't the file's owner cannot do
@@ -212,6 +223,44 @@ def tool_timings(transcript_path: Path) -> dict:
     }
 
 
+def tool_subject(payload: dict) -> str:
+    """The interesting part of a tool call's input, as one line."""
+    for key in TOOL_SUBJECT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())
+    return json.dumps(payload, sort_keys=True)
+
+
+def follow_transcript(transcript_path: Path, offset: int) -> int:
+    """Print tool calls written since `offset`; return the new offset.
+
+    Reads bytes rather than lines so a partially-written final record is left
+    for the next poll instead of being parsed as truncated JSON.
+    """
+    try:
+        with open(transcript_path, "rb") as handle:
+            handle.seek(offset)
+            data = handle.read()
+    except FileNotFoundError:
+        return offset
+
+    complete = data.rfind(b"\n") + 1
+    for raw in data[:complete].splitlines():
+        try:
+            record = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if record.get("type") != "assistant":
+            continue
+        for block in record.get("message", {}).get("content", []) or []:
+            if block.get("type") != "tool_use":
+                continue
+            line = f"    → {block.get('name')}: {tool_subject(block.get('input', {}))}"
+            print(line[:FOLLOW_WIDTH], flush=True)
+    return offset + complete
+
+
 def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
     """Turns so far and the most recent tool call, from a partial transcript."""
     turns = 0
@@ -226,10 +275,43 @@ def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
     return turns, last_tool
 
 
+def stop_session(proc: subprocess.Popen, container: str) -> None:
+    """Make sure neither the client process nor the container outlives us."""
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    # `docker run --rm` deletes the container on a normal exit, so this is a
+    # no-op for a session that finished. It is the interrupted case that
+    # leaves one behind.
+    subprocess.run(["docker", "rm", "-f", "-v", container],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   check=False)
+
+
+def clear_pass_dir(out_dir: Path) -> None:
+    """Empty a pass directory so a re-run leaves nothing of the run before it.
+
+    A pass is one session's record. Re-running into a directory that still
+    holds the previous attempt's grades, diffs, or answers produces a mixture
+    that reads as a single coherent run and is not one.
+    """
+    if not out_dir.exists():
+        return
+    for path in sorted(out_dir.iterdir()):
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
 def run_session(model: str, pass_n: int, dry_run: bool,
-                input_mode: str = "csv") -> None:
+                input_mode: str = "csv", follow: bool = False) -> None:
     model_id = PRICES[model].model_id
     out_dir = REPO_ROOT / "results" / model / f"pass-{pass_n}"
+    container = f"geodata-eval-{model}-pass{pass_n}-{os.getpid()}"
 
     with tempfile.TemporaryDirectory(prefix="geodata-eval-") as tmp:
         # Two siblings: only `workspace` is mounted at /workspace, so the
@@ -253,11 +335,12 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             shutil.copy(src, lists_dir / src.name)
         (workspace / "answers").mkdir()
 
-        cmd = docker_command(workspace, session_home, model_id)
+        cmd = docker_command(workspace, session_home, model_id, container)
         if dry_run:
             print(" ".join(cmd))
             return
 
+        clear_pass_dir(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = out_dir / "transcript.jsonl"
         errors_path = Path(tmp) / "stderr.log"
@@ -274,18 +357,31 @@ def run_session(model: str, pass_n: int, dry_run: bool,
             proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
                                     text=True)
             next_beat = started_at + HEARTBEAT_SECONDS
-            while proc.poll() is None:
-                time.sleep(POLL_SECONDS)
-                if time.monotonic() < next_beat:
-                    continue
-                next_beat = time.monotonic() + HEARTBEAT_SECONDS
-                turns, last_tool = progress_snapshot(transcript_path)
-                elapsed = (time.monotonic() - started_at) / 60
-                print(
-                    f"[{model}/pass-{pass_n}] {elapsed:.0f}m"
-                    f" {turns} turns, last: {last_tool}",
-                    flush=True,
-                )
+            followed = 0
+            try:
+                while proc.poll() is None:
+                    time.sleep(POLL_SECONDS)
+                    if follow:
+                        followed = follow_transcript(transcript_path, followed)
+                    if time.monotonic() < next_beat:
+                        continue
+                    next_beat = time.monotonic() + HEARTBEAT_SECONDS
+                    turns, last_tool = progress_snapshot(transcript_path)
+                    elapsed = (time.monotonic() - started_at) / 60
+                    print(
+                        f"[{model}/pass-{pass_n}] {elapsed:.0f}m"
+                        f" {turns} turns, last: {last_tool}",
+                        flush=True,
+                    )
+            finally:
+                # Ctrl-C kills this process, not the container it started, and
+                # `docker run --rm` only cleans up after a container it is
+                # still attached to exits. Without this the session keeps
+                # running headless, holding the mounted credential copy open
+                # and writing into a transcript nobody reads.
+                stop_session(proc, container)
+            if follow:
+                follow_transcript(transcript_path, followed)
 
         duration = round(time.monotonic() - started_at, 1)
         if proc.returncode != 0:
@@ -360,6 +456,8 @@ def main() -> int:
                     help="overwrite an existing pass instead of refusing")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the docker command instead of running")
+    ap.add_argument("--follow", action="store_true",
+                    help="print each tool call as the session makes it")
     ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
                     help="encoding of the input list; see policies/INPUTS.md")
     args = ap.parse_args()
@@ -383,7 +481,7 @@ def main() -> int:
             )
 
     for n in wanted:
-        run_session(args.model, n, args.dry_run, args.input_mode)
+        run_session(args.model, n, args.dry_run, args.input_mode, args.follow)
     return 0
 
 
