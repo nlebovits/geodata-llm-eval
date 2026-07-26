@@ -219,3 +219,46 @@ def test_progress_snapshot_reports_turns_and_the_last_tool(tmp_path):
 def test_progress_snapshot_handles_an_absent_transcript(tmp_path):
     """The first heartbeat can land before the container writes a line."""
     assert run.progress_snapshot(tmp_path / "nope.jsonl") == (0, "-")
+
+
+def results_dir(monkeypatch, tmp_path, model, passes):
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    for n in passes:
+        (tmp_path / "results" / model / f"pass-{n}").mkdir(parents=True)
+    return tmp_path
+
+
+def test_next_free_pass_skips_what_exists(monkeypatch, tmp_path):
+    """Re-running one pass at a time used to overwrite the pass before it,
+    destroying transcripts that had already been graded."""
+    results_dir(monkeypatch, tmp_path, "opus", [1, 2])
+
+    assert run.next_free_pass("opus") == 3
+
+
+def test_next_free_pass_starts_at_one_when_empty(monkeypatch, tmp_path):
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    assert run.next_free_pass("opus") == 1
+
+
+def test_explicit_start_pass_refuses_to_clobber(monkeypatch, tmp_path, capsys):
+    results_dir(monkeypatch, tmp_path, "opus", [1])
+    monkeypatch.setattr(sys, "argv",
+                        ["run.py", "--model", "opus", "--passes", "1",
+                         "--start-pass", "1"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        run.main()
+
+    assert "already exist" in str(exit_info.value)
+
+
+def test_force_allows_overwriting_a_pass(monkeypatch, tmp_path):
+    """Deliberate replacement stays possible, it just has to be asked for."""
+    results_dir(monkeypatch, tmp_path, "opus", [1])
+    monkeypatch.setattr(sys, "argv",
+                        ["run.py", "--model", "opus", "--passes", "1",
+                         "--start-pass", "1", "--force", "--dry-run"])
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: None)
+
+    assert run.main() == 0

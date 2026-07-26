@@ -335,19 +335,54 @@ def run_session(model: str, pass_n: int, dry_run: bool,
         )
 
 
+def next_free_pass(model: str) -> int:
+    """The lowest pass number with no directory yet.
+
+    Runs are the record. Re-running a model wrote over the previous pass's
+    transcript, meta, and answers, so iterating one pass at a time destroyed
+    the pass before it -- including passes already graded, which the audit
+    trail depends on. Numbering forward keeps every run.
+    """
+    model_dir = REPO_ROOT / "results" / model
+    n = 1
+    while (model_dir / f"pass-{n}").exists():
+        n += 1
+    return n
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", choices=sorted(PRICES), required=True)
     ap.add_argument("--passes", type=int, default=10)
-    ap.add_argument("--start-pass", type=int, default=1,
-                    help="resume numbering from here")
+    ap.add_argument("--start-pass", type=int, default=None,
+                    help="number from here; defaults to the first free pass")
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite an existing pass instead of refusing")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the docker command instead of running")
     ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
                     help="encoding of the input list; see policies/INPUTS.md")
     args = ap.parse_args()
 
-    for n in range(args.start_pass, args.start_pass + args.passes):
+    start = args.start_pass
+    if start is None:
+        start = next_free_pass(args.model)
+        if start > 1 and not args.dry_run:
+            print(f"[{args.model}] existing passes found, starting at {start}")
+
+    wanted = range(start, start + args.passes)
+    if not args.dry_run and not args.force:
+        taken = [n for n in wanted
+                 if (REPO_ROOT / "results" / args.model / f"pass-{n}").exists()]
+        if taken:
+            names = ", ".join(f"pass-{n}" for n in taken)
+            raise SystemExit(
+                f"{names} already exist under results/{args.model}. Drop "
+                f"--start-pass to number forward, or pass --force to "
+                f"overwrite them."
+            )
+
+    for n in wanted:
         run_session(args.model, n, args.dry_run, args.input_mode)
     return 0
 
