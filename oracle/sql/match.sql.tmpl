@@ -72,6 +72,25 @@ WHERE (d.by_primary OR d.by_aggregate)
 
 COPY matched_fields TO '${MATCHED_PARQUET}' (FORMAT PARQUET);
 
+-- Dominant crop class per parcel: the class covering the most matched fields,
+-- ties broken by the lowest class code.
+--
+-- This was mode(mbmode24) inline in cad_enriched. DuckDB's mode() breaks ties
+-- arbitrarily, so any parcel with a tied plurality could change dominant_mb --
+-- and with it the commodity routing in coop_match, q24, q26, q28, and q30 --
+-- on a regeneration with identical inputs. A golden fixture that moves on its
+-- own is not a fixture, so the aggregation is made total here.
+CREATE OR REPLACE TABLE dominant_class AS
+SELECT cod_imovel, mbmode24 AS dominant_mb
+FROM (
+    SELECT cod_imovel, mbmode24, count(*) AS n_fields
+    FROM matched_fields
+    WHERE mbmode24 IS NOT NULL
+    GROUP BY cod_imovel, mbmode24
+)
+QUALIFY row_number() OVER (PARTITION BY cod_imovel
+                           ORDER BY n_fields DESC, mbmode24) = 1;
+
 -- Enriched parcels: CAR attributes + per-parcel rollup + geometry (for the map).
 CREATE OR REPLACE TABLE cad_enriched AS
 SELECT c.cod_imovel, c.municipio, c.num_area,
@@ -86,10 +105,12 @@ SELECT c.cod_imovel, c.municipio, c.num_area,
        -- cx/cy avoid a geometry round-trip; dominant_mb routes grain vs cattle.
        ST_X(ST_Centroid(c.geometry))                           AS cx,
        ST_Y(ST_Centroid(c.geometry))                           AS cy,
-       mode(m.mbmode24)                                        AS dominant_mb,
+       any_value(d.dominant_mb)                                AS dominant_mb,
        c.geometry
 FROM cad c
 LEFT JOIN matched_fields m ON m.cod_imovel = c.cod_imovel
+-- One row per parcel, so the join adds no rows and any_value sees one value.
+LEFT JOIN dominant_class d ON d.cod_imovel = c.cod_imovel
 GROUP BY c.cod_imovel, c.municipio, c.num_area,
          c.ind_status, c.ind_tipo, c.des_condic, c.geometry;
 

@@ -117,3 +117,9 @@ For every candidate the match records, so the report and any reviewer can see
 Cadasters and the candidates considered-and-rejected are counted in
 `l09_coop_reconciliation.sql` so nothing is silently dropped — the same
 auditable-exclusion discipline as `l07`.
+
+The cap is applied before that count: ranking runs over every candidate, the
+top `max_candidates` per cadaster are kept, and reconciliation counts what was
+kept. So `n_candidates` never exceeds `max_candidates`, and a cadaster with
+forty candidates in range reports five. Ranking decides which five, which is
+what the tier order and the `nearest_by_far` promotion are for.

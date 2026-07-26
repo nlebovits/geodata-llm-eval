@@ -133,3 +133,86 @@ def test_loss_partitions_into_in_scope_and_excluded(tmp_path):
     matched = int(list(__import__("csv").reader(
         open(tmp_path / "q09.csv", encoding="utf-8")))[1][0])
     assert total("q17.csv") + total("q18.csv") == matched
+
+
+# --- statements that had to be run against synthetic inputs ------------------
+
+def _create_statement(sql: str, table: str) -> str:
+    """The CREATE statement for `table`, lifted out of a rendered template.
+
+    Both statements below sit downstream of remote catalogs, so running the
+    whole template offline is impossible. Lifting the one statement out and
+    running it against a synthetic input tests the shipped SQL itself rather
+    than a paraphrase of it.
+    """
+    head = f"CREATE OR REPLACE TABLE {table} AS"
+    body = "\n".join(line for line in sql.splitlines()
+                     if not line.lstrip().startswith("--"))
+    start = body.index(head)
+    end = body.index(";", start)
+    return body[start:end + 1]
+
+
+def test_candidate_cap_applies(tmp_path):
+    """The cap used to bind to a placeholder column and never fire.
+
+    `candidates` carried its own `rank`, set to 0 by every INSERT, and QUALIFY
+    resolved the bare name against that base column rather than the window
+    alias -- so `0 <= 5` held for every row and q28 reported 39 candidates
+    where the policy documents 5.
+    """
+    subs = render.substitutions(PINS, tmp_path)
+    sql = render.render_sql("coop_match", subs)
+    stmt = _create_statement(sql, "candidates_final")
+
+    con = duckdb.connect()
+    con.execute("""
+        CREATE TABLE candidates AS
+        SELECT 'CAD-1' AS cod_imovel, '5201' AS cod_ibge,
+               CAST(i AS VARCHAR) AS entity_id, 'silo' AS entity_kind,
+               'intake_point' AS tier, 'capacity' AS basis,
+               1.0 AS evidence_value, CAST(i AS DOUBLE) AS distance_km,
+               '' AS flags
+        FROM range(1, 41) t(i);
+    """)
+    con.execute(stmt)
+    n_kept, worst = con.execute(
+        "SELECT count(*), max(rank) FROM candidates_final").fetchone()
+    cap = PINS["coops"]["max_candidates"]
+    assert (n_kept, worst) == (cap, cap)
+
+
+def test_dominant_class_breaks_ties_by_lowest_class_code(tmp_path):
+    """dominant_mb was mode(), which breaks ties arbitrarily.
+
+    Two classes covering three fields each must resolve the same way on every
+    run, or the fixture moves without an input changing.
+    """
+    subs = render.substitutions(PINS, tmp_path)
+    stmt = _create_statement(render.render_sql("match", subs),
+                             "dominant_class")
+
+    con = duckdb.connect()
+    con.execute("""
+        CREATE TABLE matched_fields AS
+        SELECT * FROM (VALUES
+            ('CAD-TIE', 39), ('CAD-TIE', 39), ('CAD-TIE', 39),
+            ('CAD-TIE', 15), ('CAD-TIE', 15), ('CAD-TIE', 15),
+            ('CAD-CLEAR', 41), ('CAD-CLEAR', 41), ('CAD-CLEAR', 15),
+            ('CAD-NULL', NULL)
+        ) v(cod_imovel, mbmode24);
+    """)
+    con.execute(stmt)
+    rows = dict(con.execute(
+        "SELECT cod_imovel, dominant_mb FROM dominant_class").fetchall())
+    assert rows["CAD-TIE"] == 15      # tie of three each -> lowest code
+    assert rows["CAD-CLEAR"] == 41    # plurality wins over the lower code
+    assert "CAD-NULL" not in rows     # no classified field, no dominant class
+
+
+def test_no_qualify_binds_a_base_column_named_rank():
+    """Guard against the shadowing coming back in any template."""
+    for path in sorted(render.SQL_DIR.glob("*.sql.tmpl")):
+        text = path.read_text(encoding="utf-8")
+        assert "QUALIFY rank" not in text, path.name
+        assert "AS rank," not in text.replace(") AS rank,", ""), path.name

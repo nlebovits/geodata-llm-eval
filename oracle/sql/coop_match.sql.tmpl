@@ -43,7 +43,6 @@ SELECT c.cod_imovel, c.cod_ibge,
        g.entity_id, g.entity_kind, g.tier, g.basis,
        g.weight            AS evidence_value,
        NULL::DOUBLE        AS distance_km,
-       0                   AS rank,
        ''                  AS flags
 FROM cad c
 JOIN geoms g ON g.tier = 'membership_muni' AND g.entity_id = c.cod_ibge;
@@ -80,7 +79,7 @@ GROUP BY cod_imovel;
 
 INSERT INTO candidates
 SELECT d.cod_imovel, d.cod_ibge, d.entity_id, d.entity_kind, d.tier, d.basis,
-       d.evidence_value, d.distance_km, 0 AS rank,
+       d.evidence_value, d.distance_km,
        trim(concat_ws(' ',
          CASE WHEN r.radius_km > ${INTAKE_KM} THEN 'widened' END,
          -- Mills are excluded from the proximity override: their point is a town
@@ -98,7 +97,7 @@ WHERE d.distance_km <= r.radius_km;
 -- Modelled tier: cadaster centroid inside a capacity-weighted gravity catchment.
 INSERT INTO candidates
 SELECT c.cod_imovel, c.cod_ibge, g.entity_id, g.entity_kind, g.tier, g.basis,
-       g.weight AS evidence_value, NULL::DOUBLE AS distance_km, 0 AS rank, '' AS flags
+       g.weight AS evidence_value, NULL::DOUBLE AS distance_km, '' AS flags
 FROM cad c
 JOIN geoms g ON g.tier = 'gravity_catchment' AND ST_Within(c.centroid, g.geom);
 
@@ -147,19 +146,31 @@ DELETE FROM candidates
 
 -- Rank per cadaster: tier order (relationship < delivery < modelled), with any
 -- nearest_by_far promoted to the top; cap at max_candidates.
+--
+-- The cap once did not fire. `candidates` carried its own `rank` column, a
+-- placeholder set to 0 in each INSERT, and QUALIFY resolves a bare name
+-- against the base table before the SELECT alias -- so the predicate read
+-- `0 <= 5` for every row and every candidate survived. The placeholder column
+-- is gone, and the rank is computed in a subquery here so the name QUALIFY
+-- would have bound to no longer exists. entity_id closes the ordering: without
+-- it, two candidates alike in tier, distance, and evidence rank arbitrarily,
+-- which puts the cap boundary back at the mercy of scan order.
 CREATE OR REPLACE TABLE candidates_final AS
-SELECT cod_imovel, cod_ibge, entity_id, entity_kind, tier, basis,
-       evidence_value, distance_km, flags,
-       row_number() OVER (
-         PARTITION BY cod_imovel
-         ORDER BY CASE WHEN flags LIKE '%nearest_by_far%' THEN 0
-                       WHEN tier = 'membership_muni'   THEN 1
-                       WHEN tier IN ('intake_point', 'slaughter_point') THEN 2
-                       WHEN tier = 'mill_point'        THEN 3
-                       WHEN tier = 'gravity_catchment' THEN 4 ELSE 5 END,
-                  distance_km NULLS LAST, evidence_value DESC) AS rank
-FROM candidates
-QUALIFY rank <= ${MAX_CANDIDATES};
+SELECT * FROM (
+    SELECT cod_imovel, cod_ibge, entity_id, entity_kind, tier, basis,
+           evidence_value, distance_km, flags,
+           row_number() OVER (
+             PARTITION BY cod_imovel
+             ORDER BY CASE WHEN flags LIKE '%nearest_by_far%' THEN 0
+                           WHEN tier = 'membership_muni'   THEN 1
+                           WHEN tier IN ('intake_point', 'slaughter_point') THEN 2
+                           WHEN tier = 'mill_point'        THEN 3
+                           WHEN tier = 'gravity_catchment' THEN 4 ELSE 5 END,
+                      distance_km NULLS LAST, evidence_value DESC,
+                      entity_id) AS rank
+    FROM candidates
+)
+WHERE rank <= ${MAX_CANDIDATES};
 
 COPY candidates_final TO '${CANDIDATES_PARQUET}' (FORMAT PARQUET);
 SELECT tier, count(*) AS n FROM candidates_final GROUP BY tier ORDER BY tier;
