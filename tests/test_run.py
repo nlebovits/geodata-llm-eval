@@ -4,8 +4,6 @@ never the golden fixtures. Does not require Docker."""
 import sys
 from pathlib import Path
 
-import pytest
-
 HARNESS = Path(__file__).resolve().parent.parent / "harness"
 sys.path.insert(0, str(HARNESS))
 
