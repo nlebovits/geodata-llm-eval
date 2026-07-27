@@ -88,6 +88,9 @@ Grading is executable, not model-judged. The comparator compares each session's
   choice moves an answer further than that — the parcel centroid the distance
   runs from, the hectares that decide a mixed parcel's dominant crop — the
   policy documents state it.
+- Neither is a rounding. The oracle rounds on output, never in a table a later
+  question filters on: rounding a containment fraction to four decimals reads
+  as cosmetic but sets a 0.005% minimum-overlap rule that no policy states.
 - Axis order is not one of those choices. GeoParquet is longitude-first, and
   DuckDB's `ST_Area_Spheroid` and `ST_Transform` read latitude-first unless
   `geometry_always_xy` is set, which puts a Goiás field at the wrong latitude

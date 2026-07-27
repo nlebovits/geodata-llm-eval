@@ -422,7 +422,7 @@ questions:
       columns:
         - name: era
           type: string
-          description: Hansen era label
+          description: Hansen era as a year range, e.g. 2001-2004
         - name: cleared_ha
           type: float
           description: cleared hectares in that era

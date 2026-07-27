@@ -105,10 +105,10 @@
     {
       "answer": 152404,
       "column": "n_excluded",
-      "golden": 63,
+      "golden": 79,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 2418.111111,
+      "rel_error": 1928.164557,
       "row": 0
     }
   ],

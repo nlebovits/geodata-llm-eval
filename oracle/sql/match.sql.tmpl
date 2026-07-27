@@ -50,10 +50,16 @@ FROM fields f, listgeom l
 WHERE ST_Intersects(f.geometry, l.g);
 
 -- Decision: pass either test; carry the audit trail (which test, the fractions).
+-- The fractions are carried unrounded. Rounding them here reads as a display
+-- choice, but every downstream question filters on these columns, so a 4-decimal
+-- round is really a minimum-overlap rule of 0.005% — one MATCHING.md does not
+-- state and nobody chose. It silently dropped 16 fields that overlap a parcel by
+-- a sliver from the excluded-field count. The two views that show these numbers
+-- round at presentation instead.
 CREATE OR REPLACE TABLE decision AS
 SELECT f.Id                                    AS field_id,
-       round(coalesce(s.max_single_frac, 0), 4) AS max_single_frac,
-       round(coalesce(a.union_frac, 0), 4)      AS union_frac,
+       coalesce(s.max_single_frac, 0)          AS max_single_frac,
+       coalesce(a.union_frac, 0)               AS union_frac,
        s.primary_cod_imovel,
        (coalesce(s.max_single_frac, 0) >= ${CONTAIN_THRESHOLD}) AS by_primary,
        (coalesce(a.union_frac, 0)      >= ${CONTAIN_THRESHOLD}) AS by_aggregate

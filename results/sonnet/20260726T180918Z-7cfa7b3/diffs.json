@@ -1,15 +1,4 @@
 {
-  "q12": [
-    {
-      "answer": 79,
-      "column": "n_excluded",
-      "golden": 63,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.253968,
-      "row": 0
-    }
-  ],
   "q13": [
     {
       "answer": 28,

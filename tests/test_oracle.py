@@ -100,6 +100,22 @@ def test_the_axis_declaration_precedes_every_geometry_call():
                 assert first > declaration, f"{path.name}: {call} precedes the setting"
 
 
+def test_the_decision_table_carries_unrounded_fractions():
+    """Rounding a containment fraction that later questions filter on turns a
+    display choice into an undeclared threshold.
+
+    At 4 decimals it excluded 16 fields that overlap a parcel by less than
+    0.005% of their area from the excluded-field count, which is a
+    minimum-overlap rule MATCHING.md never states. Views round on output.
+    """
+    sql = (render.SQL_DIR / "match.sql.tmpl").read_text("utf-8")
+    body = sql[sql.index("CREATE OR REPLACE TABLE decision"):]
+    body = body[:body.index(";")]
+    for column in ("max_single_frac", "union_frac"):
+        assert f"round(coalesce({column}" not in body.replace(" ", "")
+    assert "round(" not in body, "decision must carry raw fractions"
+
+
 def test_column_counts_match_the_question_contracts():
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     by_id = {f"q{q['id']}": q for q in spec["questions"]}

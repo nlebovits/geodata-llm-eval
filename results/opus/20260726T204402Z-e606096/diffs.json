@@ -1,0 +1,49 @@
+{
+  "q21": [
+    {
+      "answer": "era0104",
+      "column": "era",
+      "golden": "2001-2004",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "era0509",
+      "column": "era",
+      "golden": "2005-2009",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "era1014",
+      "column": "era",
+      "golden": "2010-2014",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "era1520",
+      "column": "era",
+      "golden": "2015-2020",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": "era2124",
+      "column": "era",
+      "golden": "2021-2024",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    }
+  ]
+}
