@@ -34,7 +34,7 @@ each other, mirroring how a supply-chain analyst actually works a portfolio:
 An error in stage 3 propagates visibly into stages 4 and 5, and the grader
 measures that (see Grading).
 
-## Policy-fed, not method-blind
+## built on eudr policy docs
 
 The policy documents in `policies/` are mounted into the session as the binding
 specification. The eval measures whether a model can **implement a written
