@@ -145,6 +145,27 @@ def test_a_run_predating_the_harness_groups_as_the_full_spec(tmp_path):
     assert rows[0]["spec"] == "-", "no fingerprint, so it cannot claim one"
 
 
+def test_fingerprinted_and_legacy_runs_coexist_in_one_results_tree(tmp_path):
+    """The first real sweep hit this: a tree holding runs from before the
+    harness and runs from after sorted a spec digest against None and died
+    after the containers had already been paid for. Every tree has both for
+    as long as the older runs are kept."""
+    results = tmp_path / "results"
+    legacy = results / "opus" / "20260101T000000Z-old"
+    legacy.mkdir(parents=True)
+    (legacy / "meta.json").write_text(json.dumps({"status": "done"}), encoding="utf-8")
+    (legacy / "grades.json").write_text(json.dumps({"q01": "correct"}), encoding="utf-8")
+    make_run(results, "opus", "20260101T000100Z-new", "full", "1111",
+             {"q01": "correct"})
+    make_run(results, "opus", "20260101T000200Z-new", "no-coops", "2222",
+             {"q01": "wrong"})
+
+    rows, _excluded = sweep.arm_rows(results, "opus", QUESTIONS)
+    assert {(r["arm"], r["spec"]) for r in rows} == {
+        ("full", "-"), ("full", "1111"), ("no-coops", "2222")}
+    assert sweep.report(results, tmp_path / "none.yaml", CONFIG)
+
+
 def test_the_question_table_reports_a_delta_against_the_baseline(tmp_path):
     results = tmp_path / "results"
     make_run(results, "opus", "20260101T000000Z-aaa", "full", "1111",

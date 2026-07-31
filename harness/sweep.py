@@ -100,7 +100,11 @@ def sweep(model: str, config: dict, arms: list[str], passes: int, order: str,
 def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list]:
     """One row per (arm, spec), plus the runs excluded and why."""
     rows, excluded = [], []
-    for (arm, spec), dirs in sorted(group_by_arm(run_dirs(results_dir, model)).items()):
+    groups = group_by_arm(run_dirs(results_dir, model))
+    # Runs predating the ablation harness carry no fingerprint, so a results
+    # directory holding both sorts a str against None unless the key says
+    # otherwise. Every real tree has both for as long as the old runs are kept.
+    for (arm, spec), dirs in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
         kept, grades = [], []
         for run_dir in dirs:
             meta = read_meta(run_dir)
@@ -172,7 +176,14 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
     not. Questions every arm agrees on are dropped, so the few that carry the
     result are not buried under thirty identical lines.
     """
-    base = next((r for r in rows if r["arm"] == baseline), None)
+    # Prefer a baseline that carries a fingerprint. Runs predating the harness
+    # group under the same name but cannot say what spec they saw, and in a
+    # real tree they span several -- three runs there covered two task briefs
+    # and two tie-break rules. Comparing an arm against that average measures
+    # the repository's history rather than the withheld text.
+    candidates = [r for r in rows if r["arm"] == baseline]
+    base = next((r for r in candidates if r["spec"] != "-"), None) or \
+        next(iter(candidates), None)
     if base is None:
         return ["", f"(no runs for the baseline arm {baseline!r}, so no deltas)"]
 
@@ -186,9 +197,9 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
         return sum(1 for g in seen if g[qid] == "correct") / len(seen)
 
     others = [r for r in rows if r is not base]
-    head = f"{'Q':<5}{'st':>3}  {baseline:>7}"
+    head = f"{'Q':<5}{'st':>3}  {baseline + ' ' + base['spec']:>12}"
     for r in others:
-        head += f"  {r['arm']:>14}{'d':>6}"
+        head += f"  {r['arm'] + ' ' + r['spec']:>19}{'d':>6}"
     out, hidden = [head, "-" * len(head)], 0
     for qid in qids:
         b = rate(base, qid)
@@ -196,16 +207,16 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
         for r in others:
             v = rate(r, qid)
             if v is None or b is None:
-                cells.append(f"  {'-':>14}{'-':>6}")
+                cells.append(f"  {'-':>19}{'-':>6}")
                 continue
             delta = (v - b) * 100
             moved = moved or abs(delta) >= 1
-            cells.append(f"  {v * 100:13.0f}%{delta:>6.0f}")
+            cells.append(f"  {v * 100:18.0f}%{delta:>6.0f}")
         if not moved:
             hidden += 1
             continue
         out.append(f"{qid:<5}{stage_of.get(qid, ''):>3}  "
-                   f"{'-' if b is None else format(b * 100, '6.0f') + '%':>7}"
+                   f"{'-' if b is None else format(b * 100, '11.0f') + '%':>12}"
                    + "".join(cells))
     if hidden:
         out.append(f"({hidden} questions scored the same in every arm, hidden)")
