@@ -217,6 +217,48 @@ def write_transcript(tmp_path, records):
     return path
 
 
+def test_a_rejected_credential_is_read_off_the_transcript(tmp_path):
+    """The mounted token copy expires, and a session starting after it does
+    gets a 401 on its first call, retries ten times inside the CLI, then
+    exits having written nothing. To the resume loop that is indistinguishable
+    from a session that stopped with work left, so it starts it again into the
+    same rejection. One sweep spent all three attempts on that and returned
+    the arm at n=1."""
+    dead = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "attempt": 1,
+         "error_status": 401, "error": "authentication_failed"},
+        {"type": "result", "is_error": True},
+    ])
+    assert run.credential_rejected(dead)
+
+
+def test_a_transcript_with_no_401_is_not_read_as_a_credential_failure(tmp_path):
+    healthy = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "attempt": 1,
+         "error_status": 529, "error": "overloaded"},
+        {"type": "result", "is_error": False},
+    ])
+    assert not run.credential_rejected(healthy)
+
+
+def test_the_credential_check_reads_every_attempt_not_just_the_last(tmp_path):
+    """The run that prompted this logged no api_retry on its third attempt:
+    by then the CLI could not find its config file and failed before reaching
+    the API at all. A check scoped to the latest attempt would have missed the
+    failure it was written for."""
+    path = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "error_status": 401},
+        {"type": "result", "is_error": True},
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "assistant", "message": {"content": []}},
+        {"type": "result", "is_error": True},
+    ])
+    assert run.credential_rejected(path)
+
+
 def heartbeat(call_id, tool, seconds):
     return {"type": "tool_heartbeat", "tool_use_id": call_id,
             "tool_name": tool, "elapsed_time_seconds": seconds}

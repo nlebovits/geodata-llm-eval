@@ -240,6 +240,28 @@ def session_id(transcript_path: Path) -> str | None:
     return found
 
 
+def credential_rejected(transcript_path: Path) -> bool:
+    """Whether a 401 appears anywhere in this run's transcript.
+
+    The mounted token copy expires, and a session starting after it does gets
+    a 401 on its first call. The CLI retries ten times, logging each as an
+    `api_retry` record, then exits 1 having written nothing -- which reads to
+    the resume loop exactly like a session that stopped with work left.
+
+    The caller pairs this with "no answers at all", because that combination
+    is what distinguishes a dead credential from one refreshed mid-session:
+    a run that recovered has answers on disk and is worth resuming. Read on
+    its own this is deliberately broad, and it has to be. In the run that
+    prompted it, the third attempt logged no api_retry at all -- by then the
+    CLI could not find its config file and failed before reaching the API --
+    so a rule that inspected only the latest attempt would have missed the
+    very failure it was written for.
+    """
+    return any(record.get("subtype") == "api_retry"
+               and record.get("error_status") == 401
+               for record in read_records(transcript_path))
+
+
 # The CLI caps a Bash call here. A call reported at or above the cap was
 # killed rather than answered, which is the difference between a query that
 # was slow and one that never returned.
@@ -654,6 +676,17 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             # to resume into, and starting a fresh session would answer the
             # remaining questions without the context that produced the first
             # answers.
+            # Resuming is for a session that stopped early with work left. A
+            # session that answered nothing at all after a 401 is not that:
+            # the CLI already retried the credential ten times, and every
+            # further attempt fails the same way. One sweep spent all three
+            # proving it, and the arm came back n=1.
+            if len(missing) == question_count() and credential_rejected(transcript_path):
+                print(f"[{model}/{name}] the credential was rejected and"
+                      f" nothing was answered; not resuming. Run `claude"
+                      f" login` on the host and start this arm again.",
+                      file=sys.stderr)
+                break
             resume = session_id(transcript_path)
             if not resume:
                 print(f"[{model}/{name}] no session id in the transcript;"
