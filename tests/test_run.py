@@ -513,32 +513,11 @@ def test_question_count_comes_from_the_spec():
 
 def test_the_prompt_rules_out_backgrounding_the_work():
     """One session parked an 8.4M-row join in a background task and ended its
-    turn to wait for it; the container exited and killed the task. "Nothing
-    wakes it up later" did not survive contact with a tool that offers to do
-    exactly that, so the prompt names the move rather than the consequence."""
+    turn to wait for it; the container exited and killed the task. The prompt
+    keeps the model in the foreground, in whatever words it uses to say so."""
     task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
     assert "foreground" in task
     assert "background" in task
-    assert "killed when the turn ends" in task
-
-
-def test_the_prompt_warns_about_the_duckdb_writer_lock():
-    """A second duckdb process on the same database file fails with
-    "Conflicting lock is held". One session spent ten turns polling /proc for
-    the pid holding it, in a container with no ps."""
-    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
-    assert "conflicting lock is held" in task
-    assert "one duckdb process at a time" in task
-
-
-def test_the_prompt_caps_concurrency_on_remote_scans():
-    """data.source.coop fronts S3 with a proxy that resets connections under a
-    burst of range requests, and DuckDB opens one per row group per thread. A
-    run whose big scans die on "Failure when receiving data from the peer" has
-    measured the proxy, not the model."""
-    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
-    assert "threads" in task
-    assert "failure when receiving data from the peer" in task
 
 
 def test_question_ids_are_the_question_count():

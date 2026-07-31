@@ -1,103 +1,27 @@
 # Task
 
 You are producing an EU Deforestation Regulation (EUDR) risk analysis for a
-portfolio of Brazilian rural properties, working entirely against cloud-native
-data catalogs on Source Cooperative.
+portfolio of Brazilian rural properties.
 
-## Your data — three catalogs
+Your job is to analyze the following three datasets:
 
-Start from each catalog's own metadata (STAC `catalog.json`, README, `llms.txt`
-where present). Do not assume a schema; discover it.
+- **Field boundaries** — https://data.source.coop/wri-data-lab/trazofields/trazo3-fields/trazo3_brazil_goias_2024.parquet
+- **Cadastral parcels** — https://data.source.coop/tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet
+- **Commodity infrastructure** — https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/facilities/BR_facilities.parquet
 
-Each catalog below names the file to query. Read the metadata for structure,
-scope, and provenance; read the named file for rows.
+The data are stored as GeoParquet and can be queried remotely using DuckDB (`duckdb` is
+installed, with the `spatial` and `httpfs` extensions). You are advised to read all catalog metadata before starting work.
 
-- **Field boundaries** — https://data.source.coop/wri-data-lab/trazofields/
-  Agricultural fields delineated from satellite imagery, carrying Hansen
-  forest-loss attributes and a MapBiomas land-cover class per field.
-  Goiás: `trazo3-fields/trazo3_brazil_goias_2024.parquet`
-- **Cadastral parcels** — https://data.source.coop/tristangruppwri/cadastral/
-  Brazilian CAR rural-property boundaries, keyed by `cod_imovel`.
-  File: `Brazil_CAR_AREA_IMOVEL.parquet`
-- **Commodity infrastructure** — https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/
-  Silos, slaughterhouses, mills, and cooperative membership — the midstream a
-  property sells into.
-  File: `facilities/BR_facilities.parquet`
+The `policies/` folder here contains all the necessary rules for this analysis. You must read its entire contents; this is the spec you are meant to implement. You will also need `lists/goias-sample.csv`, the portfolio of cadastral properties under analysis. Explanation of how to handle it is in `policies/` as well.
 
-Each path is relative to its catalog root. The cadastral catalog describes its
-Paraguay and Uruguay collections; the Brazil CAR file above sits beside them at
-the catalog root and is the one this analysis uses.
-
-The data are GeoParquet you can query remotely with DuckDB (`duckdb` is
-installed, with the `spatial` and `httpfs` extensions). Some geometry is stored
-as WKB — read the catalog metadata to find out which.
-
-## Your input
-
-`lists/goias-sample.csv` — the portfolio of cadastral properties under analysis.
-Its encoding for this run is stated to you separately; handle it per
-`policies/INPUTS.md`.
-
-## Your policies — binding
-
-`policies/` holds the rules this analysis runs under. They are not background
-reading; they are the specification you implement:
-
-- `MATCHING.md` — how an agricultural field is matched to a cadastral parcel.
-- `COOPS.md` — how a parcel is matched to a cooperative or buyer.
-- `EUDR_CROPS.md` — which land-cover classes are in scope, which Annex I
-  commodity each is, and how each routes to infrastructure.
-- `INPUTS.md` — how to handle the input list and its defects.
-
-Where a policy states a threshold, use that threshold exactly. Where it requires
-a flag or a caveat, carry it through into your output. Deciding which crops fall
-under the regulation, and which land-cover classes represent them, is part of
-the task and is governed by `EUDR_CROPS.md` — not by anything in this prompt.
-
-## Your output
-
-Do the work in the foreground, and write each answer to disk as soon as you
-have it rather than holding results to write at the end. Nothing survives the
-end of your turn: a query you hand to a background task, a command you leave
-polling, a wake-up you schedule, and a note you leave for a later turn are all
-killed when the turn ends, and their output is gone with them. Backgrounding a
-slow query and yielding to wait for it loses the query. Wait for it instead —
-a twenty-minute query that returns beats one you never see.
+Do all your work in the foreground and write each answer to disk as soon as you have it, rather than holding your results to the end. Nothing will survive the end of your turn. Do not background slow queries; they will be lost, so simply wait for slow queries to finish instead.
 
 Answer every question in `questions.yaml`. For each, write one CSV to
-`answers/q{id}.csv` matching that question's output contract: the specified
+`answers/q{id}.csv`, exactly matching the specified
 columns, meanings, and types. Column *names* are yours; column *meanings* and
-*types* are not.
-
-The questions are staged and build on each other — a later question relies on a
-result you established earlier. Do that work once and reuse it; an error early
-will propagate, exactly as it would in a real workflow.
+*types* are not. All questions are staged to build on each other, so later questions rely on previous results.
 
 Finally, write `answers/workflow.csv`: one row for every property you have
 determined to be non-compliant (post-2020 loss on an EUDR-relevant crop), with
 columns `cod_imovel`, `annex1_commodity`, `post2020_loss_ha`,
 `top_contact_entity_id`, `entity_kind`, `tier`, `basis`, `distance_km`.
-
-## Rules
-
-- Query the remote data directly. Do not download whole files when a targeted
-  query will do.
-- If a query errors, read the error and fix your approach.
-- Set `threads` to 2 before a large remote scan. The catalogs sit behind a proxy
-  that resets connections under a burst of range requests, and DuckDB issues one
-  per row group per thread. `Failure when receiving data from the peer` means you
-  asked for too much at once; the retry costs more than the parallelism saved.
-- Run one DuckDB process at a time. A database file takes a single writer, so
-  a second process opening it fails with `Conflicting lock is held`, and
-  waiting inside that second process for the first to finish is a deadlock.
-  Keep one process, or give each concurrent query its own database file.
-- Answer every question, even if uncertain. A best-effort answer beats a missing
-  file.
-- Do not fabricate numbers. Every value must come from a query you actually ran.
-- Where the data cannot support an answer, say so in the answer rather than
-  substituting something that looks similar. Reporting a gap is a correct answer
-  when a gap is what exists — for instance, an in-scope commodity for which the
-  infrastructure catalog carries no facilities.
-
-When all files are written, print a one-line summary per question: the id and
-the first row of your answer.
