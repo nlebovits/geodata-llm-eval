@@ -268,7 +268,7 @@ def test_loss_partitions_into_in_scope_and_excluded(tmp_path):
 def _create_statement(sql: str, table: str) -> str:
     """The CREATE statement for `table`, lifted out of a rendered template.
 
-    Both statements below sit downstream of remote catalogs, so running the
+    The statements below sit downstream of remote catalogs, so running the
     whole template offline is impossible. Lifting the one statement out and
     running it against a synthetic input tests the shipped SQL itself rather
     than a paraphrase of it.
@@ -341,6 +341,67 @@ def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
     assert rows["CAD-MIXED"] == 39    # 144.9 ha of soya beats 42.5 ha over 4 plots
     assert rows["CAD-TIE"] == 15      # equal hectares -> lower class code
     assert "CAD-NULL" not in rows     # no classified field, no dominant class
+
+
+def test_the_primary_cadaster_gives_an_exact_tie_to_the_lowest_id(tmp_path):
+    """CAR parcels overlap, so a field inside the overlap of two of them
+    intersects each in the same polygon and the two areas agree bit for bit.
+
+    This was arg_max, which resolves such a tie by scan order. 54 of the 793
+    matched fields tie, and one of them holds the only flagged loss of its
+    parcel, so the arbitrary pick moved that parcel in and out of the flagged
+    set and took eight questions with it. MATCHING.md gives the tie to the
+    lowest cod_imovel; the row order below is reversed between the two tied
+    fields so that scan order cannot pass this test.
+    """
+    subs = render.substitutions(PINS, tmp_path)
+    stmt = _create_statement(render.render_sql("match", subs), "single")
+
+    con = duckdb.connect()
+    con.execute("""
+        CREATE TABLE ov AS
+        SELECT * FROM (VALUES
+            -- a clear winner: the tie rule never reaches it
+            (1, 'GO-B', 80.0, 100.0), (1, 'GO-A', 20.0, 100.0),
+            -- exact ties, listed in both orders
+            (2, 'GO-Z', 50.0, 100.0), (2, 'GO-C', 50.0, 100.0),
+            (3, 'GO-C', 50.0, 100.0), (3, 'GO-Z', 50.0, 100.0),
+            -- a near tie is not a tie; area alone decides
+            (4, 'GO-Z', 50.000001, 100.0), (4, 'GO-C', 50.0, 100.0),
+            -- a field of zero area keeps a null fraction, as max() gave
+            (5, 'GO-A', 0.0, 0.0)
+        ) v(field_id, cod_imovel, inter_area, field_area);
+    """)
+    con.execute(stmt)
+    rows = dict(con.execute(
+        "SELECT field_id, primary_cod_imovel FROM single").fetchall())
+    assert rows == {1: "GO-B", 2: "GO-C", 3: "GO-C", 4: "GO-Z", 5: "GO-A"}
+
+    fracs = dict(con.execute(
+        "SELECT field_id, max_single_frac FROM single").fetchall())
+    assert fracs[1] == pytest.approx(0.8)   # the winner's ratio, not the loser's
+    assert fracs[2] == pytest.approx(0.5)
+    assert fracs[5] is None                 # nullif(0, 0), same as before
+
+
+def test_no_template_picks_a_label_with_an_unordered_aggregate():
+    """arg_max and mode resolve ties by scan order, so a golden built on one
+    can change under a replan with identical inputs, and a session that breaks
+    the tie deterministically is marked wrong for being reproducible.
+
+    Both have already done exactly that here: mode() in dominant_class and
+    arg_max() in the primary-cadaster pick. Where a label has to be chosen,
+    the ordering belongs in the query, spelled out in an ORDER BY that names
+    a total tie-break.
+    """
+    offenders = []
+    for path in sorted(render.SQL_DIR.rglob("*.sql.tmpl")):
+        body = "\n".join(line for line in path.read_text("utf-8").splitlines()
+                         if not line.lstrip().startswith("--"))
+        for call in ("arg_max(", "arg_min(", "mode("):
+            if call in body:
+                offenders.append(f"{path.name}: {call}")
+    assert not offenders, f"unordered aggregate choosing a label: {offenders}"
 
 
 def test_excluded_count_ignores_the_buffer_only_near_misses(tmp_path):

@@ -33,7 +33,28 @@ distortion-robust over a single field).
    `area(field ∩ UNION(all listed parcels, buffered)) / area(field) ≥ contain_threshold`
    → the field is mostly inside the list *as a whole*, even if split across two
    or more parcels (e.g. ½ in one + ½ in a neighbour). The **primary** cadaster
-   for such a field is the parcel it overlaps most (`argmax` of test 1).
+   for such a field is the parcel it overlaps most, chosen by the rule below.
+
+## Choosing the primary cadaster, including exact ties
+
+Every matched field carries exactly one primary cadaster: the listed parcel
+with the largest `area(field ∩ parcel)`. **When two or more parcels share that
+largest area exactly, the primary is the parcel whose `cod_imovel` sorts
+lowest** under ordinary string comparison.
+
+Exact ties are common rather than hypothetical. CAR parcels overlap, and a
+field lying inside the overlap of two listed parcels intersects each of them in
+the same polygon, so the two areas agree bit for bit. In the Goiás sample list,
+54 of the 793 matched fields tie this way.
+
+Which parcel wins matters more than it looks. The primary cadaster decides
+where a field's deforestation is attributed, so it decides which parcels reach
+the flagged set and therefore the answer to every per-cadaster question
+downstream. Any tie-break would serve; the requirement is that one is written
+down, so that two correct implementations agree.
+
+Fields whose two largest overlaps differ by a small amount are not ties. They
+resolve on area alone, and the lowest-`cod_imovel` rule never reaches them.
 
 The union in test 2 is built from the listed parcels **buffered outward by
 `neighbor_gap_tolerance_m`** and dissolved together *before* intersecting the
@@ -77,11 +98,13 @@ Fields failing **both** tests are dropped and counted (see
 ## Known edge cases & how they resolve
 
 - **Field spanning two listed neighbours (½ + ½).** Fails test 1, passes test 2
-  (union). Included; primary = the parcel with the larger half.
+  (union). Included; primary = the parcel with the larger half, or the lower
+  `cod_imovel` if the halves are exactly equal.
 - **Field mostly outside the list (e.g. 40% in one listed parcel, rest in
   unlisted land).** Fails both tests. Excluded.
 - **Overlapping CAR parcels.** The union dissolves the overlap, so the aggregate
-  fraction stays ≤ 1.0.
+  fraction stays ≤ 1.0. A field sitting inside the overlap intersects both
+  parcels equally and takes the lower `cod_imovel` as its primary.
 - **A listed `cod_imovel` not found in CAR.** Reported as a missing parcel in
   `l07`; contributes no geometry to the union.
 

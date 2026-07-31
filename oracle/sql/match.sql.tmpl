@@ -31,12 +31,32 @@ SELECT f.Id AS field_id,
 FROM fields f
 JOIN cad c ON ST_Intersects(f.geometry, c.geometry);
 
+-- The primary cadaster is the parcel covering most of the field, with an exact
+-- tie going to the lowest cod_imovel. MATCHING.md states the rule; this is
+-- where it is implemented.
+--
+-- Ties are common rather than exotic. CAR parcels overlap, and a field lying
+-- inside the overlap of two of them intersects both in the same polygon, so
+-- the two areas agree bit for bit: 54 of the 793 matched fields tie this way.
+--
+-- This was arg_max(cod_imovel, inter_area), which resolves a tie by scan order.
+-- That made the primary cadaster of those 54 fields an accident of the plan
+-- rather than a consequence of the policy, and the accident was load-bearing.
+-- One tied field carries 2.48 ha of post-2020 loss and is the only flagged
+-- field of its parcel, so the pick decides whether that parcel appears in the
+-- flagged set at all -- which q13, q20, q23, q24, q26, q27, q28, and q30 read.
+-- A session that wrote its own deterministic tie-break lost eight questions to
+-- a choice the policy left open, while the session that scored full marks had
+-- written the same arg_max idiom and inherited the same arbitrary answer.
+-- Ordering by inter_area rather than by the ratio is the same order, since
+-- field_area is one value per field.
 CREATE OR REPLACE TABLE single AS
 SELECT field_id,
-       max(inter_area / nullif(field_area, 0))  AS max_single_frac,
-       arg_max(cod_imovel, inter_area)          AS primary_cod_imovel
+       inter_area / nullif(field_area, 0)  AS max_single_frac,
+       cod_imovel                          AS primary_cod_imovel
 FROM ov
-GROUP BY field_id;
+QUALIFY row_number() OVER (PARTITION BY field_id
+                           ORDER BY inter_area DESC, cod_imovel) = 1;
 
 -- (2) Whole-list containment against the buffered, dissolved union of parcels.
 CREATE OR REPLACE TABLE listgeom AS
