@@ -26,7 +26,8 @@
   },
   "matching": {
     "contain_threshold": 0.667,
-    "neighbor_gap_tolerance_m": 25
+    "neighbor_gap_tolerance_m": 25,
+    "primary_tie_tolerance": 1e-9
   },
   "coops": {
     "max_candidates": 5,

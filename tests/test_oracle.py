@@ -343,7 +343,7 @@ def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
     assert "CAD-NULL" not in rows     # no classified field, no dominant class
 
 
-def test_the_primary_cadaster_gives_an_exact_tie_to_the_lowest_id(tmp_path):
+def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path):
     """CAR parcels overlap, so a field inside the overlap of two of them
     intersects each in the same polygon and the two areas agree bit for bit.
 
@@ -353,12 +353,18 @@ def test_the_primary_cadaster_gives_an_exact_tie_to_the_lowest_id(tmp_path):
     set and took eight questions with it. MATCHING.md gives the tie to the
     lowest cod_imovel; the row order below is reversed between the two tied
     fields so that scan order cannot pass this test.
+
+    A tie is anything inside primary_tie_tolerance, not just bit-equality,
+    because the fraction moves by about that much between area methods. Field 4
+    sits inside the tolerance and ties despite the larger area; field 6 sits
+    just outside it and keeps its winner.
     """
     subs = render.substitutions(PINS, tmp_path)
     stmt = _create_statement(render.render_sql("match", subs), "single")
+    tol = PINS["matching"]["primary_tie_tolerance"]
 
     con = duckdb.connect()
-    con.execute("""
+    con.execute(f"""
         CREATE TABLE ov AS
         SELECT * FROM (VALUES
             -- a clear winner: the tie rule never reaches it
@@ -366,22 +372,44 @@ def test_the_primary_cadaster_gives_an_exact_tie_to_the_lowest_id(tmp_path):
             -- exact ties, listed in both orders
             (2, 'GO-Z', 50.0, 100.0), (2, 'GO-C', 50.0, 100.0),
             (3, 'GO-C', 50.0, 100.0), (3, 'GO-Z', 50.0, 100.0),
-            -- a near tie is not a tie; area alone decides
-            (4, 'GO-Z', 50.000001, 100.0), (4, 'GO-C', 50.0, 100.0),
+            -- inside the tolerance: tied, so the lower id takes it
+            (4, 'GO-Z', {50.0 + 100 * tol / 10:.12f}, 100.0),
+            (4, 'GO-C', 50.0, 100.0),
             -- a field of zero area keeps a null fraction, as max() gave
-            (5, 'GO-A', 0.0, 0.0)
+            (5, 'GO-A', 0.0, 0.0),
+            -- outside the tolerance: a real winner, and it keeps the field
+            (6, 'GO-Z', {50.0 + 100 * tol * 10:.12f}, 100.0),
+            (6, 'GO-C', 50.0, 100.0)
         ) v(field_id, cod_imovel, inter_area, field_area);
     """)
     con.execute(stmt)
     rows = dict(con.execute(
         "SELECT field_id, primary_cod_imovel FROM single").fetchall())
-    assert rows == {1: "GO-B", 2: "GO-C", 3: "GO-C", 4: "GO-Z", 5: "GO-A"}
+    assert rows == {1: "GO-B", 2: "GO-C", 3: "GO-C",
+                    4: "GO-C", 5: "GO-A", 6: "GO-Z"}
 
     fracs = dict(con.execute(
         "SELECT field_id, max_single_frac FROM single").fetchall())
     assert fracs[1] == pytest.approx(0.8)   # the winner's ratio, not the loser's
     assert fracs[2] == pytest.approx(0.5)
     assert fracs[5] is None                 # nullif(0, 0), same as before
+    # The reported fraction stays the true maximum even when a tie hands the
+    # field to the other parcel, so contain_threshold is unaffected.
+    assert fracs[4] == pytest.approx(0.5 + tol / 10, abs=1e-15)
+
+
+def test_the_tie_tolerance_is_narrower_than_the_closest_real_separation():
+    """The tolerance absorbs the spread between area methods and nothing more.
+
+    Measured on the pinned extracts: the same fraction moves by a median 1e-12
+    to 1e-11 between planar degrees, EPSG:5880 and the spheroid, the two fields
+    that flip when the oracle switches to spheroid areas differ by 1.2e-11 and
+    1.7e-10, and the nearest genuinely separated pair differs by 1.6e-8. A
+    tolerance outside that window either stops fixing the flips or starts
+    swallowing real winners.
+    """
+    tol = PINS["matching"]["primary_tie_tolerance"]
+    assert 1.7e-10 < tol < 1.6e-8
 
 
 def test_no_template_picks_a_label_with_an_unordered_aggregate():

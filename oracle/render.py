@@ -121,6 +121,9 @@ def substitutions(pins: dict, work: Path) -> dict:
         "CROP_ROUTING_PARQUET": (work / "crop_routing.parquet").as_posix(),
         "CUTOFF_YEAR": "2020",
         "CONTAIN_THRESHOLD": str(pins["matching"]["contain_threshold"]),
+        # Formatted rather than str()'d: str(1e-09) is "1e-09", which DuckDB
+        # reads as a float fine but which reads as a typo in a rendered query.
+        "PRIMARY_TIE_TOLERANCE": f"{pins['matching']['primary_tie_tolerance']:.12f}",
         "GAP_DEG": f"{gap_m / 111320:.8f}",
         "INTAKE_KM": str(pins["coops"]["intake_km"]),
         "INTAKE_KM_CEILING": str(pins["coops"]["intake_km_ceiling"]),

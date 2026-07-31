@@ -224,7 +224,7 @@
     {
       "answer": "GO-5212204-00000000000000000000000000000006",
       "column": "cod_imovel",
-      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -233,16 +233,16 @@
     {
       "answer": 4800,
       "column": "n_fields",
-      "golden": 28,
+      "golden": 29,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 170.428571,
+      "rel_error": 164.517241,
       "row": 6
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000007",
       "column": "cod_imovel",
-      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,

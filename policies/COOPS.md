@@ -80,6 +80,25 @@ with two overrides:
   on município** — a silo just across a municipal line competes on equal footing.
   Mills do not participate (see above).
 
+### Ties in the ranking
+
+The full order is: `nearest_by_far` promotions first, then the tier order
+above, then `distance_km` ascending with catchment candidates (no distance)
+last, then `evidence_value` descending. **Where two candidates are equal on all
+of those, the lower `entity_id` ranks first.**
+
+Distance ties are ordinary, not exotic. On the Goiás sample list 45 cadasters
+have two facilities at an identical distance, and for one of them the tie is
+for the single nearest delivery point, which is the value q26 reports. Without
+the `entity_id` rule those rankings fall to scan order, and the `max_candidates`
+cap then drops whichever candidate the query plan happened to plough last.
+
+The same reasoning applies as in [`MATCHING.md`](MATCHING.md): the tie-break
+does not have to be meaningful, but it does have to be written down, or two
+correct implementations disagree. Unlike the containment fractions there, these
+distances carry no tolerance — a `distance_km` computed a slightly different
+way can still order two near-equal facilities either way.
+
 ## Widening — target a count, not a radius
 
 If fewer than `min_candidates` delivery candidates fall within `intake_km`, widen

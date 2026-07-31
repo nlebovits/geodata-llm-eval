@@ -38,14 +38,16 @@ distortion-robust over a single field).
 ## Choosing the primary cadaster, including exact ties
 
 Every matched field carries exactly one primary cadaster: the listed parcel
-with the largest `area(field ∩ parcel)`. **When two or more parcels share that
-largest area exactly, the primary is the parcel whose `cod_imovel` sorts
-lowest** under ordinary string comparison.
+with the largest `area(field ∩ parcel) / area(field)`. **When two or more
+parcels come within `primary_tie_tolerance` of that largest fraction, they are
+tied, and the primary is the one whose `cod_imovel` sorts lowest** under
+ordinary string comparison. The reported `max_single_frac` is still the true
+maximum, so the `contain_threshold` test is unaffected by the tie rule.
 
-Exact ties are common rather than hypothetical. CAR parcels overlap, and a
-field lying inside the overlap of two listed parcels intersects each of them in
-the same polygon, so the two areas agree bit for bit. In the Goiás sample list,
-54 of the 793 matched fields tie this way.
+Ties are common rather than hypothetical. CAR parcels overlap, and a field
+lying inside the overlap of two listed parcels intersects each of them in the
+same polygon, so the two fractions agree bit for bit. In the Goiás sample list,
+54 of the 793 matched fields tie exactly.
 
 Which parcel wins matters more than it looks. The primary cadaster decides
 where a field's deforestation is attributed, so it decides which parcels reach
@@ -53,8 +55,28 @@ the flagged set and therefore the answer to every per-cadaster question
 downstream. Any tie-break would serve; the requirement is that one is written
 down, so that two correct implementations agree.
 
-Fields whose two largest overlaps differ by a small amount are not ties. They
-resolve on area alone, and the lowest-`cod_imovel` rule never reaches them.
+### Where `primary_tie_tolerance` comes from
+
+It is measured, not chosen. The same intersection measured three defensible
+ways — planar area in EPSG:4326 degrees, area after reprojection to EPSG:5880,
+and `ST_Area_Spheroid` on the lat/lon geometry — gives fractions that differ by
+a median of 1e-12 to 1e-11, a 99th percentile of 6e-5, and a maximum of 3e-3.
+Method choice therefore moves a fraction, and a rule that ranks on the raw
+value hands some fields to whichever method the implementer picked. Switching
+the oracle from planar to spheroid areas changes the primary cadaster of 2 of
+872 fields.
+
+Those 2 fields are exactly the ones whose top two parcels sit within the noise:
+their fractions differ by 1.2e-11 and 1.7e-10, at or below the median spread
+between methods. The nearest genuinely separated pair differs by 1.6e-8.
+`primary_tie_tolerance` is set at **1e-9**, in the gap between them: sixteen
+times wider than the noise it absorbs and sixteen times narrower than the
+closest real difference. It is deliberately far below the 99th percentile
+spread, because a tolerance wide enough to cover every method disagreement
+would turn genuine winners into ties.
+
+The tolerance closes the cases where no method can tell the parcels apart. It
+does not make the whole rule method-independent, and it is not meant to.
 
 The union in test 2 is built from the listed parcels **buffered outward by
 `neighbor_gap_tolerance_m`** and dissolved together *before* intersecting the
@@ -75,6 +97,7 @@ The union is the correct, conservative interpretation of "sum of crossovers".
 |---|---|---|---|
 | `contain_threshold` | `0.667` | the 2/3 inclusion bar (fraction of field area) | raise → stricter (fewer fields); lower → looser |
 | `neighbor_gap_tolerance_m` | `25` | outward buffer (metres) applied to parcels before the union, to close CAR sliver gaps between neighbours | raise if neighbouring parcels have larger gaps; set `0` to disable neighbour bridging |
+| `primary_tie_tolerance` | `1e-9` | how close two containment fractions must be to count as tied for the primary cadaster | raise only with a fresh measurement of method spread; set `0` to tie on bit-equality alone |
 
 `neighbor_gap_tolerance_m` is converted to degrees for the EPSG:4326 buffer as
 `deg = metres / 111320` (metres-per-degree at the equator; the small
@@ -107,6 +130,14 @@ Fields failing **both** tests are dropped and counted (see
   parcels equally and takes the lower `cod_imovel` as its primary.
 - **A listed `cod_imovel` not found in CAR.** Reported as a missing parcel in
   `l07`; contributes no geometry to the union.
+- **A listed `cod_imovel` found in CAR more than once.** CAR ships 8,453,554
+  rows under 8,437,940 distinct ids, so an id can carry several geometries.
+  Each row counts as its own parcel in test 1, so the single-parcel fraction is
+  the best of them rather than their combined coverage, while test 2 dissolves
+  them into the union like any other overlap. The Goiás sample list has no such
+  id (`q07` reports 0), so this path is documented rather than exercised. A list
+  that does hit it should expect the single-parcel test to be the conservative
+  one.
 
 ---
 

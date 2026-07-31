@@ -1,18 +1,27 @@
 {
   "q13": [
     {
+      "answer": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
       "answer": 27,
       "column": "n_fields",
-      "golden": 28,
+      "golden": 29,
       "kind": "cell",
       "near_miss": true,
-      "rel_error": 0.035714,
+      "rel_error": 0.068966,
       "row": 6
     },
     {
       "answer": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
       "column": "cod_imovel",
-      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
