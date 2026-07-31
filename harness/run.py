@@ -38,10 +38,17 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+import ablation
 from pricing import PRICES, imputed_cost_usd
 
 IMAGE = "geodata-llm-eval"
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# The named specs a session can be run against, and the name meaning "all of
+# it". A run started without --arm reads no config and records FULL_SPEC, so
+# every run already on disk and every plain run from here on group together.
+ABLATIONS = REPO_ROOT / "fixtures" / "ablations.yaml"
+FULL_SPEC = "full"
 
 # How often the run prints where a session has got to, and how often it
 # checks whether the container has exited. A session runs for tens of
@@ -508,7 +515,22 @@ def clear_pass_dir(out_dir: Path) -> None:
 
 def run_session(model: str, dry_run: bool, input_mode: str = "csv",
                 follow: bool = False, label: str = "",
-                max_attempts: int = MAX_ATTEMPTS) -> None:
+                max_attempts: int = MAX_ATTEMPTS, arm: str = "",
+                ablations: Path | None = None) -> None:
+    # Resolve the arm before any work: a heading that no longer matches the
+    # document should cost a second, not a container.
+    arm_spec = {"arm": arm or FULL_SPEC, "why": "", "ops": []}
+    if arm:
+        config = ablation.load_arms(ablations or ABLATIONS)
+        if arm not in config["arms"]:
+            raise ablation.AblationError(
+                f"unknown arm {arm!r}, expected one of {sorted(config['arms'])}")
+        chosen = config["arms"][arm]
+        # The resolved operations are copied in, not referenced. A config
+        # edited next week must not change what this run says it did.
+        arm_spec = {"arm": arm, "why": str(chosen["why"]).strip(),
+                    "ops": chosen["ops"]}
+
     model_id = PRICES[model].model_id
     started = datetime.now(timezone.utc)
     name = run_id(started, harness_commit())
@@ -537,9 +559,19 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             shutil.copy(src, lists_dir / src.name)
         (workspace / "answers").mkdir()
 
+        # Shaping happens after assembly, never instead of it, so there stays
+        # one place a workspace is built and the ablation is a mutation of it.
+        arm_spec["receipt"] = ablation.apply_arm(workspace, arm_spec["ops"])
+        spec_digest, spec_manifest = ablation.spec_fingerprint(workspace)
+
         cmd = docker_command(workspace, session_home, model_id, container)
         if dry_run:
             print(" ".join(cmd))
+            print(f"arm {arm_spec['arm']} -> spec {spec_digest}")
+            for path in sorted(spec_manifest):
+                print(f"  {path}")
+            for path, removed in sorted(arm_spec["receipt"].items()):
+                print(f"  removed {removed} lines from {path}")
             return
 
         clear_pass_dir(out_dir)
@@ -659,6 +691,9 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             "harness_commit": harness_commit(),
             "input_mode": input_mode,
             "golden_fingerprint": golden_fingerprint(),
+            "spec_fingerprint": spec_digest,
+            "spec_manifest": spec_manifest,
+            "ablation": arm_spec,
             "catalog_at_start": catalog_before,
             "catalog_at_end": source_coop_sample(),
             **stats,
@@ -767,11 +802,23 @@ def main() -> int:
     ap.add_argument("--max-attempts", type=int, default=MAX_ATTEMPTS,
                     help="how many times a session that stops with questions "
                          "unanswered is resumed (1 disables resuming)")
+    ap.add_argument("--arm", default="",
+                    help="withhold part of the spec, by arm name from the "
+                         "ablations config; default is the whole spec")
+    ap.add_argument("--ablations", type=Path, default=ABLATIONS,
+                    help="the ablation config to read --arm from")
     args = ap.parse_args()
 
     for _ in range(args.passes):
-        run_session(args.model, args.dry_run, args.input_mode, args.follow,
-                    args.label, max_attempts=args.max_attempts)
+        try:
+            run_session(args.model, args.dry_run, args.input_mode, args.follow,
+                        args.label, max_attempts=args.max_attempts,
+                        arm=args.arm, ablations=args.ablations)
+        except ablation.AblationError as exc:
+            # A mistyped arm is a config problem, not a crash. Say so in one
+            # line rather than a traceback, and stop before spending anything.
+            print(f"ablation: {exc}", file=sys.stderr)
+            return 2
     return 0
 
 

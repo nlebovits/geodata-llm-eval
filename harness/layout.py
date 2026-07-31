@@ -48,6 +48,35 @@ def is_scored(meta: dict) -> bool:
     return meta.get("status", "done") in SCORED_STATUSES
 
 
+def arm_of(meta: dict) -> str:
+    """Which ablation arm a run was given, defaulting to the whole spec.
+
+    Runs predating the ablation harness carry no block, and they did see the
+    whole spec, so reading absence as "full" is accurate rather than a guess.
+    """
+    return meta.get("ablation", {}).get("arm") or "full"
+
+
+def spec_of(meta: dict) -> str | None:
+    """The digest of the spec a run actually saw, or None if it predates it."""
+    return meta.get("spec_fingerprint")
+
+
+def group_by_arm(dirs: list[Path]) -> dict[tuple[str, str | None], list[Path]]:
+    """Runs bucketed by (arm, spec digest), oldest first within a bucket.
+
+    Keyed on the pair, never the arm name alone. A name says what someone
+    meant to run; the digest says what the session was handed. Edit a policy
+    between Tuesday and Friday and both days answer to `no-coops` while
+    measuring different specs, so pooling them would average two experiments.
+    """
+    groups: dict[tuple[str, str | None], list[Path]] = {}
+    for run_dir in dirs:
+        meta = read_meta(run_dir)
+        groups.setdefault((arm_of(meta), spec_of(meta)), []).append(run_dir)
+    return groups
+
+
 def regraded(meta: dict) -> bool:
     """Whether a run's score comes from different fixtures than it ran against.
 

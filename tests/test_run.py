@@ -57,6 +57,61 @@ def test_run_py_never_copies_the_golden_fixtures():
             assert "golden" not in line.lower(), line.strip()
 
 
+def test_the_ablation_config_is_not_inside_the_policies_directory():
+    """policies/ is copied into the workspace wholesale. A config living there
+    would hand the session an itemised list of what was withheld from it,
+    which is the one thing an ablation must not reveal."""
+    assert run.ABLATIONS.exists(), "the shipped ablation config must be committed"
+    assert (REPO_ROOT / "policies") not in run.ABLATIONS.parents
+
+
+def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
+        monkeypatch, capsys, tmp_path):
+    """The receipt printed here is what makes "did this arm do anything?"
+    answerable before a sweep is paid for rather than after."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    run.run_session("haiku", dry_run=True, input_mode="csv", arm="no-coops")
+    out = capsys.readouterr().out
+
+    assert "arm no-coops" in out
+    assert "policies/COOPS.md" not in out.split("removed")[0], "COOPS.md must be gone"
+    assert "policies/MATCHING.md" in out, "the other policies must survive"
+    assert "removed 150 lines from policies/COOPS.md" in out
+
+
+def test_an_unknown_arm_fails_before_a_container_starts(monkeypatch, tmp_path):
+    """A mistyped arm that fell through to the full spec would score like the
+    baseline and read as "the withheld text did not matter"."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    with pytest.raises(run.ablation.AblationError, match="unknown arm"):
+        run.run_session("haiku", dry_run=True, arm="no-such-arm")
+
+
+def test_a_plain_run_records_the_full_spec_and_reads_no_config(monkeypatch,
+                                                               capsys, tmp_path):
+    """Every run already on disk saw the whole spec, so an unablated run has
+    to group with them rather than becoming a fourth category."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    monkeypatch.setattr(run, "ABLATIONS", tmp_path / "does-not-exist.yaml")
+    run.run_session("haiku", dry_run=True, input_mode="csv")
+    out = capsys.readouterr().out
+
+    assert f"arm {run.FULL_SPEC}" in out
+    assert "policies/COOPS.md" in out and "removed" not in out
+
+
 def fake_credentials(tmp_path, monkeypatch):
     """Point the harness at a decoy login so no test reads the real one."""
     cred = tmp_path / "host-credentials.json"
