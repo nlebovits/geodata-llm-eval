@@ -1,0 +1,926 @@
+{
+  "q28": [
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 0
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 1
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 1
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 2
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 2
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 3
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 3
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 4
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 4
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 5
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 5
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 6
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 6
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 7
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 7
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 8
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 8
+    },
+    {
+      "answer": 0,
+      "column": "proximity_override",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 1.0,
+      "row": 8
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 9
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 9
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 10
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 10
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 11
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 11
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 12
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 12
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 13
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 13
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 14
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 14
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 15
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 15
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 16
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 16
+    },
+    {
+      "answer": 0,
+      "column": "proximity_override",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 1.0,
+      "row": 16
+    },
+    {
+      "answer": 2,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.6,
+      "row": 17
+    },
+    {
+      "answer": 1,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.75,
+      "row": 17
+    }
+  ],
+  "q29": [
+    {
+      "answer": 0,
+      "column": "n_nearest_by_far",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q30": [
+    {
+      "answer": "48.0491.0063-1",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "intake_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": 14.651718396584087,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 1
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": 15.820877930546638,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": 4029,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.999227,
+      "row": 2
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": 22.265620573966185,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 3
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": 14.464775367018953,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5219258,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998949,
+      "row": 4
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": 15.302786670159508,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 5
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": 20.506885117554717,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 6
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 19.38826581012469,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 8
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 19.86715387120116,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 9
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 23.029794666895558,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 4029,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.999227,
+      "row": 10
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": 26.823404284438904,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 11
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": 21.70287278716798,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": 4029,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.999227,
+      "row": 12
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": 26.760296971775873,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": 5484,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.998948,
+      "row": 13
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": 18.288624797601354,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": 4029,
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.999227,
+      "row": 15
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": 27.582032673099476,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": "SIE_10373806000189_1291/09_1",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": 12.637469049894449,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": "SIE_23397792000185_149816_1",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    },
+    {
+      "answer": "buyer",
+      "column": "entity_kind",
+      "golden": "cooperative",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    },
+    {
+      "answer": "slaughter_point",
+      "column": "tier",
+      "golden": "membership_muni",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    },
+    {
+      "answer": 23.849192471981443,
+      "column": "distance_km",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    }
+  ]
+}

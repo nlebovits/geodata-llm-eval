@@ -1,0 +1,510 @@
+{
+  "q10": [
+    {
+      "answer": 788,
+      "column": "by_single_parcel_rule",
+      "golden": 766,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.028721,
+      "row": 0
+    },
+    {
+      "answer": 10,
+      "column": "by_aggregate_rule_only",
+      "golden": 27,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.62963,
+      "row": 0
+    }
+  ],
+  "q12": [
+    {
+      "answer": 74,
+      "column": "n_excluded",
+      "golden": 79,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.063291,
+      "row": 0
+    }
+  ],
+  "q13": [
+    {
+      "answer": 43,
+      "column": "n_fields",
+      "golden": 42,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.02381,
+      "row": 1
+    },
+    {
+      "answer": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 27,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.068966,
+      "row": 6
+    },
+    {
+      "answer": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": 26,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.071429,
+      "row": 7
+    },
+    {
+      "answer": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 26,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.153846,
+      "row": 8
+    },
+    {
+      "answer": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    }
+  ],
+  "q14": [
+    {
+      "answer": 37144.542931971155,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.02869,
+      "row": 0
+    }
+  ],
+  "q15": [
+    {
+      "answer": 37144.542931971155,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.02869,
+      "row": 0
+    },
+    {
+      "answer": 120.57301754661007,
+      "column": "post2020_loss_ha",
+      "golden": 114.9,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.049374,
+      "row": 0
+    }
+  ],
+  "q17": [
+    {
+      "answer": 757,
+      "column": "n_fields",
+      "golden": 753,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.005312,
+      "row": 0
+    },
+    {
+      "answer": 29,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.035714,
+      "row": 1
+    },
+    {
+      "answer": 52.58655183817289,
+      "column": "post2020_loss_ha",
+      "golden": 46.9,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.121248,
+      "row": 1
+    }
+  ],
+  "q19": [
+    {
+      "answer": 33668.38201625613,
+      "column": "total_ha",
+      "golden": 32745.7,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.028177,
+      "row": 0
+    },
+    {
+      "answer": 0.09422283995786315,
+      "column": "loss_share",
+      "golden": 0.0969,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.027628,
+      "row": 0
+    },
+    {
+      "answer": 2453.649614831916,
+      "column": "total_ha",
+      "golden": 2340.4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.048389,
+      "row": 1
+    },
+    {
+      "answer": 0.2626257666896972,
+      "column": "loss_share",
+      "golden": 0.227,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.156942,
+      "row": 1
+    }
+  ],
+  "q20": [
+    {
+      "answer": 52.58655183817289,
+      "column": "post2020_loss_ha",
+      "golden": 46.9,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.121248,
+      "row": 0
+    },
+    {
+      "answer": 3,
+      "column": "n_fields_post2020_loss",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.5,
+      "row": 0
+    },
+    {
+      "answer": 27.01954904480855,
+      "column": "post2020_loss_ha",
+      "golden": 29.5,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.084083,
+      "row": 1
+    },
+    {
+      "answer": 11,
+      "column": "n_fields_post2020_loss",
+      "golden": 12,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.083333,
+      "row": 1
+    },
+    {
+      "answer": "GO-5212204-57B761BC972B4CF1ACB6FB3191344583",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-59B661AA7FEB45408462F5CD9717FC56",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 2.481839554175935,
+      "column": "post2020_loss_ha",
+      "golden": 0.6,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 3.136399,
+      "row": 9
+    }
+  ],
+  "q21": [
+    {
+      "answer": 774.9573618118333,
+      "column": "cleared_ha",
+      "golden": 761.4,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.017806,
+      "row": 0
+    },
+    {
+      "answer": 42.21091602273941,
+      "column": "pct_of_loss",
+      "golden": 42.0,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.005022,
+      "row": 0
+    },
+    {
+      "answer": 422.01484648168065,
+      "column": "cleared_ha",
+      "golden": 418.5,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.008399,
+      "row": 1
+    },
+    {
+      "answer": 22.9865978736425,
+      "column": "pct_of_loss",
+      "golden": 23.1,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.004909,
+      "row": 1
+    },
+    {
+      "answer": 326.3602977521994,
+      "column": "cleared_ha",
+      "golden": 326.0,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.001105,
+      "row": 2
+    },
+    {
+      "answer": 17.77641945276371,
+      "column": "pct_of_loss",
+      "golden": 18.0,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.012421,
+      "row": 2
+    },
+    {
+      "answer": 192.01142593408954,
+      "column": "cleared_ha",
+      "golden": 190.0,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.010586,
+      "row": 3
+    },
+    {
+      "answer": 120.57301754661007,
+      "column": "cleared_ha",
+      "golden": 114.9,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.049374,
+      "row": 4
+    },
+    {
+      "answer": 6.567454893736489,
+      "column": "pct_of_loss",
+      "golden": 6.3,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.042453,
+      "row": 4
+    }
+  ],
+  "q22": [
+    {
+      "answer": 19,
+      "column": "n_fields",
+      "golden": 18,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.055556,
+      "row": 1
+    },
+    {
+      "answer": 293.51778625880564,
+      "column": "cleared_ha",
+      "golden": 280.0,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.048278,
+      "row": 1
+    },
+    {
+      "answer": 16,
+      "column": "n_fields",
+      "golden": 15,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.066667,
+      "row": 10
+    },
+    {
+      "answer": 122.55045053227445,
+      "column": "cleared_ha",
+      "golden": 122.2,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.002868,
+      "row": 10
+    },
+    {
+      "answer": 5,
+      "column": "n_fields",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.25,
+      "row": 19
+    },
+    {
+      "answer": 27.419694803248948,
+      "column": "cleared_ha",
+      "golden": 24.1,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.137747,
+      "row": 19
+    },
+    {
+      "answer": 3,
+      "column": "n_fields",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.5,
+      "row": 22
+    },
+    {
+      "answer": 11.70604099241896,
+      "column": "cleared_ha",
+      "golden": 3.9,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 2.001549,
+      "row": 22
+    }
+  ],
+  "q23": [
+    {
+      "answer": 4984281,
+      "column": "field_id",
+      "golden": 4685105,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.063857,
+      "row": 9
+    },
+    {
+      "answer": "GO-5212204-8F9A53F42FEE4187BBBC3E66F68CEEBE",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": "soya",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 113.22842444590191,
+      "column": "field_area_ha",
+      "golden": 6.6,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 16.155822,
+      "row": 9
+    },
+    {
+      "answer": 5.642639863972404,
+      "column": "post2020_loss_ha",
+      "golden": 2.5,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 1.257056,
+      "row": 9
+    }
+  ],
+  "q24": [
+    {
+      "answer_columns": 4,
+      "answer_rows": 19,
+      "golden_columns": 4,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q26": [
+    {
+      "answer_columns": 4,
+      "answer_rows": 19,
+      "golden_columns": 4,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q27": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 19,
+      "golden_columns": 3,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q28": [
+    {
+      "answer_columns": 7,
+      "answer_rows": 19,
+      "golden_columns": 7,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q30": [
+    {
+      "answer_columns": 8,
+      "answer_rows": 19,
+      "golden_columns": 8,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+mbmode24,mb_class,annex1_commodity,in_scope,caveat
+15,Pasture,Cattle,true,""
+21,Mosaic of Uses,Cattle,true,mixed-use mosaic assumed to be pasture (cattle)
+39,Soybean,Soya,true,""
+41,Other Temporary Crops,"",false,"generic temporary-crop class, not attributable to a single Annex I commodity"

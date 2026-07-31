@@ -1,0 +1,56 @@
+{
+  "model": "opus",
+  "model_id": "claude-opus-4-8",
+  "run_id": "20260731T153709Z-017dd85",
+  "label": "",
+  "started_utc": "2026-07-31T15:37:09.973913+00:00",
+  "finished_utc": "2026-07-31T15:53:34.195193+00:00",
+  "duration_seconds": 984.2,
+  "exit_code": 0,
+  "attempts": 1,
+  "harness_commit": "017dd855eac5f68005f2ca252bdb86dac9ded3b9",
+  "input_mode": "csv",
+  "golden_fingerprint": "6cd923b47f19",
+  "spec_fingerprint": "08c0a4cb8420",
+  "spec_manifest": {
+    "policies/COOPS.md": "aafbe8dc8e93eb4764b843b6fdb561c275a01cd5e9432a03182adb3b5e489938",
+    "policies/EUDR_CROPS.md": "753c407ac4fe31fe8b7b207082bac604b19986e926b0adaf3bd80a01767923d8",
+    "policies/INPUTS.md": "362cae19c194e5f72120fcf282cd3a2d6cfaf219c6753f7d6c5fbe4dd6e0dc5e",
+    "task.md": "fc57fb434d2a6695f245ab11d90c35cad25893d03d46cd334705596ab5e07cff"
+  },
+  "ablation": {
+    "arm": "no-matching",
+    "why": "Withholds the field-to-cadaster matching rules: both inclusion tests, the thresholds, and the tie rules. Stage 3 onward reads everything it produces, so this is the widest blast radius of any single document.",
+    "ops": [
+      {
+        "drop": "policies/MATCHING.md"
+      }
+    ],
+    "receipt": {
+      "policies/MATCHING.md": 157
+    }
+  },
+  "catalog_at_start": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "catalog_at_end": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "turns": 96,
+  "input_tokens": 66,
+  "output_tokens": 55644,
+  "cache_creation_tokens": 97319,
+  "cache_read_tokens": 2214115,
+  "slow_tool_calls": 6,
+  "slow_tool_seconds": 630.0,
+  "slow_tool_seconds_by_tool": {
+    "Bash": 630.0
+  },
+  "timed_out_tool_calls": 3,
+  "imputed_cost_usd": 3.106731,
+  "answers_written": 30,
+  "status": "done",
+  "graded_against": "6cd923b47f19"
+}

@@ -1,0 +1,529 @@
+{
+  "q16": [
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "mixed-use mosaic assumed to be pasture (cattle)",
+      "column": "caveat",
+      "golden": "assumed_pasture",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "generic temporary-crop class, not attributable to a single Annex I commodity",
+      "column": "caveat",
+      "golden": "",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    }
+  ],
+  "q17": [
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    }
+  ],
+  "q19": [
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    }
+  ],
+  "q23": [
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    }
+  ],
+  "q24": [
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 14
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    }
+  ],
+  "q25": [
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    }
+  ],
+  "q30": [
+    {
+      "answer": "Soya",
+      "column": "annex1_commodity",
+      "golden": "soya",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 14
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": "Cattle",
+      "column": "annex1_commodity",
+      "golden": "cattle",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 17
+    }
+  ]
+}

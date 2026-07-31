@@ -1,0 +1,56 @@
+{
+  "model": "opus",
+  "model_id": "claude-opus-4-8",
+  "run_id": "20260731T134548Z-3f38a9b",
+  "label": "",
+  "started_utc": "2026-07-31T13:45:48.684686+00:00",
+  "finished_utc": "2026-07-31T14:02:40.886513+00:00",
+  "duration_seconds": 1012.2,
+  "exit_code": 0,
+  "attempts": 1,
+  "harness_commit": "3f38a9b6b10dcf15de46e34f49fd9e14dc739226",
+  "input_mode": "csv",
+  "golden_fingerprint": "6cd923b47f19",
+  "spec_fingerprint": "3c7aae61bb2a",
+  "spec_manifest": {
+    "policies/EUDR_CROPS.md": "753c407ac4fe31fe8b7b207082bac604b19986e926b0adaf3bd80a01767923d8",
+    "policies/INPUTS.md": "362cae19c194e5f72120fcf282cd3a2d6cfaf219c6753f7d6c5fbe4dd6e0dc5e",
+    "policies/MATCHING.md": "45f5527d040989a4bf6aa4da7d1e2cfe81cb1e0ebb47a2c68e386968a3cfb30e",
+    "task.md": "fc57fb434d2a6695f245ab11d90c35cad25893d03d46cd334705596ab5e07cff"
+  },
+  "ablation": {
+    "arm": "no-coops",
+    "why": "Withholds buyer and cooperative matching entirely. Stages 5 and 6 consume it and stages 1 to 4 do not, so movement in the early stages is cascade or noise rather than an effect of the missing document.",
+    "ops": [
+      {
+        "drop": "policies/COOPS.md"
+      }
+    ],
+    "receipt": {
+      "policies/COOPS.md": 150
+    }
+  },
+  "catalog_at_start": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "catalog_at_end": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "turns": 127,
+  "input_tokens": 104,
+  "output_tokens": 60272,
+  "cache_creation_tokens": 119274,
+  "cache_read_tokens": 4376836,
+  "slow_tool_calls": 2,
+  "slow_tool_seconds": 60.0,
+  "slow_tool_seconds_by_tool": {
+    "Bash": 60.0
+  },
+  "timed_out_tool_calls": 0,
+  "imputed_cost_usd": 4.4412,
+  "answers_written": 30,
+  "status": "done",
+  "graded_against": "6cd923b47f19"
+}

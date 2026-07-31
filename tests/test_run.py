@@ -57,6 +57,61 @@ def test_run_py_never_copies_the_golden_fixtures():
             assert "golden" not in line.lower(), line.strip()
 
 
+def test_the_ablation_config_is_not_inside_the_policies_directory():
+    """policies/ is copied into the workspace wholesale. A config living there
+    would hand the session an itemised list of what was withheld from it,
+    which is the one thing an ablation must not reveal."""
+    assert run.ABLATIONS.exists(), "the shipped ablation config must be committed"
+    assert (REPO_ROOT / "policies") not in run.ABLATIONS.parents
+
+
+def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
+        monkeypatch, capsys, tmp_path):
+    """The receipt printed here is what makes "did this arm do anything?"
+    answerable before a sweep is paid for rather than after."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    run.run_session("haiku", dry_run=True, input_mode="csv", arm="no-coops")
+    out = capsys.readouterr().out
+
+    assert "arm no-coops" in out
+    assert "policies/COOPS.md" not in out.split("removed")[0], "COOPS.md must be gone"
+    assert "policies/MATCHING.md" in out, "the other policies must survive"
+    assert "removed 150 lines from policies/COOPS.md" in out
+
+
+def test_an_unknown_arm_fails_before_a_container_starts(monkeypatch, tmp_path):
+    """A mistyped arm that fell through to the full spec would score like the
+    baseline and read as "the withheld text did not matter"."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    with pytest.raises(run.ablation.AblationError, match="unknown arm"):
+        run.run_session("haiku", dry_run=True, arm="no-such-arm")
+
+
+def test_a_plain_run_records_the_full_spec_and_reads_no_config(monkeypatch,
+                                                               capsys, tmp_path):
+    """Every run already on disk saw the whole spec, so an unablated run has
+    to group with them rather than becoming a fourth category."""
+    class FakePrice:
+        model_id = "claude-haiku-4-5-20251001"
+
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setitem(run.PRICES, "haiku", FakePrice())
+    monkeypatch.setattr(run, "ABLATIONS", tmp_path / "does-not-exist.yaml")
+    run.run_session("haiku", dry_run=True, input_mode="csv")
+    out = capsys.readouterr().out
+
+    assert f"arm {run.FULL_SPEC}" in out
+    assert "policies/COOPS.md" in out and "removed" not in out
+
+
 def fake_credentials(tmp_path, monkeypatch):
     """Point the harness at a decoy login so no test reads the real one."""
     cred = tmp_path / "host-credentials.json"
@@ -160,6 +215,48 @@ def write_transcript(tmp_path, records):
         "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8",
     )
     return path
+
+
+def test_a_rejected_credential_is_read_off_the_transcript(tmp_path):
+    """The mounted token copy expires, and a session starting after it does
+    gets a 401 on its first call, retries ten times inside the CLI, then
+    exits having written nothing. To the resume loop that is indistinguishable
+    from a session that stopped with work left, so it starts it again into the
+    same rejection. One sweep spent all three attempts on that and returned
+    the arm at n=1."""
+    dead = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "attempt": 1,
+         "error_status": 401, "error": "authentication_failed"},
+        {"type": "result", "is_error": True},
+    ])
+    assert run.credential_rejected(dead)
+
+
+def test_a_transcript_with_no_401_is_not_read_as_a_credential_failure(tmp_path):
+    healthy = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "attempt": 1,
+         "error_status": 529, "error": "overloaded"},
+        {"type": "result", "is_error": False},
+    ])
+    assert not run.credential_rejected(healthy)
+
+
+def test_the_credential_check_reads_every_attempt_not_just_the_last(tmp_path):
+    """The run that prompted this logged no api_retry on its third attempt:
+    by then the CLI could not find its config file and failed before reaching
+    the API at all. A check scoped to the latest attempt would have missed the
+    failure it was written for."""
+    path = write_transcript(tmp_path, [
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "system", "subtype": "api_retry", "error_status": 401},
+        {"type": "result", "is_error": True},
+        {"type": "system", "subtype": "init", "session_id": "s"},
+        {"type": "assistant", "message": {"content": []}},
+        {"type": "result", "is_error": True},
+    ])
+    assert run.credential_rejected(path)
 
 
 def heartbeat(call_id, tool, seconds):
