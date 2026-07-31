@@ -1,0 +1,56 @@
+{
+  "model": "opus",
+  "model_id": "claude-opus-4-8",
+  "run_id": "20260731T150233Z-017dd85",
+  "label": "",
+  "started_utc": "2026-07-31T15:02:33.223152+00:00",
+  "finished_utc": "2026-07-31T15:19:43.420752+00:00",
+  "duration_seconds": 1030.2,
+  "exit_code": 0,
+  "attempts": 1,
+  "harness_commit": "017dd855eac5f68005f2ca252bdb86dac9ded3b9",
+  "input_mode": "csv",
+  "golden_fingerprint": "6cd923b47f19",
+  "spec_fingerprint": "ee0bd55a8d52",
+  "spec_manifest": {
+    "policies/COOPS.md": "aafbe8dc8e93eb4764b843b6fdb561c275a01cd5e9432a03182adb3b5e489938",
+    "policies/EUDR_CROPS.md": "753c407ac4fe31fe8b7b207082bac604b19986e926b0adaf3bd80a01767923d8",
+    "policies/MATCHING.md": "45f5527d040989a4bf6aa4da7d1e2cfe81cb1e0ebb47a2c68e386968a3cfb30e",
+    "task.md": "fc57fb434d2a6695f245ab11d90c35cad25893d03d46cd334705596ab5e07cff"
+  },
+  "ablation": {
+    "arm": "no-inputs",
+    "why": "Withholds the input-list handling rules: the encodings, the defect table, and the reconciliation identity. The list shipped with the Goias sample is clean, so this measures how much of that discipline a session applies without being told to.",
+    "ops": [
+      {
+        "drop": "policies/INPUTS.md"
+      }
+    ],
+    "receipt": {
+      "policies/INPUTS.md": 47
+    }
+  },
+  "catalog_at_start": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "catalog_at_end": {
+    "ok": false,
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  "turns": 101,
+  "input_tokens": 107,
+  "output_tokens": 61014,
+  "cache_creation_tokens": 110925,
+  "cache_read_tokens": 3936004,
+  "slow_tool_calls": 2,
+  "slow_tool_seconds": 90.0,
+  "slow_tool_seconds_by_tool": {
+    "Bash": 90.0
+  },
+  "timed_out_tool_calls": 0,
+  "imputed_cost_usd": 4.187168,
+  "answers_written": 30,
+  "status": "done",
+  "graded_against": "6cd923b47f19"
+}

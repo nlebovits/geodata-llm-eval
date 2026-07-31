@@ -39,6 +39,22 @@ arms:
     ops:
       - drop: policies/INPUTS.md
 
+  no-matching:
+    why: >
+      Withholds the field-to-cadaster matching rules: both inclusion tests,
+      the thresholds, and the tie rules. Stage 3 onward reads everything it
+      produces, so this is the widest blast radius of any single document.
+    ops:
+      - drop: policies/MATCHING.md
+
+  no-crops:
+    why: >
+      Withholds the EUDR scope table and the crop-to-tier routing. Decides
+      which fields count as in scope at all, so damage should start at
+      stage 4 and carry through the coop questions.
+    ops:
+      - drop: policies/EUDR_CROPS.md
+
   no-widening:
     why: >
       Keeps COOPS.md but removes only the radius-widening rule. Narrower than
