@@ -2,7 +2,7 @@
 
 The offline ones run always: every question maps to a template that exists, the
 templates have no unfilled placeholders after substitution, the QUESTION_MAP
-covers exactly the 30 questions, and the local scope tables build. The
+covers exactly the 31 questions, and the local scope tables build. The
 generation, determinism, and partition checks need the live catalogs on
 source.coop; they skip when it is unreachable (it throttles and occasionally
 goes down), and are the real acceptance gate when it is up.
@@ -47,7 +47,7 @@ needs_network = pytest.mark.skipif(
 
 # --- offline -----------------------------------------------------------------
 
-def test_question_map_covers_exactly_the_thirty_questions():
+def test_question_map_covers_exactly_the_question_set():
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     yaml_ids = {f"q{q['id']}" for q in spec["questions"]}
     assert set(render.QUESTION_MAP) == yaml_ids
@@ -229,9 +229,9 @@ def test_scope_tables_build_locally(tmp_path):
 # --- needs the live catalogs -------------------------------------------------
 
 @needs_network
-def test_render_all_emits_thirty_goldens_and_manifest(tmp_path):
+def test_render_all_emits_every_golden_and_manifest(tmp_path):
     written = render.render_all(PINS, tmp_path)
-    assert sorted(written) == [f"q{n:02d}" for n in range(1, 31)]
+    assert sorted(written) == [f"q{n:02d}" for n in range(1, 32)]
     for path in written.values():
         assert path.exists()
         assert path.read_text().count("\n") >= 2  # header + >=1 row

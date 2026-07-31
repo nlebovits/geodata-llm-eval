@@ -4,6 +4,10 @@
 fixtures/golden/*.csv   text eol=lf
 fixtures/golden/SHA256SUMS text eol=lf
 fixtures/lists/*.csv    text eol=lf
+# The geometry and split encodings. Marked binary so no checkout rewrites a
+# byte of them: tests/test_lists.py regenerates all three and compares bytes,
+# and a line-ending filter would turn that check into a false failure.
+fixtures/lists/*.parquet binary
 # SQL, Python, YAML, Markdown: keep LF in the repo.
 *.sql   text eol=lf
 *.py    text eol=lf

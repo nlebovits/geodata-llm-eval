@@ -31,17 +31,30 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = Path(__file__).resolve().parent / "sql"
 
 # Stages run in order; later stages read the parquets earlier ones write.
-PIPELINE = ["eudr_crops", "cad_extract", "fields_extract", "match", "coop_match"]
+# list_resolve comes before cad_extract and must: it is what turns the raw input
+# list into the id set cad_extract filters on, and a row that arrived as a bare
+# geometry cannot be resolved from an extract that already filtered by id.
+PIPELINE = ["eudr_crops", "list_resolve", "cad_extract", "fields_extract",
+            "match", "coop_match"]
 
-# The two stages that pull from source.coop, and the parquet each produces. Once
+# The stages that pull from source.coop, and the parquet each produces. Once
 # pulled, the extract is cached: the cold 3.7 GB CAR scan and the Trazo3 field
 # scan happen once, and every golden regeneration after reuses them (mirrors
 # build_lists.sh, whose cached extracts are what made local reruns fast). Pass
-# --force to re-pull. The local stages (match, coop_match, all query views) are
-# fast and always re-run.
+# --force to re-pull. The local stages (cad_extract, match, coop_match, all
+# query views) are fast and always re-run.
+#
+# list_resolve owns the CAR scan now, and caches the state slice it read as
+# CAR_STATE_PARQUET so cad_extract can select from disk. That keeps the cold
+# path at one remote scan even though two stages need CAR rows.
+#
+# A stage is cached only when every parquet it writes is present. list_resolve
+# writes two, and half a cache is not a cache: skipping it on a stale directory
+# that kept the CAR slice but lost the resolution would run the whole pipeline
+# against a missing file.
 CACHEABLE = {
-    "cad_extract": "CAD_PARQUET",
-    "fields_extract": "FIELDS_RAW_PARQUET",
+    "list_resolve": ["CAR_STATE_PARQUET", "RESOLVED_PARQUET"],
+    "fields_extract": ["FIELDS_RAW_PARQUET"],
 }
 
 # Which query answers which question, and how to slice its result:
@@ -99,6 +112,10 @@ QUESTION_MAP = {
     "q30": ("portfolio",
             ["cod_imovel", "annex1_commodity", "post2020_loss_ha", "entity_id",
              "entity_kind", "tier", "basis", "distance_km"], None),
+    "q31": ("list_reconciliation",
+            ["input_rows", "resolved_clean", "centroid_resolved",
+             "geometry_resolved", "axis_repaired", "duplicates_removed",
+             "unresolvable"], None),
 }
 
 
@@ -111,6 +128,8 @@ def substitutions(pins: dict, work: Path) -> dict:
         "CAR_URL": cat["cadastral"]["car_parquet"],
         "TRAZO_URL": cat["trazo"]["goias_parquet"],
         "COOP_GEOMS": cat["facilities"]["facilities_parquet"],
+        "CAR_STATE_PARQUET": (work / "car_state.parquet").as_posix(),
+        "RESOLVED_PARQUET": (work / "resolved.parquet").as_posix(),
         "CAD_PARQUET": (work / "cad.parquet").as_posix(),
         "FIELDS_RAW_PARQUET": (work / "fields.parquet").as_posix(),
         "MATCHED_PARQUET": (work / "matched.parquet").as_posix(),
@@ -180,20 +199,16 @@ def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
                 force: bool = False) -> None:
     """Run the pipeline so every question query has its inputs on disk.
 
-    A cacheable remote-pull stage is skipped when its output parquet already
-    exists (unless force). match/coop_match rebuild the in-memory tables the
-    query views read (e.g. `decision`), so they always run — cheap and local.
+    A cacheable remote-pull stage is skipped when all its output parquets
+    already exist (unless force). Every other stage reads those parquets from
+    disk and rebuilds the in-memory tables the query views expect (e.g. `cad`,
+    `decision`), so they always run — cheap and local.
     """
     tune_for_remote_reads(con)
     for stage in PIPELINE:
-        out_key = CACHEABLE.get(stage)
-        if out_key and not force and Path(subs[out_key]).exists():
-            # Re-register the cached parquet under the names later stages and
-            # query views expect, without re-pulling from source.coop.
-            if stage == "cad_extract":
-                con.execute(
-                    f"CREATE OR REPLACE TABLE cad AS "
-                    f"SELECT * FROM read_parquet('{subs['CAD_PARQUET']}')")
+        out_keys = CACHEABLE.get(stage, [])
+        if out_keys and not force and all(
+                Path(subs[key]).exists() for key in out_keys):
             print(f"[{stage}] cached — skipping remote pull", flush=True)
             continue
         print(f"[{stage}] running", flush=True)
