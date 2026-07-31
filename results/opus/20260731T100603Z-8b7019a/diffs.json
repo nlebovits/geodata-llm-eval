@@ -1,0 +1,13 @@
+{
+  "q13": [
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.034483,
+      "row": 6
+    }
+  ]
+}

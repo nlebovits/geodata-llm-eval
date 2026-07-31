@@ -8,206 +8,163 @@
       "kind": "shape"
     }
   ],
-  "q26": [
+  "q13": [
     {
-      "answer": 24.65230161297498,
-      "column": "distance_km",
-      "golden": 26.8,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.080138,
-      "row": 0
-    },
-    {
-      "answer": 11.174002609397654,
-      "column": "distance_km",
-      "golden": 12.6,
+      "answer": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.113174,
-      "row": 1
-    },
-    {
-      "answer": 13.888872140171141,
-      "column": "distance_km",
-      "golden": 15.8,
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": 0.120957,
-      "row": 2
-    },
-    {
-      "answer": 19.03608752554227,
-      "column": "distance_km",
-      "golden": 20.5,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.07141,
-      "row": 3
-    },
-    {
-      "answer": 16.366227589916885,
-      "column": "distance_km",
-      "golden": 18.3,
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": 0.105671,
-      "row": 4
-    },
-    {
-      "answer": 16.187571790723613,
-      "column": "distance_km",
-      "golden": 16.5,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.018935,
-      "row": 5
-    },
-    {
-      "answer": 21.23939666042172,
-      "column": "distance_km",
-      "golden": 23.0,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.076548,
+      "rel_error": null,
       "row": 6
     },
     {
-      "answer": 5484,
-      "column": "entity_id",
-      "golden": "SIE_23397792000185_149816_1",
+      "answer": 27,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.068966,
+      "row": 6
+    },
+    {
+      "answer": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
       "row": 7
     },
     {
-      "answer": 23.078898146656563,
-      "column": "distance_km",
-      "golden": 23.8,
+      "answer": 26,
+      "column": "n_fields",
+      "golden": 28,
       "kind": "cell",
       "near_miss": true,
-      "rel_error": 0.030298,
+      "rel_error": 0.071429,
       "row": 7
     },
     {
-      "answer": 12.138971073080514,
-      "column": "distance_km",
-      "golden": 14.5,
+      "answer": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.16283,
+      "rel_error": null,
       "row": 8
     },
     {
-      "answer": 5.716349618658123,
-      "column": "distance_km",
-      "golden": 9.6,
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 26,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.153846,
+      "row": 8
+    },
+    {
+      "answer": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.404547,
+      "rel_error": null,
+      "row": 9
+    }
+  ],
+  "q20": [
+    {
+      "answer": 27.01954904480855,
+      "column": "post2020_loss_ha",
+      "golden": 29.5,
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": 0.084083,
+      "row": 1
+    },
+    {
+      "answer": 11,
+      "column": "n_fields_post2020_loss",
+      "golden": 12,
+      "kind": "cell",
+      "near_miss": true,
+      "rel_error": 0.083333,
+      "row": 1
+    },
+    {
+      "answer": "GO-5212204-57B761BC972B4CF1ACB6FB3191344583",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-59B661AA7FEB45408462F5CD9717FC56",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
       "row": 9
     },
     {
-      "answer": 20.160600435250696,
-      "column": "distance_km",
-      "golden": 22.3,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.095937,
-      "row": 10
-    },
-    {
-      "answer": 26.612113932314582,
-      "column": "distance_km",
-      "golden": 27.6,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.035793,
-      "row": 11
-    },
-    {
-      "answer": 26.3399267762679,
-      "column": "distance_km",
-      "golden": 26.8,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.017167,
-      "row": 12
-    },
-    {
-      "answer": 13.246352404095443,
-      "column": "distance_km",
-      "golden": 14.7,
+      "answer": 2.481839554175935,
+      "column": "post2020_loss_ha",
+      "golden": 0.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.098888,
-      "row": 13
-    },
+      "rel_error": 3.136399,
+      "row": 9
+    }
+  ],
+  "q23": [
     {
-      "answer": 19.073882909857744,
-      "column": "distance_km",
-      "golden": 19.9,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.041513,
-      "row": 14
-    },
-    {
-      "answer": 17.53524869716885,
-      "column": "distance_km",
-      "golden": 19.4,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.096121,
-      "row": 15
-    },
-    {
-      "answer": 20.396363063601903,
-      "column": "distance_km",
-      "golden": 21.7,
-      "kind": "cell",
-      "near_miss": true,
-      "rel_error": 0.060075,
-      "row": 16
-    },
-    {
-      "answer": 6.065203740649783,
-      "column": "distance_km",
-      "golden": 8.0,
+      "answer": "GO-5212204-57B761BC972B4CF1ACB6FB3191344583",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 0.24185,
-      "row": 17
-    },
+      "rel_error": null,
+      "row": 9
+    }
+  ],
+  "q24": [
     {
-      "answer": 12.588287562612678,
-      "column": "distance_km",
-      "golden": 15.3,
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": 0.177236,
-      "row": 18
+      "answer_columns": 4,
+      "answer_rows": 19,
+      "golden_columns": 4,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q26": [
+    {
+      "answer_columns": 4,
+      "answer_rows": 19,
+      "golden_columns": 4,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q27": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 19,
+      "golden_columns": 3,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q28": [
+    {
+      "answer_columns": 7,
+      "answer_rows": 19,
+      "golden_columns": 7,
+      "golden_rows": 18,
+      "kind": "shape"
     }
   ],
   "q30": [
     {
-      "answer": 6.065203740649783,
-      "column": "distance_km",
-      "golden": 8.0,
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": 0.24185,
-      "row": 8
-    },
-    {
-      "answer": 5.716349618658123,
-      "column": "distance_km",
-      "golden": 9.6,
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": 0.404547,
-      "row": 15
+      "answer_columns": 8,
+      "answer_rows": 19,
+      "golden_columns": 8,
+      "golden_rows": 18,
+      "kind": "shape"
     }
   ]
 }

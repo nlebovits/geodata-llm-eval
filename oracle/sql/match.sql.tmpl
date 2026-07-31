@@ -31,12 +31,54 @@ SELECT f.Id AS field_id,
 FROM fields f
 JOIN cad c ON ST_Intersects(f.geometry, c.geometry);
 
+-- The primary cadaster is the parcel covering most of the field, with a tie
+-- going to the lowest cod_imovel. MATCHING.md states the rule; this is where
+-- it is implemented.
+--
+-- Ties are common rather than exotic. CAR parcels overlap, and a field lying
+-- inside the overlap of two of them intersects both in the same polygon, so
+-- the two areas agree bit for bit: 54 of the 793 matched fields tie this way.
+--
+-- This was arg_max(cod_imovel, inter_area), which resolves a tie by scan order.
+-- That made the primary cadaster of those 54 fields an accident of the plan
+-- rather than a consequence of the policy, and the accident was load-bearing.
+-- One tied field carries 2.48 ha of post-2020 loss and is the only flagged
+-- field of its parcel, so the pick decides whether that parcel appears in the
+-- flagged set at all -- which q13, q20, q23, q24, q26, q27, q28, and q30 read.
+-- A session that wrote its own deterministic tie-break lost eight questions to
+-- a choice the policy left open, while the session that scored full marks had
+-- written the same arg_max idiom and inherited the same arbitrary answer.
+--
+-- Two parcels count as tied when their containment fractions differ by no more
+-- than primary_tie_tolerance, not only when they are bit-equal. Ordering on the
+-- raw fraction would decide 2 of these 872 fields by a difference no method can
+-- resolve: measured against the same geometry, the fraction moves by a median
+-- 1e-12 to 1e-11 between planar degrees, EPSG:5880 and the spheroid, and those
+-- two fields' top two parcels differ by 1.2e-11 and 1.7e-10. Switching the
+-- oracle to spheroid areas flips both. The nearest genuine separation is
+-- 1.6e-8, sixteen times the tolerance, so nothing that is really a winner
+-- becomes a tie. See MATCHING.md for the derivation.
+--
+-- best is the true maximum and stays the reported fraction, so the
+-- contain_threshold test is unaffected by the tolerance.
 CREATE OR REPLACE TABLE single AS
+WITH scored AS (
+    SELECT field_id, cod_imovel,
+           inter_area / nullif(field_area, 0) AS frac
+    FROM ov
+),
+topped AS (
+    SELECT *, max(frac) OVER (PARTITION BY field_id) AS best
+    FROM scored
+)
 SELECT field_id,
-       max(inter_area / nullif(field_area, 0))  AS max_single_frac,
-       arg_max(cod_imovel, inter_area)          AS primary_cod_imovel
-FROM ov
-GROUP BY field_id;
+       best        AS max_single_frac,
+       cod_imovel  AS primary_cod_imovel
+FROM topped
+QUALIFY row_number() OVER (
+          PARTITION BY field_id
+          ORDER BY (best - frac) <= ${PRIMARY_TIE_TOLERANCE} DESC,
+                   cod_imovel) = 1;
 
 -- (2) Whole-list containment against the buffered, dissolved union of parcels.
 CREATE OR REPLACE TABLE listgeom AS

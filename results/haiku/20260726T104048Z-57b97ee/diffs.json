@@ -224,7 +224,7 @@
     {
       "answer": "GO-5212204-00000000000000000000000000000006",
       "column": "cod_imovel",
-      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -233,16 +233,16 @@
     {
       "answer": 4800,
       "column": "n_fields",
-      "golden": 27,
+      "golden": 29,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 176.777778,
+      "rel_error": 164.517241,
       "row": 6
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000007",
       "column": "cod_imovel",
-      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -251,16 +251,16 @@
     {
       "answer": 4600,
       "column": "n_fields",
-      "golden": 26,
+      "golden": 28,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 175.923077,
+      "rel_error": 163.285714,
       "row": 7
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000008",
       "column": "cod_imovel",
-      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -269,16 +269,16 @@
     {
       "answer": 4400,
       "column": "n_fields",
-      "golden": 22,
+      "golden": 26,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 199.0,
+      "rel_error": 168.230769,
       "row": 8
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000009",
       "column": "cod_imovel",
-      "golden": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -497,19 +497,19 @@
     {
       "answer": 1900.0,
       "column": "post2020_loss_ha",
-      "golden": 27.0,
+      "golden": 29.5,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 69.37037,
+      "rel_error": 63.40678,
       "row": 1
     },
     {
       "answer": 46,
       "column": "n_fields_post2020_loss",
-      "golden": 11,
+      "golden": 12,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 3.181818,
+      "rel_error": 2.833333,
       "row": 1
     },
     {
@@ -659,16 +659,7 @@
     {
       "answer": "GO-5212204-00000000000000000000000000000005",
       "column": "cod_imovel",
-      "golden": "GO-5212204-57B761BC972B4CF1ACB6FB3191344583",
-      "kind": "cell",
-      "near_miss": false,
-      "rel_error": null,
-      "row": 7
-    },
-    {
-      "answer": "Santa Fe de Goias",
-      "column": "municipio",
-      "golden": "Jussara",
+      "golden": "GO-5219258-D8B970A69F30415F9FDEE84663A2210B",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -677,25 +668,34 @@
     {
       "answer": 1750.0,
       "column": "post2020_loss_ha",
-      "golden": 2.5,
+      "golden": 1.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 699.0,
+      "rel_error": 1092.75,
       "row": 7
     },
     {
       "answer": 40,
       "column": "n_fields_post2020_loss",
-      "golden": 1,
+      "golden": 2,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 39.0,
+      "rel_error": 19.0,
       "row": 7
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000007",
       "column": "cod_imovel",
-      "golden": "GO-5219258-D8B970A69F30415F9FDEE84663A2210B",
+      "golden": "GO-5212204-B09F3674DFFF46D7AB8D2101F77AFC10",
+      "kind": "cell",
+      "near_miss": false,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": "Santa Fe de Goias",
+      "column": "municipio",
+      "golden": "Jussara",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -704,25 +704,25 @@
     {
       "answer": 1650.0,
       "column": "post2020_loss_ha",
-      "golden": 1.6,
+      "golden": 1.2,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 1030.25,
+      "rel_error": 1374.0,
       "row": 8
     },
     {
       "answer": 36,
       "column": "n_fields_post2020_loss",
-      "golden": 2,
+      "golden": 1,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 17.0,
+      "rel_error": 35.0,
       "row": 8
     },
     {
       "answer": "GO-5212204-00000000000000000000000000000009",
       "column": "cod_imovel",
-      "golden": "GO-5212204-B09F3674DFFF46D7AB8D2101F77AFC10",
+      "golden": "GO-5212204-59B661AA7FEB45408462F5CD9717FC56",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -740,10 +740,10 @@
     {
       "answer": 1550.0,
       "column": "post2020_loss_ha",
-      "golden": 1.2,
+      "golden": 0.6,
       "kind": "cell",
       "near_miss": false,
-      "rel_error": 1290.666667,
+      "rel_error": 2582.333333,
       "row": 9
     },
     {
@@ -1239,7 +1239,7 @@
     {
       "answer": "GO-5212204-00000000000000000000000000000009",
       "column": "cod_imovel",
-      "golden": "GO-5212204-57B761BC972B4CF1ACB6FB3191344583",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
       "kind": "cell",
       "near_miss": false,
       "rel_error": null,
@@ -1269,7 +1269,7 @@
       "answer_columns": 4,
       "answer_rows": 10,
       "golden_columns": 4,
-      "golden_rows": 19,
+      "golden_rows": 18,
       "kind": "shape"
     }
   ],
@@ -1287,7 +1287,7 @@
       "answer_columns": 4,
       "answer_rows": 10,
       "golden_columns": 4,
-      "golden_rows": 19,
+      "golden_rows": 18,
       "kind": "shape"
     }
   ],
@@ -1296,7 +1296,7 @@
       "answer_columns": 3,
       "answer_rows": 10,
       "golden_columns": 3,
-      "golden_rows": 19,
+      "golden_rows": 18,
       "kind": "shape"
     }
   ],
@@ -1305,7 +1305,7 @@
       "answer_columns": 7,
       "answer_rows": 10,
       "golden_columns": 7,
-      "golden_rows": 19,
+      "golden_rows": 18,
       "kind": "shape"
     }
   ],
@@ -1334,7 +1334,7 @@
       "answer_columns": 8,
       "answer_rows": 10,
       "golden_columns": 8,
-      "golden_rows": 19,
+      "golden_rows": 18,
       "kind": "shape"
     }
   ]
