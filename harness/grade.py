@@ -5,7 +5,7 @@ The comparator is deliberately dumb and deterministic:
 - Row order is ignored (rows compare as multisets).
 - Column order and column names are ignored; columns are matched by
   finding a column permutation under which all rows match.
-- Integers and strings must match exactly.
+- Integers must match exactly. Strings match ignoring case.
 - Floats match within relative tolerance 1e-3 (absolute 1e-9 near zero).
 - A missing or unparseable answer file is a distinct outcome from a
   wrong answer, so broken sessions and wrong sessions stay separable.
@@ -194,6 +194,17 @@ def values_match(a: object, b: object, geometry: bool = False,
     `b` is always the golden side: it sets the precision `a` is rounded to.
     `slack` widens the tolerance; the near-miss pass uses NEAR_MISS_FACTOR,
     everything else leaves it at 1.
+
+    Strings compare case-insensitively. The benchmark measures whether a model
+    can resolve parcels, apply a containment rule, and route a commodity, not
+    whether it guesses a house capitalisation style. Where the two came apart
+    the score followed the capitalisation: an ablation run that classified
+    every crop correctly wrote `Cattle` and `Soya` for golden `cattle` and
+    `soya`, and because `annex1_commodity` is reported by seven questions
+    across three stages, that one choice cost five points and made a stable
+    arm look like it swung wildly (issue #20). No golden vocabulary anywhere
+    in the set distinguishes two values by case alone, so folding case can
+    turn a wrong answer into a right one only if the answer was right.
     """
     as_bools = _match_booleans(a, b)
     if as_bools is not None:
@@ -209,6 +220,8 @@ def values_match(a: object, b: object, geometry: bool = False,
         rounded = _quantize(float(a), float(b))
         rel = slack * (GEOM_REL_TOL if geometry else REL_TOL)
         return math.isclose(rounded, float(b), rel_tol=rel, abs_tol=ABS_TOL)
+    if isinstance(a, str) and isinstance(b, str):
+        return a.casefold() == b.casefold()
     return a == b
 
 

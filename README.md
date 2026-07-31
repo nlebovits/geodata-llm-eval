@@ -41,7 +41,9 @@ Golden answers are generated, not hand-authored. `oracle/render.py` runs the ven
 
 Grading is executable, not model-judged. The comparator checks each session's `answers/qNN.csv` against `fixtures/golden/qNN.csv`.
 
-Counts and strings must match exactly. Numerics match within relative 1e-3. Geometry-sensitive questions grade at relative 1e-2 with integer slack of max(2, 1% of golden).
+Counts must match exactly. Strings must match apart from case. Numerics match within relative 1e-3. Geometry-sensitive questions grade at relative 1e-2 with integer slack of max(2, 1% of golden).
+
+Case is ignored because capitalization is not what the benchmark measures. The lowercase style for `annex1_commodity` is stated only in `policies/EUDR_CROPS.md`, so an ablation arm run without that document cannot recover it, and seven questions across three stages report the column. One formatting choice was costing five points and hiding whether the model had classified the crops correctly at all. No golden column anywhere distinguishes two values by case alone, so folding case can only turn a right answer into a passing one.
 
 Rounding is done on output only, never in a table that a later question filters on. Axis order is not a convention anyone should guess. GeoParquet is longitude-first, and DuckDB's ST_Area_Spheroid and ST_Transform read latitude-first unless `geometry_always_xy` is set. Every oracle template that loads `spatial` declares the setting.
 

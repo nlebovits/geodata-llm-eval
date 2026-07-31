@@ -1,7 +1,11 @@
 """Comparator behavior is the grading contract — pin it with tests."""
 
+import csv
 import sys
 from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+GOLDEN_DIR = REPO / "fixtures" / "golden"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
@@ -88,8 +92,9 @@ class TestCompare:
     def test_integer_count_must_be_exact(self):
         assert not compare([[1524]], [[1523]])
 
-    def test_string_must_be_exact(self):
+    def test_string_must_match_apart_from_case(self):
         assert not compare([["santa cruz"]], [["santa_cruz"]])
+        assert compare([["Santa_Cruz"]], [["santa_cruz"]])
 
     def test_row_count_mismatch(self):
         assert not compare([["beni", 847]],
@@ -247,6 +252,53 @@ def test_counts_are_not_read_as_booleans():
     # 1 vs 0 stays a count comparison when no boolean word is in play.
     assert not values_match(1, 0)
     assert values_match(1, 1)
+
+
+# --- string casing ----------------------------------------------------------
+
+def test_commodity_casing_does_not_decide_a_question():
+    """issue #20. The lowercase house style for `annex1_commodity` is stated
+    only in policies/EUDR_CROPS.md, so an arm run without that document has no
+    way to recover it. Sessions that classified every class correctly still
+    wrote `Cattle` and `Soya`, and since seven questions across three stages
+    report the column, that one choice cost five points. Capitalisation is not
+    what the benchmark measures."""
+    assert values_match("Cattle", "cattle")
+    assert values_match("SOYA", "soya")
+    assert values_match("Oil Palm", "oil palm")
+
+
+def test_case_folding_does_not_excuse_a_wrong_commodity():
+    """The fix has to remove the formatting coin flip without also accepting a
+    genuinely wrong classification. A session that calls soya cattle is still
+    wrong however it capitalises it."""
+    assert not values_match("Cattle", "soya")
+    assert not values_match("oil_palm", "oil palm")
+    assert not values_match("assumed pasture", "assumed_pasture")
+
+
+def test_no_golden_value_is_distinguished_by_case_alone():
+    """What makes case folding lossless. If any golden column held two values
+    that differ only in case, folding would let a wrong answer match the right
+    one; the grader would silently stop discriminating and no other test would
+    notice. Checked across every column of every golden rather than the
+    handful the commodity fix touches, because a later oracle change could
+    introduce such a pair anywhere."""
+    for path in sorted(GOLDEN_DIR.glob("q*.csv")):
+        rows = list(csv.DictReader(path.open(encoding="utf-8")))
+        if not rows:
+            continue
+        for column in rows[0]:
+            by_fold: dict[str, set[str]] = {}
+            for row in rows:
+                value = (row[column] or "").strip()
+                if value:
+                    by_fold.setdefault(value.casefold(), set()).add(value)
+            for folded, spellings in by_fold.items():
+                assert len(spellings) == 1, (
+                    f"{path.name}:{column} holds {sorted(spellings)}, which "
+                    f"case folding collapses to {folded!r}"
+                )
 
 
 # --- near miss --------------------------------------------------------------
