@@ -2,7 +2,7 @@
 
 These do not need the network or the golden fixtures (except the last, which is
 skipped until the oracle has run). They guard the invariants the grader relies
-on: 30 questions, six stages, a dependency graph that points strictly backward,
+on: 31 questions, six stages, a dependency graph that points strictly backward,
 and a prompt that does not leak the EUDR scope answer.
 """
 import json
@@ -18,10 +18,10 @@ def load():
     return yaml.safe_load(QUESTIONS.read_text(encoding="utf-8"))
 
 
-def test_thirty_questions_six_stages_in_order():
+def test_thirty_one_questions_six_stages_in_order():
     qs = load()["questions"]
-    assert len(qs) == 30
-    assert [q["id"] for q in qs] == [f"{n:02d}" for n in range(1, 31)]
+    assert len(qs) == 31
+    assert [q["id"] for q in qs] == [f"{n:02d}" for n in range(1, 32)]
     assert {q["stage"] for q in qs} == {1, 2, 3, 4, 5, 6}
 
 

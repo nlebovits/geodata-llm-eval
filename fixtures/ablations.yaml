@@ -33,9 +33,11 @@ arms:
   no-inputs:
     why: >
       Withholds the input-list handling rules: the encodings, the defect
-      table, and the reconciliation identity. The list shipped with the Goias
-      sample is clean, so this measures how much of that discipline a session
-      applies without being told to.
+      table, and the reconciliation identity. The Goias list carries one
+      instance of every defect the document names, so a session without it has
+      to infer the handling from the data. Correct handling resolves to the
+      same 117 parcels as a clean list, so a mishandled defect shows up twice:
+      directly in q31, and as a cascade through every parcel-level answer.
     ops:
       - drop: policies/INPUTS.md
 

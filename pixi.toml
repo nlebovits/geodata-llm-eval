@@ -18,5 +18,5 @@ ruff = ">=0.6"
 [tasks]
 install-hooks = "git config core.hooksPath hooks"
 test = "pytest tests/ -v"
-lint = "ruff check harness/ tests/"
-format = "ruff format harness/ tests/"
+lint = "ruff check harness/ tests/ fixtures/lists/"
+format = "ruff format harness/ tests/ fixtures/lists/"
