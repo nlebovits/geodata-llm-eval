@@ -1,0 +1,39 @@
+# Copied from portolan-sdi/portolan-ops (ci/python-package/). The
+# github-actions ecosystem is what keeps the pinned action SHAs in
+# ci.yml from rotting; the uv ecosystem tracks uv.lock, which only
+# became possible when this repo left pixi (Dependabot has no pixi
+# support).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, github-actions]
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    # Fresh releases are where supply-chain compromises surface. The
+    # delay lets advisories and yanks land first (zizmor
+    # dependabot-cooldown).
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, python]
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: build
+      include: scope
+    cooldown:
+      default-days: 7
+    groups:
+      development-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      production-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]

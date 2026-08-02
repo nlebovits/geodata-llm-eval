@@ -26,7 +26,9 @@ import itertools
 import json
 import math
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from layout import is_scored, read_meta, regraded, run_dirs, run_name
 
@@ -46,6 +48,7 @@ def golden_fingerprint(golden_dir: Path) -> str | None:
     if not manifest.exists():
         return None
     return hashlib.sha256(manifest.read_bytes()).hexdigest()[:12]
+
 
 # Geometry-graded questions (grading: geometry in questions.yaml) compute areas,
 # distances, or geometric thresholds, where reasonable method choices — spherical
@@ -68,6 +71,11 @@ NEAR_MISS_FACTOR = 10
 MAX_DIFF_PERM_COLS = 6
 
 # Grade outcomes
+# One mismatched cell, as written into diffs.json.
+Diff = dict[str, Any]
+# One question from questions.yaml.
+Question = dict[str, Any]
+
 CORRECT = "correct"
 NEAR_MISS = "near_miss"
 WRONG = "wrong"
@@ -128,9 +136,14 @@ def load_table(path: Path) -> list[list[object]] | None:
     return [[_parse_cell(c) for c in row] for row in body]
 
 
-BOOLEAN_WORDS = {"true": True, "false": False,
-                 "yes": True, "no": False,
-                 "t": True, "f": False}
+BOOLEAN_WORDS = {
+    "true": True,
+    "false": False,
+    "yes": True,
+    "no": False,
+    "t": True,
+    "f": False,
+}
 
 
 def _as_boolean(value: object) -> bool | None:
@@ -153,8 +166,9 @@ def _as_boolean(value: object) -> bool | None:
 
 def _match_booleans(a: object, b: object) -> bool | None:
     """Compare two cells as booleans, or None if that reading doesn't apply."""
-    word = any(isinstance(v, (bool, str)) and _as_boolean(v) is not None
-               for v in (a, b))
+    word = any(
+        isinstance(v, (bool, str)) and _as_boolean(v) is not None for v in (a, b)
+    )
     if not word:
         return None
     a_bool, b_bool = _as_boolean(a), _as_boolean(b)
@@ -187,8 +201,9 @@ def _quantize(answer: float, golden: float) -> float:
     return answer if places is None else round(answer, places)
 
 
-def values_match(a: object, b: object, geometry: bool = False,
-                 slack: float = 1.0) -> bool:
+def values_match(
+    a: object, b: object, geometry: bool = False, slack: float = 1.0
+) -> bool:
     """True if answer cell `a` matches golden cell `b` within tolerance.
 
     `b` is always the golden side: it sets the precision `a` is rounded to.
@@ -209,9 +224,14 @@ def values_match(a: object, b: object, geometry: bool = False,
     as_bools = _match_booleans(a, b)
     if as_bools is not None:
         return as_bools
-    a_num = isinstance(a, (int, float)) and not isinstance(a, bool)
-    b_num = isinstance(b, (int, float)) and not isinstance(b, bool)
-    if a_num and b_num:
+    # Inline rather than via a flag: the isinstance calls have to sit in
+    # the condition for both branches below to see the narrowed types.
+    if (
+        isinstance(a, (int, float))
+        and not isinstance(a, bool)
+        and isinstance(b, (int, float))
+        and not isinstance(b, bool)
+    ):
         if isinstance(a, int) and isinstance(b, int):
             if geometry or slack > 1.0:
                 int_slack = slack * max(GEOM_INT_SLACK, 0.01 * abs(b))
@@ -226,8 +246,11 @@ def values_match(a: object, b: object, geometry: bool = False,
 
 
 def _rows_match_under_permutation(
-    answer: list[list[object]], golden: list[list[object]], perm: tuple[int, ...],
-    geometry: bool = False, slack: float = 1.0,
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
+    perm: tuple[int, ...],
+    geometry: bool = False,
+    slack: float = 1.0,
 ) -> bool:
     """Check answer rows == golden rows as multisets, with answer columns
     reordered by perm."""
@@ -235,8 +258,9 @@ def _rows_match_under_permutation(
     for a_row in answer:
         projected = [a_row[i] for i in perm]
         for idx, g_row in enumerate(remaining):
-            if all(values_match(p, g, geometry, slack)
-                   for p, g in zip(projected, g_row)):
+            if all(
+                values_match(p, g, geometry, slack) for p, g in zip(projected, g_row)
+            ):
                 del remaining[idx]
                 break
         else:
@@ -244,8 +268,12 @@ def _rows_match_under_permutation(
     return not remaining
 
 
-def compare(answer: list[list[object]], golden: list[list[object]],
-            geometry: bool = False, slack: float = 1.0) -> bool:
+def compare(
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
+    geometry: bool = False,
+    slack: float = 1.0,
+) -> bool:
     """True if the answer table matches golden up to row order and
     column permutation."""
     if len(answer) != len(golden):
@@ -263,9 +291,12 @@ def compare(answer: list[list[object]], golden: list[list[object]],
 
 # --- diffs -----------------------------------------------------------------
 
+
 def _align_under_permutation(
-    answer: list[list[object]], golden: list[list[object]],
-    perm: tuple[int, ...], geometry: bool,
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
+    perm: tuple[int, ...],
+    geometry: bool,
 ) -> tuple[int, list[tuple[int, int]]]:
     """Pair answer rows to golden rows greedily, fewest mismatched cells first.
 
@@ -279,8 +310,9 @@ def _align_under_permutation(
         best_idx, best_cost = None, None
         for a_idx in unused:
             projected = [answer[a_idx][i] for i in perm]
-            cost = sum(1 for p, g in zip(projected, g_row)
-                       if not values_match(p, g, geometry))
+            cost = sum(
+                1 for p, g in zip(projected, g_row) if not values_match(p, g, geometry)
+            )
             if best_cost is None or cost < best_cost:
                 best_idx, best_cost = a_idx, cost
             if cost == 0:
@@ -293,9 +325,12 @@ def _align_under_permutation(
     return total, pairs
 
 
-def diff_table(answer: list[list[object]], golden: list[list[object]],
-               geometry: bool = False,
-               golden_header: list[str] | None = None) -> list[dict]:
+def diff_table(
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
+    geometry: bool = False,
+    golden_header: list[str] | None = None,
+) -> list[Diff]:
     """Per-cell differences between a wrong answer and golden.
 
     Rows are paired by similarity, not by position, because the comparator
@@ -305,19 +340,28 @@ def diff_table(answer: list[list[object]], golden: list[list[object]],
     if not golden:
         return []
     if len(answer) != len(golden) or len(answer[0]) != len(golden[0]):
-        return [{
-            "kind": "shape",
-            "golden_rows": len(golden),
-            "answer_rows": len(answer),
-            "golden_columns": len(golden[0]),
-            "answer_columns": len(answer[0]) if answer else 0,
-        }]
+        return [
+            {
+                "kind": "shape",
+                "golden_rows": len(golden),
+                "answer_rows": len(answer),
+                "golden_columns": len(golden[0]),
+                "answer_columns": len(answer[0]) if answer else 0,
+            }
+        ]
 
     n_cols = len(golden[0])
     header = list(golden_header or [])
-    perms = (itertools.permutations(range(n_cols))
-             if n_cols <= MAX_DIFF_PERM_COLS else [tuple(range(n_cols))])
-    best_perm, best_pairs, best_cost = None, [], None
+    perms = (
+        itertools.permutations(range(n_cols))
+        if n_cols <= MAX_DIFF_PERM_COLS
+        else [tuple(range(n_cols))]
+    )
+    # Identity is a real starting permutation, not a placeholder: `perms`
+    # always yields at least it, so the loop only ever improves on it.
+    best_perm: tuple[int, ...] = tuple(range(n_cols))
+    best_pairs: list[tuple[int, int]] = []
+    best_cost: float | None = None
     for perm in perms:
         cost, pairs = _align_under_permutation(answer, golden, perm, geometry)
         if best_cost is None or cost < best_cost:
@@ -325,23 +369,24 @@ def diff_table(answer: list[list[object]], golden: list[list[object]],
         if cost == 0:
             break
 
-    diffs: list[dict] = []
+    diffs: list[Diff] = []
     for g_idx, a_idx in best_pairs:
         g_row = golden[g_idx]
         projected = [answer[a_idx][i] for i in best_perm]
         for col, (got, want) in enumerate(zip(projected, g_row)):
             if values_match(got, want, geometry):
                 continue
-            diffs.append({
-                "kind": "cell",
-                "row": g_idx,
-                "column": header[col] if col < len(header) else f"col{col}",
-                "golden": want,
-                "answer": got,
-                "rel_error": _rel_error(got, want),
-                "near_miss": values_match(got, want, geometry,
-                                          NEAR_MISS_FACTOR),
-            })
+            diffs.append(
+                {
+                    "kind": "cell",
+                    "row": g_idx,
+                    "column": header[col] if col < len(header) else f"col{col}",
+                    "golden": want,
+                    "answer": got,
+                    "rel_error": _rel_error(got, want),
+                    "near_miss": values_match(got, want, geometry, NEAR_MISS_FACTOR),
+                }
+            )
     return diffs
 
 
@@ -355,7 +400,7 @@ def _rel_error(got: object, want: object) -> float | None:
     return round(abs(float(got) - float(want)) / abs(float(want)), 6)
 
 
-def diff_summary(diffs: list[dict]) -> str:
+def diff_summary(diffs: list[Diff]) -> str:
     """One line naming what failed: how many cells, in which columns, how far.
 
     Triage starts here. A question that missed four cells of twenty-four in one
@@ -365,17 +410,20 @@ def diff_summary(diffs: list[dict]) -> str:
         return "no differences"
     shape = next((d for d in diffs if d["kind"] == "shape"), None)
     if shape:
-        return (f"shape: golden {shape['golden_rows']}x"
-                f"{shape['golden_columns']},"
-                f" answer {shape['answer_rows']}x{shape['answer_columns']}")
+        return (
+            f"shape: golden {shape['golden_rows']}x"
+            f"{shape['golden_columns']},"
+            f" answer {shape['answer_rows']}x{shape['answer_columns']}"
+        )
     columns = sorted({d["column"] for d in diffs})
     errors = [d["rel_error"] for d in diffs if d["rel_error"] is not None]
     worst = f", worst {max(errors):.1%}" if errors else ""
-    return (f"{len(diffs)} cells in {', '.join(columns)}{worst}")
+    return f"{len(diffs)} cells in {', '.join(columns)}{worst}"
 
 
-def evaluate_question(answer_path: Path, golden_path: Path,
-                      geometry: bool = False) -> tuple[str, list[dict]]:
+def evaluate_question(
+    answer_path: Path, golden_path: Path, geometry: bool = False
+) -> tuple[str, list[Diff]]:
     """Grade one question and, when it fails, say where.
 
     Returns the outcome and the per-cell diffs behind it. A miss that clears
@@ -398,8 +446,7 @@ def evaluate_question(answer_path: Path, golden_path: Path,
     return WRONG, diffs
 
 
-def grade_question(answer_path: Path, golden_path: Path,
-                   geometry: bool = False) -> str:
+def grade_question(answer_path: Path, golden_path: Path, geometry: bool = False) -> str:
     return evaluate_question(answer_path, golden_path, geometry)[0]
 
 
@@ -416,13 +463,18 @@ def geometry_graded_ids(questions_path: Path) -> set[str]:
     if not questions_path.exists():
         return set()
     spec = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
-    return {f"q{q['id']}" for q in spec.get("questions", [])
-            if q.get("grading") == "geometry"}
+    return {
+        f"q{q['id']}"
+        for q in spec.get("questions", [])
+        if q.get("grading") == "geometry"
+    }
 
 
-def grade_session(session_dir: Path, golden_dir: Path,
-                  geometry_ids: set[str] | None = None,
-                  ) -> tuple[dict[str, str], dict[str, list[dict]]]:
+def grade_session(
+    session_dir: Path,
+    golden_dir: Path,
+    geometry_ids: set[str] | None = None,
+) -> tuple[dict[str, str], dict[str, list[Diff]]]:
     """Grade every golden question against a session's answers/ dir.
 
     Returns the outcome per question and the diffs behind each failure.
@@ -431,19 +483,22 @@ def grade_session(session_dir: Path, golden_dir: Path,
     """
     geometry_ids = geometry_ids or set()
     grades: dict[str, str] = {}
-    diffs: dict[str, list[dict]] = {}
+    diffs: dict[str, list[Diff]] = {}
     for golden_path in sorted(golden_dir.glob("q*.csv")):
         qid = golden_path.stem
         answer_path = session_dir / "answers" / f"{qid}.csv"
         outcome, cells = evaluate_question(
-            answer_path, golden_path, geometry=qid in geometry_ids)
+            answer_path, golden_path, geometry=qid in geometry_ids
+        )
         grades[qid] = outcome
         if cells:
             diffs[qid] = cells
     return grades, diffs
 
 
-def _deps_all_correct(qid: str, by_id: dict, grades: dict) -> bool:
+def _deps_all_correct(
+    qid: str, by_id: dict[str, Question], grades: dict[str, str]
+) -> bool:
     """True if every transitive dependency of qid graded correct.
 
     Transitive, not direct: a question whose parent was itself downstream of a
@@ -459,7 +514,9 @@ def _deps_all_correct(qid: str, by_id: dict, grades: dict) -> bool:
     return True
 
 
-def stage_summary(grades: dict, questions: list) -> dict:
+def stage_summary(
+    grades: dict[str, str], questions: list[Question]
+) -> dict[Any, dict[str, Any]]:
     """Per-stage raw and conditional accuracy.
 
     raw          — correct / all questions in the stage.
@@ -472,17 +529,16 @@ def stage_summary(grades: dict, questions: list) -> dict:
     reverse means it is mostly inheriting upstream errors.
     """
     by_id = {q["id"]: q for q in questions}
-    out: dict = {}
+    out: dict[Any, dict[str, Any]] = {}
     for stage in sorted({q["stage"] for q in questions}):
         in_stage = [q for q in questions if q["stage"] == stage]
         n = len(in_stage)
-        n_correct = sum(1 for q in in_stage
-                        if grades.get(f"q{q['id']}") == CORRECT)
-        eligible = [q for q in in_stage
-                    if _deps_all_correct(q["id"], by_id, grades)]
+        n_correct = sum(1 for q in in_stage if grades.get(f"q{q['id']}") == CORRECT)
+        eligible = [q for q in in_stage if _deps_all_correct(q["id"], by_id, grades)]
         n_elig = len(eligible)
-        n_elig_correct = sum(1 for q in eligible
-                             if grades.get(f"q{q['id']}") == CORRECT)
+        n_elig_correct = sum(
+            1 for q in eligible if grades.get(f"q{q['id']}") == CORRECT
+        )
         out[stage] = {
             "n": n,
             "raw": n_correct / n if n else None,
@@ -492,7 +548,7 @@ def stage_summary(grades: dict, questions: list) -> dict:
     return out
 
 
-def load_questions(questions_path: Path) -> list:
+def load_questions(questions_path: Path) -> list[Question]:
     """questions.yaml questions list, or [] if unavailable."""
     try:
         import yaml
@@ -500,16 +556,16 @@ def load_questions(questions_path: Path) -> list:
         return []
     if not questions_path.exists():
         return []
-    return yaml.safe_load(questions_path.read_text(encoding="utf-8"))\
-        .get("questions", [])
+    loaded = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
+    questions: list[Question] = loaded.get("questions", [])
+    return questions
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path, default=Path("results"))
     ap.add_argument("--golden", type=Path, default=Path("fixtures/golden"))
-    ap.add_argument("--questions", type=Path,
-                    default=Path("fixtures/questions.yaml"))
+    ap.add_argument("--questions", type=Path, default=Path("fixtures/questions.yaml"))
     args = ap.parse_args()
 
     golden_files = list(args.golden.glob("q*.csv"))
@@ -526,16 +582,20 @@ def main() -> int:
     questions = load_questions(args.questions)
     graded_against = golden_fingerprint(args.golden)
 
-    print(f"{'run':<34} {'correct':>8} {'near':>5} {'wrong':>6}"
-          f" {'missing':>8} {'broken':>7}")
+    print(
+        f"{'run':<34} {'correct':>8} {'near':>5} {'wrong':>6}"
+        f" {'missing':>8} {'broken':>7}"
+    )
     for session_dir in session_dirs:
         meta = read_meta(session_dir)
         if not is_scored(meta):
             # A session that wrote nothing never attempted the questions.
             # Scoring it as thirty wrong answers blames the model for a run
             # that did not happen, and drags every average it appears in.
-            print(f"{run_name(session_dir):<34} "
-                  f"{meta.get('status', 'unknown')} — not scored")
+            print(
+                f"{run_name(session_dir):<34} "
+                f"{meta.get('status', 'unknown')} — not scored"
+            )
             continue
         grades, diffs = grade_session(session_dir, args.golden, geometry_ids)
         (session_dir / "grades.json").write_text(
@@ -550,11 +610,15 @@ def main() -> int:
                 json.dumps(meta, indent=2) + "\n", encoding="utf-8"
             )
         if regraded(meta):
-            print(f"{run_name(session_dir):<34} "
-                  f"re-graded: ran against {meta['golden_fingerprint']}, "
-                  f"scored against {graded_against}")
-        counts = {k: sum(1 for v in grades.values() if v == k)
-                  for k in (CORRECT, NEAR_MISS, WRONG, MISSING, UNPARSEABLE)}
+            print(
+                f"{run_name(session_dir):<34} "
+                f"re-graded: ran against {meta['golden_fingerprint']}, "
+                f"scored against {graded_against}"
+            )
+        counts = {
+            k: sum(1 for v in grades.values() if v == k)
+            for k in (CORRECT, NEAR_MISS, WRONG, MISSING, UNPARSEABLE)
+        }
         print(
             f"{run_name(session_dir):<34} {counts[CORRECT]:>8}"
             f" {counts[NEAR_MISS]:>5}"
@@ -567,10 +631,15 @@ def main() -> int:
             summary = stage_summary(grades, questions)
             for stage, s in summary.items():
                 raw = f"{s['raw']:.2f}" if s["raw"] is not None else "  - "
-                cond = (f"{s['conditional']:.2f}"
-                        if s["conditional"] is not None else "  - ")
-                print(f"    stage {stage}: raw {raw}  conditional {cond}"
-                      f"  ({s['n_eligible']}/{s['n']} eligible)")
+                cond = (
+                    f"{s['conditional']:.2f}"
+                    if s["conditional"] is not None
+                    else "  - "
+                )
+                print(
+                    f"    stage {stage}: raw {raw}  conditional {cond}"
+                    f"  ({s['n_eligible']}/{s['n']} eligible)"
+                )
     return 0
 
 

@@ -24,6 +24,7 @@ import json
 import string
 import time
 from pathlib import Path
+from typing import Any, Protocol
 
 import duckdb
 
@@ -34,8 +35,14 @@ SQL_DIR = Path(__file__).resolve().parent / "sql"
 # list_resolve comes before cad_extract and must: it is what turns the raw input
 # list into the id set cad_extract filters on, and a row that arrived as a bare
 # geometry cannot be resolved from an extract that already filtered by id.
-PIPELINE = ["eudr_crops", "list_resolve", "cad_extract", "fields_extract",
-            "match", "coop_match"]
+PIPELINE = [
+    "eudr_crops",
+    "list_resolve",
+    "cad_extract",
+    "fields_extract",
+    "match",
+    "coop_match",
+]
 
 # The stages that pull from source.coop, and the parquet each produces. Once
 # pulled, the extract is cached: the cold 3.7 GB CAR scan and the Trazo3 field
@@ -70,56 +77,121 @@ QUESTION_MAP = {
     "q07": ("cad_quality", ["n_duplicate_ids", "n_parcels_under_1ha"], None),
     "q08": ("fields_envelope", ["n_fields_in_envelope"], None),
     "q09": ("match_count", ["matched_fields"], None),
-    "q10": ("prov/l07_match_reconciliation",
-            ["by_single_parcel_rule", "by_aggregate_rule_only"], None),
-    "q11": ("prov/l07_match_reconciliation",
-            ["min_single_frac", "avg_single_frac", "avg_union_frac"], None),
+    "q10": (
+        "prov/l07_match_reconciliation",
+        ["by_single_parcel_rule", "by_aggregate_rule_only"],
+        None,
+    ),
+    "q11": (
+        "prov/l07_match_reconciliation",
+        ["min_single_frac", "avg_single_frac", "avg_union_frac"],
+        None,
+    ),
     "q12": ("match_excluded", ["n_excluded"], None),
     "q13": ("cad_field_counts", ["cod_imovel", "n_fields"], 10),
     "q14": ("prov/l07_match_reconciliation", ["matched_field_ha"], None),
-    "q15": ("prov/l01_list_overview",
-            ["n_parcels", "n_fields", "matched_field_ha", "post2020_loss_ha",
-             "fields_with_post2020_loss"], None),
-    "q16": ("eudr_classes_present",
-            ["mbmode24", "mb_class", "annex1_commodity", "in_scope", "caveat"],
-            None),
-    "q17": ("eudr_loss_by_commodity",
-            ["annex1_commodity", "n_fields", "post2020_loss_ha"], None),
-    "q18": ("eudr_loss_excluded", ["mb_class", "n_fields", "post2020_loss_ha"],
-            None),
-    "q19": ("eudr_area_by_commodity",
-            ["annex1_commodity", "total_ha", "loss_share"], None),
-    "q20": ("eudr_worst_cadasters",
-            ["cod_imovel", "municipio", "post2020_loss_ha",
-             "n_fields_post2020_loss"], 10),
+    "q15": (
+        "prov/l01_list_overview",
+        [
+            "n_parcels",
+            "n_fields",
+            "matched_field_ha",
+            "post2020_loss_ha",
+            "fields_with_post2020_loss",
+        ],
+        None,
+    ),
+    "q16": (
+        "eudr_classes_present",
+        ["mbmode24", "mb_class", "annex1_commodity", "in_scope", "caveat"],
+        None,
+    ),
+    "q17": (
+        "eudr_loss_by_commodity",
+        ["annex1_commodity", "n_fields", "post2020_loss_ha"],
+        None,
+    ),
+    "q18": ("eudr_loss_excluded", ["mb_class", "n_fields", "post2020_loss_ha"], None),
+    "q19": (
+        "eudr_area_by_commodity",
+        ["annex1_commodity", "total_ha", "loss_share"],
+        None,
+    ),
+    "q20": (
+        "eudr_worst_cadasters",
+        ["cod_imovel", "municipio", "post2020_loss_ha", "n_fields_post2020_loss"],
+        10,
+    ),
     "q21": ("prov/l03_loss_by_era", ["era", "cleared_ha", "pct_of_loss"], None),
-    "q22": ("prov/l04_lossyear_histogram", ["loss_year", "n_fields", "cleared_ha"],
-            None),
-    "q23": ("eudr_worst_plots",
-            ["field_id", "cod_imovel", "annex1_commodity", "field_area_ha",
-             "post2020_loss_ha"], 10),
-    "q24": ("coop_routing",
-            ["cod_imovel", "dominant_mb", "annex1_commodity", "routed_tier"],
-            None),
+    "q22": (
+        "prov/l04_lossyear_histogram",
+        ["loss_year", "n_fields", "cleared_ha"],
+        None,
+    ),
+    "q23": (
+        "eudr_worst_plots",
+        [
+            "field_id",
+            "cod_imovel",
+            "annex1_commodity",
+            "field_area_ha",
+            "post2020_loss_ha",
+        ],
+        10,
+    ),
+    "q24": (
+        "coop_routing",
+        ["cod_imovel", "dominant_mb", "annex1_commodity", "routed_tier"],
+        None,
+    ),
     "q25": ("coop_coverage", ["annex1_commodity", "tier", "coverage"], None),
-    "q26": ("coop_nearest", ["cod_imovel", "entity_id", "tier", "distance_km"],
-            None),
+    "q26": ("coop_nearest", ["cod_imovel", "entity_id", "tier", "distance_km"], None),
     "q27": ("coop_membership", ["cod_imovel", "entity_id", "evidence"], None),
-    "q28": ("coop_reconciliation",
-            ["cod_imovel", "n_candidates", "n_relationship", "n_delivery",
-             "widened", "no_match", "proximity_override"], None),
+    "q28": (
+        "coop_reconciliation",
+        [
+            "cod_imovel",
+            "n_candidates",
+            "n_relationship",
+            "n_delivery",
+            "widened",
+            "no_match",
+            "proximity_override",
+        ],
+        None,
+    ),
     "q29": ("coop_summary", ["n_widened", "n_no_match", "n_nearest_by_far"], None),
-    "q30": ("portfolio",
-            ["cod_imovel", "annex1_commodity", "post2020_loss_ha", "entity_id",
-             "entity_kind", "tier", "basis", "distance_km"], None),
-    "q31": ("list_reconciliation",
-            ["input_rows", "resolved_clean", "centroid_resolved",
-             "geometry_resolved", "axis_repaired", "duplicates_removed",
-             "unresolvable"], None),
+    "q30": (
+        "portfolio",
+        [
+            "cod_imovel",
+            "annex1_commodity",
+            "post2020_loss_ha",
+            "entity_id",
+            "entity_kind",
+            "tier",
+            "basis",
+            "distance_km",
+        ],
+        None,
+    ),
+    "q31": (
+        "list_reconciliation",
+        [
+            "input_rows",
+            "resolved_clean",
+            "centroid_resolved",
+            "geometry_resolved",
+            "axis_repaired",
+            "duplicates_removed",
+            "unresolvable",
+        ],
+        None,
+    ),
 }
 
 
-def substitutions(pins: dict, work: Path) -> dict:
+def substitutions(pins: dict[str, Any], work: Path) -> dict[str, str]:
     cat = pins["catalogs"]
     gap_m = pins["matching"]["neighbor_gap_tolerance_m"]
     return {
@@ -157,7 +229,7 @@ def substitutions(pins: dict, work: Path) -> dict:
     }
 
 
-def render_sql(stem: str, subs: dict) -> str:
+def render_sql(stem: str, subs: dict[str, str]) -> str:
     template = (SQL_DIR / f"{stem}.sql.tmpl").read_text(encoding="utf-8")
     return string.Template(template).substitute(subs)
 
@@ -195,8 +267,9 @@ def tune_for_remote_reads(con: duckdb.DuckDBPyConnection) -> None:
         con.execute(f"SET {name} = ?", [value])
 
 
-def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
-                force: bool = False) -> None:
+def build_state(
+    con: duckdb.DuckDBPyConnection, subs: dict[str, str], force: bool = False
+) -> None:
     """Run the pipeline so every question query has its inputs on disk.
 
     A cacheable remote-pull stage is skipped when all its output parquets
@@ -207,15 +280,25 @@ def build_state(con: duckdb.DuckDBPyConnection, subs: dict,
     tune_for_remote_reads(con)
     for stage in PIPELINE:
         out_keys = CACHEABLE.get(stage, [])
-        if out_keys and not force and all(
-                Path(subs[key]).exists() for key in out_keys):
+        if out_keys and not force and all(Path(subs[key]).exists() for key in out_keys):
             print(f"[{stage}] cached — skipping remote pull", flush=True)
             continue
         print(f"[{stage}] running", flush=True)
         run_stage(con, stage, subs)
 
 
-def run_stage(con: duckdb.DuckDBPyConnection, stage: str, subs: dict) -> None:
+class Executes(Protocol):
+    """The one thing a stage needs from a connection.
+
+    Narrower than DuckDBPyConnection on purpose: the retry test drives this
+    with a stand-in that fails the first few calls, and a stand-in should not
+    have to impersonate a whole database handle to do that.
+    """
+
+    def execute(self, sql: str) -> object: ...
+
+
+def run_stage(con: Executes, stage: str, subs: dict[str, str]) -> None:
     """Execute one pipeline stage, retrying a read that source.coop truncated.
 
     Only I/O-shaped failures are retried. A SQL error in a template fails the
@@ -230,13 +313,16 @@ def run_stage(con: duckdb.DuckDBPyConnection, stage: str, subs: dict) -> None:
             if attempt == STAGE_ATTEMPTS or not _is_transport_error(exc):
                 raise
             wait = 5 * attempt
-            print(f"[{stage}] {type(exc).__name__}: {exc} — retry "
-                  f"{attempt}/{STAGE_ATTEMPTS - 1} in {wait}s", flush=True)
+            print(
+                f"[{stage}] {type(exc).__name__}: {exc} — retry "
+                f"{attempt}/{STAGE_ATTEMPTS - 1} in {wait}s",
+                flush=True,
+            )
             time.sleep(wait)
 
 
 TRANSPORT_MARKERS = (
-    "tprotocolexception",   # truncated body parsed as a Parquet page header
+    "tprotocolexception",  # truncated body parsed as a Parquet page header
     "invalid data",
     "http error",
     "connection",
@@ -250,7 +336,7 @@ def _is_transport_error(exc: Exception) -> bool:
     return any(marker in text for marker in TRANSPORT_MARKERS)
 
 
-def write_csv(rows: list, columns: list, path: Path) -> None:
+def write_csv(rows: list[tuple[Any, ...]], columns: list[str], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh, lineterminator="\n")
@@ -258,7 +344,9 @@ def write_csv(rows: list, columns: list, path: Path) -> None:
         writer.writerows(rows)
 
 
-def render_all(pins: dict, out_dir: Path, force: bool = False) -> dict:
+def render_all(
+    pins: dict[str, Any], out_dir: Path, force: bool = False
+) -> dict[str, Path]:
     work = out_dir / "_work"
     work.mkdir(parents=True, exist_ok=True)
     subs = substitutions(pins, work)
@@ -271,7 +359,7 @@ def render_all(pins: dict, out_dir: Path, force: bool = False) -> dict:
     for qid, (stem, columns, limit) in sorted(QUESTION_MAP.items()):
         con.execute(render_sql(stem, subs))
         select = ", ".join(columns)
-        query = f"SELECT {select} FROM _q"
+        query = f"SELECT {select} FROM _q"  # nosec B608 - from QUESTION_MAP
         if limit:
             query += f" LIMIT {limit}"
         rows = con.execute(query).fetchall()
@@ -282,12 +370,28 @@ def render_all(pins: dict, out_dir: Path, force: bool = False) -> dict:
     # stage-7 comparison target: same rows as q30, one column renamed to match
     # the artifact contract the session is asked to produce. Not in SHA256SUMS.
     con.execute(render_sql("portfolio", subs))
-    wf_cols = ["cod_imovel", "annex1_commodity", "post2020_loss_ha", "entity_id",
-               "entity_kind", "tier", "basis", "distance_km"]
-    wf_rows = con.execute(f"SELECT {', '.join(wf_cols)} FROM _q").fetchall()
-    out_cols = ["cod_imovel", "annex1_commodity", "post2020_loss_ha",
-                "top_contact_entity_id", "entity_kind", "tier", "basis",
-                "distance_km"]
+    wf_cols = [
+        "cod_imovel",
+        "annex1_commodity",
+        "post2020_loss_ha",
+        "entity_id",
+        "entity_kind",
+        "tier",
+        "basis",
+        "distance_km",
+    ]
+    query = f"SELECT {', '.join(wf_cols)} FROM _q"  # nosec B608 - literal above
+    wf_rows = con.execute(query).fetchall()
+    out_cols = [
+        "cod_imovel",
+        "annex1_commodity",
+        "post2020_loss_ha",
+        "top_contact_entity_id",
+        "entity_kind",
+        "tier",
+        "basis",
+        "distance_km",
+    ]
     write_csv(wf_rows, out_cols, out_dir / "workflow.csv")
 
     manifest = out_dir / "SHA256SUMS"
@@ -303,8 +407,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "fixtures/golden")
     ap.add_argument("--pins", type=Path, default=REPO_ROOT / "fixtures/pins.json")
-    ap.add_argument("--force", action="store_true",
-                    help="re-pull the cached remote extracts (CAR + Trazo scans)")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="re-pull the cached remote extracts (CAR + Trazo scans)",
+    )
     args = ap.parse_args()
     pins = json.loads(args.pins.read_text(encoding="utf-8"))
     written = render_all(pins, args.out, force=args.force)

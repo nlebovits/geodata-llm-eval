@@ -1,19 +1,173 @@
+# Adapted from portolan-sdi/portolan-ops (ci/python-package/), which this
+# repo cannot call directly: reusable-python-ci.yml hardcodes the
+# diff-cover gate at 90% and exposes no input for it. The harness drives
+# containers and subprocesses, so 80% on changed lines is the honest
+# number here. Everything else follows the reusable workflow — same job
+# split, same pinned actions, same two-stage prek run.
+#
+# The mutation job and the nightly security-audit workflow are left out
+# on purpose. Mutation testing is slow and answers a question this suite
+# is not shaped to ask, and the audit workflow's tracking issue only pays
+# for itself in a repo with triage habits. The security job below still
+# fails a pull request on a finding.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+    # No branch filter. A pull request aimed anywhere else still runs
+    # these checks; without that, a stacked pull request shows green
+    # having run none of them.
+  schedule:
+    # Nightly run catches dependency drift on an idle repo.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PREK_VERSION: "0.4.11"
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          cache: true
-      - name: Lint
-        run: pixi run lint
-      - name: Test
-        run: pixi run test
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv python install 3.13
+          uv sync --locked
+
+      - name: Run hooks (commit stage)
+        # This is where the credential guard runs against the whole tree,
+        # results/ included. A clone that never installed hooks cannot
+        # merge a token past this.
+        run: >-
+          uvx prek@"$PREK_VERSION" run --all-files
+          --show-diff-on-failure
+
+      - name: Run hooks (pre-push stage)
+        # mypy, vulture, xenon, and deptry live here. Running both stages
+        # in CI keeps the gate identical for hooked and unhooked clones.
+        run: >-
+          uvx prek@"$PREK_VERSION" run --all-files
+          --hook-stage pre-push --show-diff-on-failure
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # A scheduled failure is a new upstream CVE, not a repo regression.
+    continue-on-error: ${{ github.event_name == 'schedule' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv python install 3.13
+          uv sync --locked
+
+      - name: Run bandit
+        run: uv run bandit -r harness oracle scripts fixtures/lists -c pyproject.toml
+
+      - name: Run pip-audit
+        # Ignores live in .pip-audit-ignores; entries carry an expiry date
+        # and drop out automatically.
+        run: |
+          IGNORE_ARGS=$(uv run python scripts/pip_audit_ignores.py)
+          # shellcheck disable=SC2086
+          uv run pip-audit $IGNORE_ARGS
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu alone: the harness runs its sessions in Docker and is
+        # not claimed to work anywhere else.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so diff-cover can diff against the PR base.
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        env:
+          PY_VERSION: ${{ matrix.python-version }}
+        run: |
+          uv python install "$PY_VERSION"
+          uv sync --locked --python "$PY_VERSION"
+
+      - name: Run tests
+        run: >-
+          uv run pytest -n auto
+          --cov=harness --cov=oracle --cov=fixtures/lists
+          --cov-report=xml --cov-report=term-missing
+
+      - name: Diff coverage gate (changed lines >= 80% covered)
+        if: >-
+          github.event_name == 'pull_request' &&
+          matrix.python-version == '3.13'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: >-
+          uv run diff-cover coverage.xml
+          --compare-branch "origin/$BASE_REF"
+          --fail-under=80
+
+  complexity-trend:
+    # Non-blocking trend report; xenon (pre-push hook) is the hard gate.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # wily walks git history to build its complexity baseline.
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Complexity trend (wily)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          uv python install 3.13
+          uvx wily@1.25.0 build --max-revisions 30 harness
+          {
+            echo "## Complexity trend (wily, non-blocking)"
+            echo ""
+            echo '```'
+            uvx wily@1.25.0 diff harness -r "origin/$BASE_REF" --no-detail || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

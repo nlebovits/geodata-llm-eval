@@ -26,6 +26,7 @@ import hashlib
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 # What spec_fingerprint covers, relative to the assembled workspace. The input
 # lists are deliberately outside it: input_mode is already its own recorded
@@ -96,7 +97,7 @@ def _tidy(lines: list[str]) -> list[str]:
     return out
 
 
-def _drop(workspace: Path, spec, receipt: dict) -> None:
+def _drop(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
     """Delete a whole file from the workspace."""
     if not isinstance(spec, str):
         raise AblationError(f"drop takes a path, got {spec!r}")
@@ -108,7 +109,7 @@ def _drop(workspace: Path, spec, receipt: dict) -> None:
     receipt[spec] = n
 
 
-def _cut(workspace: Path, spec, receipt: dict) -> None:
+def _cut(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
     """Remove one markdown section: its heading and everything under it.
 
     A section runs to the next heading at the same level or shallower, so a
@@ -117,7 +118,8 @@ def _cut(workspace: Path, spec, receipt: dict) -> None:
     """
     if not isinstance(spec, dict) or set(spec) != {"file", "heading"}:
         raise AblationError(
-            f"cut takes {{file, heading}}, got {sorted(spec) if isinstance(spec, dict) else spec!r}")
+            f"cut takes {{file, heading}}, got {sorted(spec) if isinstance(spec, dict) else spec!r}"
+        )
     relpath, wanted = spec["file"], str(spec["heading"]).strip()
     target = _resolve(workspace, relpath)
     if not target.is_file():
@@ -129,12 +131,14 @@ def _cut(workspace: Path, spec, receipt: dict) -> None:
     if not matches:
         available = "\n  ".join(f"{'#' * lv} {tx}" for _i, lv, tx in headings)
         raise AblationError(
-            f"{relpath} has no heading {wanted!r}. It has:\n  {available}")
+            f"{relpath} has no heading {wanted!r}. It has:\n  {available}"
+        )
     if len(matches) > 1:
         at = ", ".join(str(i + 1) for i, _lv, _tx in matches)
         raise AblationError(
             f"{relpath} has {len(matches)} headings named {wanted!r} "
-            f"(lines {at}); make them distinct before cutting one")
+            f"(lines {at}); make them distinct before cutting one"
+        )
 
     start, level, _text = matches[0]
     end = len(lines)
@@ -146,7 +150,8 @@ def _cut(workspace: Path, spec, receipt: dict) -> None:
     kept = _tidy(lines[:start] + lines[end:])
     if not kept:
         raise AblationError(
-            f"cutting {wanted!r} would empty {relpath}; use drop instead")
+            f"cutting {wanted!r} would empty {relpath}; use drop instead"
+        )
     target.write_text("\n".join(kept) + "\n", encoding="utf-8")
     receipt[relpath] = receipt.get(relpath, 0) + (end - start)
 
@@ -156,7 +161,7 @@ def _cut(workspace: Path, spec, receipt: dict) -> None:
 OPS = {"drop": _drop, "cut": _cut}
 
 
-def apply_arm(workspace: Path, ops: list) -> dict[str, int]:
+def apply_arm(workspace: Path, ops: list[Any]) -> dict[str, int]:
     """Shape an assembled workspace, returning {path: lines removed}.
 
     Runs after the workspace is copied, never instead of the copy, so there
@@ -167,9 +172,11 @@ def apply_arm(workspace: Path, ops: list) -> dict[str, int]:
     for op in ops or []:
         if not isinstance(op, dict) or len(op) != 1:
             raise AblationError(f"an operation is one of {sorted(OPS)}: {op!r}")
-        (kind, spec), = op.items()
+        ((kind, spec),) = op.items()
         if kind not in OPS:
-            raise AblationError(f"unknown operation {kind!r}, expected one of {sorted(OPS)}")
+            raise AblationError(
+                f"unknown operation {kind!r}, expected one of {sorted(OPS)}"
+            )
         OPS[kind](workspace, spec, receipt)
     return receipt
 
@@ -204,7 +211,7 @@ def spec_fingerprint(workspace: Path) -> tuple[str, dict[str, str]]:
     return digest.hexdigest()[:12], dict(sorted(manifest.items()))
 
 
-def load_arms(path: Path) -> dict:
+def load_arms(path: Path) -> dict[str, Any]:
     """Read and structurally validate the ablation config.
 
     grade.py imports yaml inside the function and falls back to an empty
@@ -215,7 +222,7 @@ def load_arms(path: Path) -> dict:
     """
     try:
         import yaml
-    except ImportError as exc:                              # pragma: no cover
+    except ImportError as exc:  # pragma: no cover
         raise AblationError("the ablation config needs PyYAML") from exc
     if not path.exists():
         raise AblationError(f"no ablation config at {path}")
@@ -228,13 +235,15 @@ def load_arms(path: Path) -> dict:
     for name, arm in arms.items():
         if not ARM_NAME.match(str(name)):
             raise AblationError(
-                f"arm name {name!r} must be lowercase letters, digits and dashes")
+                f"arm name {name!r} must be lowercase letters, digits and dashes"
+            )
         if not isinstance(arm, dict):
             raise AblationError(f"arm {name!r} must be a mapping")
         if not str(arm.get("why", "")).strip():
             raise AblationError(
                 f"arm {name!r} needs a `why`: it is printed under the report "
-                f"table, and an arm nobody can explain is one nobody should run")
+                f"table, and an arm nobody can explain is one nobody should run"
+            )
         if "ops" not in arm or not isinstance(arm["ops"], list):
             raise AblationError(f"arm {name!r} needs an `ops` list (empty is fine)")
 
@@ -244,7 +253,8 @@ def load_arms(path: Path) -> dict:
         if len(empty) != 1:
             raise AblationError(
                 "name a `baseline` arm: the config has "
-                f"{len(empty)} arms with no operations")
+                f"{len(empty)} arms with no operations"
+            )
         baseline = empty[0]
     if baseline not in arms:
         raise AblationError(f"baseline {baseline!r} is not one of {sorted(arms)}")
@@ -257,8 +267,10 @@ def spec_sources(repo_root: Path) -> dict[str, Path]:
     run.py assembles the workspace from these; validation stages the same set
     so a dry run exercises the paths a session will.
     """
-    return {"task.md": repo_root / "prompts" / "task.md",
-            "policies": repo_root / "policies"}
+    return {
+        "task.md": repo_root / "prompts" / "task.md",
+        "policies": repo_root / "policies",
+    }
 
 
 def stage_spec(repo_root: Path, dest: Path) -> None:
@@ -270,7 +282,9 @@ def stage_spec(repo_root: Path, dest: Path) -> None:
             shutil.copy(src, dest / name)
 
 
-def validate_arms(config: dict, repo_root: Path, workdir: Path) -> dict[str, dict[str, int]]:
+def validate_arms(
+    config: dict[str, Any], repo_root: Path, workdir: Path
+) -> dict[str, dict[str, int]]:
     """Dry-apply every arm against the real spec, returning each receipt.
 
     This is what makes a typo cheap. Run it before the first session and a

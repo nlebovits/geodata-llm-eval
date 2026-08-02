@@ -23,19 +23,24 @@ import json
 import statistics
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 from layout import is_scored, read_meta, run_dirs
+
+# One session's workflow.csv, keyed by cadaster. Values are the row as read,
+# so numbers and strings sit side by side.
+Artifact = dict[str, dict[str, Any]]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def load_artifact(path: Path) -> dict:
+def load_artifact(path: Path) -> Artifact:
     """Read one session's workflow.csv into {cod_imovel: row}."""
     if not path.exists():
         return {}
     with open(path, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
-    out: dict = {}
+    out: Artifact = {}
     for row in rows:
         key = (row.get("cod_imovel") or "").strip()
         if not key:
@@ -51,13 +56,13 @@ def load_artifact(path: Path) -> dict:
     return out
 
 
-def _jaccard(a: set, b: set) -> float:
+def _jaccard(a: set[str], b: set[str]) -> float:
     if not a and not b:
         return 1.0
     return len(a & b) / len(a | b)
 
 
-def _kendall_tau(x: list, y: list):
+def _kendall_tau(x: list[float], y: list[float]) -> float | None:
     """Kendall tau-b over paired rankings. None when fewer than two pairs."""
     n = len(x)
     if n < 2:
@@ -81,7 +86,7 @@ def _kendall_tau(x: list, y: list):
     return (concordant - discordant) / denom if denom else None
 
 
-def _fleiss_kappa(assignments: list):
+def _fleiss_kappa(assignments: list[list[str]]) -> float | None:
     """Fleiss' kappa over per-cadaster contact choices across runs.
 
     assignments is a list of per-cadaster rows, each a list of the entity ids
@@ -96,7 +101,7 @@ def _fleiss_kappa(assignments: list):
     if len(categories) < 2:
         return 1.0
     p_i = []
-    col_totals: Counter = Counter()
+    col_totals: Counter[str] = Counter()
     for row in assignments:
         counts = Counter(row)
         col_totals.update(counts)
@@ -108,7 +113,7 @@ def _fleiss_kappa(assignments: list):
     return (p_bar - p_e) / (1 - p_e) if p_e < 1 else 1.0
 
 
-def _pairwise_flag_jaccard(runs: list) -> float:
+def _pairwise_flag_jaccard(runs: list[Artifact]) -> float:
     sets = [set(r) for r in runs]
     pairs = list(itertools.combinations(sets, 2))
     if not pairs:
@@ -116,7 +121,77 @@ def _pairwise_flag_jaccard(runs: list) -> float:
     return statistics.mean(_jaccard(a, b) for a, b in pairs)
 
 
-def compare_runs(runs: list, oracle: dict | None) -> dict:
+def _ranking_taus(runs: list[Artifact], shared: list[str]) -> list[float]:
+    """Pairwise rank correlation on loss, over the cadasters all runs flagged.
+
+    Fewer than two shared cadasters cannot be ranked, so there is nothing to
+    correlate and the metric is absent rather than zero.
+    """
+    if len(shared) < 2:
+        return []
+    taus = []
+    for a, b in itertools.combinations(runs, 2):
+        tau = _kendall_tau(
+            [a[k]["post2020_loss_ha"] for k in shared],
+            [b[k]["post2020_loss_ha"] for k in shared],
+        )
+        if tau is not None:
+            taus.append(tau)
+    return taus
+
+
+def _contact_choices(
+    runs: list[Artifact], shared: list[str]
+) -> tuple[list[float], list[list[str]]]:
+    """Per-cadaster modal agreement, and the raw assignments kappa needs."""
+    n = len(runs)
+    agreements, assignments = [], []
+    for k in shared:
+        choices = [r[k]["top_contact_entity_id"] for r in runs]
+        assignments.append(choices)
+        modal = Counter(choices).most_common(1)[0][1]
+        agreements.append(modal / n)
+    return agreements, assignments
+
+
+def _loss_dispersion(runs: list[Artifact], shared: list[str]) -> dict[str, float]:
+    """Coefficient of variation per cadaster, skipping the ones that mean zero.
+
+    A zero mean makes the ratio undefined, and a cadaster nobody scored any
+    loss on carries no disagreement to report.
+    """
+    cvs = {}
+    for k in shared:
+        values = [r[k]["post2020_loss_ha"] for r in runs]
+        mean = statistics.mean(values)
+        if mean:
+            cvs[k] = statistics.pstdev(values) / mean
+    return cvs
+
+
+def _oracle_deviation(runs: list[Artifact], oracle: Artifact) -> dict[str, Any]:
+    """How far the runs sit from the golden workflow, on the same two axes."""
+    oracle_flags = set(oracle)
+    return {
+        "flag_jaccard": statistics.mean(_jaccard(set(r), oracle_flags) for r in runs),
+        "contact_agreement": (
+            statistics.mean(
+                statistics.mean(
+                    1.0
+                    if r.get(k, {}).get("top_contact_entity_id")
+                    == oracle[k]["top_contact_entity_id"]
+                    else 0.0
+                    for k in oracle
+                )
+                for r in runs
+            )
+            if oracle
+            else None
+        ),
+    }
+
+
+def compare_runs(runs: list[Artifact], oracle: Artifact | None) -> dict[str, Any]:
     """Cross-run agreement on the workflow artifact, plus oracle deviation.
 
     runs: list of {cod_imovel: row} dicts, one per session.
@@ -125,73 +200,42 @@ def compare_runs(runs: list, oracle: dict | None) -> dict:
     universe = sorted({k for r in runs for k in r})
     n = len(runs)
 
-    # Cadasters flagged by some runs but not all — where models disagree about
+    # Cadasters flagged by some runs but not all: where models disagree about
     # who is in scope, the sharpest output of this stage.
-    unstable = [k for k in universe
-                if 0 < sum(1 for r in runs if k in r) < n]
+    unstable = [k for k in universe if 0 < sum(1 for r in runs if k in r) < n]
 
     # Cadasters every run flagged, for the metrics that need aligned rows.
     shared = [k for k in universe if all(k in r for r in runs)]
 
-    taus = []
-    if len(shared) >= 2:
-        for a, b in itertools.combinations(runs, 2):
-            tau = _kendall_tau([a[k]["post2020_loss_ha"] for k in shared],
-                               [b[k]["post2020_loss_ha"] for k in shared])
-            if tau is not None:
-                taus.append(tau)
+    taus = _ranking_taus(runs, shared)
+    agreements, assignments = _contact_choices(runs, shared)
 
-    agreements = []
-    assignments = []
-    for k in shared:
-        choices = [r[k]["top_contact_entity_id"] for r in runs]
-        assignments.append(choices)
-        modal = Counter(choices).most_common(1)[0][1]
-        agreements.append(modal / n)
-
-    cvs = {}
-    for k in shared:
-        values = [r[k]["post2020_loss_ha"] for r in runs]
-        mean = statistics.mean(values)
-        if mean:
-            cvs[k] = statistics.pstdev(values) / mean
-
-    result = {
+    return {
         "n_runs": n,
         "flag_jaccard": _pairwise_flag_jaccard(runs),
         "unstable_cadasters": unstable,
         "ranking_tau": statistics.mean(taus) if taus else None,
         "contact_agreement": statistics.mean(agreements) if agreements else None,
         "contact_kappa": _fleiss_kappa(assignments),
-        "loss_cv": cvs,
-        "oracle": None,
+        "loss_cv": _loss_dispersion(runs, shared),
+        "oracle": None if oracle is None else _oracle_deviation(runs, oracle),
     }
-
-    if oracle is not None:
-        oracle_flags = set(oracle)
-        result["oracle"] = {
-            "flag_jaccard": statistics.mean(
-                _jaccard(set(r), oracle_flags) for r in runs),
-            "contact_agreement": (statistics.mean(
-                statistics.mean(
-                    1.0 if r.get(k, {}).get("top_contact_entity_id")
-                    == oracle[k]["top_contact_entity_id"] else 0.0
-                    for k in oracle) for r in runs) if oracle else None),
-        }
-    return result
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--results", type=Path, default=REPO_ROOT / "results")
-    ap.add_argument("--oracle", type=Path,
-                    default=REPO_ROOT / "fixtures/golden/workflow.csv")
+    ap.add_argument(
+        "--oracle", type=Path, default=REPO_ROOT / "fixtures/golden/workflow.csv"
+    )
     args = ap.parse_args()
 
-    runs = [load_artifact(d / "answers" / "workflow.csv")
-            for d in run_dirs(args.results, args.model)
-            if is_scored(read_meta(d))]
+    runs = [
+        load_artifact(d / "answers" / "workflow.csv")
+        for d in run_dirs(args.results, args.model)
+        if is_scored(read_meta(d))
+    ]
     runs = [r for r in runs if r]
     if not runs:
         print(f"no workflow artifacts under {args.results / args.model}")
@@ -200,8 +244,7 @@ def main() -> int:
     oracle = load_artifact(args.oracle) or None
     out = compare_runs(runs, oracle)
     dest = args.results / "consistency.json"
-    dest.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    dest.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     fj = out["flag_jaccard"]
     ca = out["contact_agreement"]

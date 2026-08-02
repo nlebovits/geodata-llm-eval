@@ -1,0 +1,143 @@
+# Hooks for this repo, an instance of the portolan-ops template
+# (templates/repo/.pre-commit-config.yaml) with the excludes this repo
+# needs. Run with prek: `uvx prek run --all-files`.
+#
+# There is deliberately no top-level `exclude`. Committed run artifacts
+# under results/ have to stay out of the hygiene hooks — 646 files, some
+# transcripts over 500KB — but a top-level exclude applies to every hook
+# and cannot be overridden, which would blind the credential guard to
+# the exact tree a leaked token lands in. So each hygiene hook carries
+# the exclude and the guard carries none.
+#
+# The pre-push hooks assume the dev dependency group in pyproject.toml:
+# mypy, vulture, xenon, deptry. CI runs the commit and pre-push stages,
+# so an unhooked clone cannot merge past them. commit-msg runs locally
+# only, and squash-merge means the pull request title is the commit
+# message that lands.
+repos:
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.16.5
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(results|fixtures/golden)/
+      - id: end-of-file-fixer
+        exclude: ^(results|fixtures/golden)/
+      - id: check-yaml
+        exclude: ^(results|fixtures/golden)/
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+        # Transcripts are large on purpose and committed for audit.
+        exclude: ^results/
+      - id: check-merge-conflict
+        # A transcript can quote conflict markers verbatim.
+        exclude: ^results/
+      - id: mixed-line-ending
+        exclude: ^(results|fixtures/golden)/
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
+        # Model output is quoted verbatim; its spelling is evidence.
+        exclude: ^(results|fixtures/golden)/
+
+  # Lint GitHub Actions workflow syntax and semantics.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Audit workflows for security issues (unpinned actions, missing
+  # permissions, template injection). Offline mode keeps it
+  # deterministic and token-free.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.28.0
+    hooks:
+      - id: zizmor
+        args: [--no-online-audits]
+
+  - repo: local
+    hooks:
+      # Runs on every file, including results/. A session given
+      # --dangerously-skip-permissions can read its mounted credential
+      # and echo the token into stdout, which becomes a committed
+      # transcript. Scanning content is the only thing that catches it,
+      # and running here rather than in a git hook means CI catches it
+      # too, on clones that never installed anything.
+      #
+      # language: script, not `uv run`, so the guard holds in a clone
+      # with no environment built yet. The scanner is stdlib-only.
+      - id: check-credentials
+        name: check for Anthropic credentials
+        description: Refuse tokens and credential payloads, in any file
+        entry: scripts/check_credentials.py
+        language: script
+
+  # Pre-push stage: the slower quality gates. CI runs these too
+  # (.github/workflows/ci.yml, "Run hooks (pre-push stage)").
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        description: Static type check (same gate as CI)
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: vulture
+        name: vulture
+        description: Find unused code (paths/confidence from [tool.vulture])
+        entry: uv run vulture
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: xenon
+        name: xenon
+        description: Complexity gate (same thresholds as CI)
+        # Two grades tighter than the ops template's E/D/C, and the tightest
+        # this tree passes. Dropping absolute to B, or the average to A, means
+        # breaking up another dozen C-rank functions.
+        entry: >-
+          uv run xenon --max-absolute=C --max-modules=B --max-average=B
+          harness oracle scripts fixtures/lists
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: deptry
+        name: deptry
+        description: Unused, missing, and transitive dependencies
+        entry: uv run deptry .
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: import-linter
+        name: import-linter
+        description: Layer contracts, in repos that declare any
+        # lint-imports exits non-zero when no contracts exist, so the
+        # guard keeps the hook quiet until this repo writes its first
+        # [tool.importlinter] block. Adding contracts turns the gate on
+        # with no edit here.
+        entry: bash -c 'grep -q "^\[tool\.importlinter\]" pyproject.toml && uv run lint-imports || true'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
