@@ -49,7 +49,10 @@ REPORT = RESULTS / "ablations.md"
 
 # --- running -----------------------------------------------------------------
 
-def plan(config: dict, arms: list[str], passes: int, order: str) -> list[tuple[int, str]]:
+
+def plan(
+    config: dict, arms: list[str], passes: int, order: str
+) -> list[tuple[int, str]]:
     """The (pass, arm) sequence a sweep will execute, in order."""
     names = arms or list(config["arms"])
     if order == "blocked":
@@ -57,12 +60,18 @@ def plan(config: dict, arms: list[str], passes: int, order: str) -> list[tuple[i
     return [(p, a) for p in range(passes) for a in names]
 
 
-def describe(config: dict, receipts: dict, arms: list[str], passes: int,
-             model: str) -> list[str]:
+def describe(
+    config: dict, receipts: dict, arms: list[str], passes: int, model: str
+) -> list[str]:
     """The pre-flight summary: what each arm removes, and what it will cost."""
     names = arms or list(config["arms"])
-    lines = [f"sweep: {model} x {len(names)} arms x {passes} passes "
-             f"= {len(names) * passes} sessions", ""]
+    lines = [
+        (
+            f"sweep: {model} x {len(names)} arms x {passes} passes "
+            f"= {len(names) * passes} sessions"
+        ),
+        "",
+    ]
     for name in names:
         receipt = receipts[name]
         if not receipt:
@@ -74,8 +83,9 @@ def describe(config: dict, receipts: dict, arms: list[str], passes: int,
     return lines
 
 
-def sweep(model: str, config: dict, arms: list[str], passes: int, order: str,
-          **session_kwargs) -> dict[str, int]:
+def sweep(
+    model: str, config: dict, arms: list[str], passes: int, order: str, **session_kwargs
+) -> dict[str, int]:
     """Run every (pass, arm) in order, surviving a session that fails.
 
     A sweep is hours long. One container dying in hour three must not throw
@@ -88,7 +98,7 @@ def sweep(model: str, config: dict, arms: list[str], passes: int, order: str,
         print(f"[sweep {i}/{len(steps)}] pass {p + 1}, arm {arm}", flush=True)
         try:
             runner.run_session(model, False, arm=arm, **session_kwargs)
-        except Exception:                      # noqa: BLE001 - keep sweeping
+        except Exception:  # noqa: BLE001 - keep sweeping
             failures[arm] = failures.get(arm, 0) + 1
             print(f"[sweep] arm {arm} pass {p + 1} failed:", file=sys.stderr)
             traceback.print_exc()
@@ -97,6 +107,7 @@ def sweep(model: str, config: dict, arms: list[str], passes: int, order: str,
 
 # --- reporting ---------------------------------------------------------------
 
+
 def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list]:
     """One row per (arm, spec), plus the runs excluded and why."""
     rows, excluded = [], []
@@ -104,7 +115,9 @@ def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list
     # Runs predating the ablation harness carry no fingerprint, so a results
     # directory holding both sorts a str against None unless the key says
     # otherwise. Every real tree has both for as long as the old runs are kept.
-    for (arm, spec), dirs in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+    for (arm, spec), dirs in sorted(
+        groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")
+    ):
         kept, grades = [], []
         for run_dir in dirs:
             meta = read_meta(run_dir)
@@ -124,19 +137,22 @@ def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list
             kept.append(run_dir)
         if not kept:
             continue
-        accs = [sum(1 for v in g.values() if v == "correct") / len(g)
-                for g in grades if g]
-        rows.append({
-            "arm": arm,
-            "spec": (spec or "-")[:4],
-            "runs": len(kept),
-            "mean": statistics.fmean(accs) if accs else None,
-            "lo": min(accs) if accs else None,
-            "hi": max(accs) if accs else None,
-            "stages": [stage_summary(g, questions) for g in grades],
-            "why": read_meta(kept[0]).get("ablation", {}).get("why", ""),
-            "grades": grades,
-        })
+        accs = [
+            sum(1 for v in g.values() if v == "correct") / len(g) for g in grades if g
+        ]
+        rows.append(
+            {
+                "arm": arm,
+                "spec": (spec or "-")[:4],
+                "runs": len(kept),
+                "mean": statistics.fmean(accs) if accs else None,
+                "lo": min(accs) if accs else None,
+                "hi": max(accs) if accs else None,
+                "stages": [stage_summary(g, questions) for g in grades],
+                "why": read_meta(kept[0]).get("ablation", {}).get("why", ""),
+                "grades": grades,
+            }
+        )
     return rows, excluded
 
 
@@ -147,8 +163,10 @@ def _pct(x) -> str:
 def arm_table(rows: list) -> list[str]:
     """The headline table: accuracy and per-stage scores, one row per arm."""
     stages = sorted({s for r in rows for st in r["stages"] for s in st})
-    head = (f"{'arm':<14} {'spec':<5} {'runs':>4} {'mean':>6} {'range':>11}  "
-            + "  ".join(f"S{s}" .rjust(9) for s in stages))
+    head = (
+        f"{'arm':<14} {'spec':<5} {'runs':>4} {'mean':>6} {'range':>11}  "
+        + "  ".join(f"S{s}".rjust(9) for s in stages)
+    )
     out = [head, "-" * len(head)]
     for r in rows:
         cells = []
@@ -160,10 +178,15 @@ def arm_table(rows: list) -> list[str]:
             raw = f"{statistics.fmean(raws) * 100:3.0f}" if raws else "  -"
             cond = f"{statistics.fmean(conds) * 100:3.0f}" if conds else "  -"
             cells.append(f"{raw}/{cond}".rjust(9))
-        span = ("     -     " if r["lo"] is None
-                else f"{r['lo'] * 100:3.0f}-{r['hi'] * 100:<3.0f}".rjust(11))
-        out.append(f"{r['arm']:<14} {r['spec']:<5} {r['runs']:>4} "
-                   f"{_pct(r['mean']):>6} {span}  " + "  ".join(cells))
+        span = (
+            "     -     "
+            if r["lo"] is None
+            else f"{r['lo'] * 100:3.0f}-{r['hi'] * 100:<3.0f}".rjust(11)
+        )
+        out.append(
+            f"{r['arm']:<14} {r['spec']:<5} {r['runs']:>4} "
+            f"{_pct(r['mean']):>6} {span}  " + "  ".join(cells)
+        )
     return out
 
 
@@ -182,8 +205,9 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
     # and two tie-break rules. Comparing an arm against that average measures
     # the repository's history rather than the withheld text.
     candidates = [r for r in rows if r["arm"] == baseline]
-    base = next((r for r in candidates if r["spec"] != "-"), None) or \
-        next(iter(candidates), None)
+    base = next((r for r in candidates if r["spec"] != "-"), None) or next(
+        iter(candidates), None
+    )
     if base is None:
         return ["", f"(no runs for the baseline arm {baseline!r}, so no deltas)"]
 
@@ -215,9 +239,11 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
         if not moved:
             hidden += 1
             continue
-        out.append(f"{qid:<5}{stage_of.get(qid, ''):>3}  "
-                   f"{'-' if b is None else format(b * 100, '11.0f') + '%':>12}"
-                   + "".join(cells))
+        out.append(
+            f"{qid:<5}{stage_of.get(qid, ''):>3}  "
+            f"{'-' if b is None else format(b * 100, '11.0f') + '%':>12}"
+            + "".join(cells)
+        )
     if hidden:
         out.append(f"({hidden} questions scored the same in every arm, hidden)")
     return out
@@ -241,9 +267,14 @@ def report(results_dir: Path, questions_path: Path, config: dict | None) -> list
             seen.setdefault(r["arm"], []).append(r["spec"])
         for arm, specs in seen.items():
             if len(specs) > 1:
-                out += ["", f"! arm {arm} saw {len(specs)} different specs "
-                            f"({', '.join(specs)}); they are reported "
-                            f"separately, never pooled"]
+                out += [
+                    "",
+                    (
+                        f"! arm {arm} saw {len(specs)} different specs "
+                        f"({', '.join(specs)}); they are reported "
+                        f"separately, never pooled"
+                    ),
+                ]
         for run_dir, why in excluded:
             out.append(f"! excluded {run_dir.parent.name}/{run_dir.name}: {why}")
         for r in rows:
@@ -255,28 +286,37 @@ def report(results_dir: Path, questions_path: Path, config: dict | None) -> list
 
 # --- cli ---------------------------------------------------------------------
 
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", choices=sorted(runner.PRICES))
-    ap.add_argument("--passes", type=int, default=3,
-                    help="passes per arm (default 3)")
-    ap.add_argument("--arms", default="",
-                    help="comma-separated subset; default is every arm")
+    ap.add_argument("--passes", type=int, default=3, help="passes per arm (default 3)")
+    ap.add_argument(
+        "--arms", default="", help="comma-separated subset; default is every arm"
+    )
     ap.add_argument("--ablations", type=Path, default=runner.ABLATIONS)
-    ap.add_argument("--input-mode", choices=sorted(runner.INPUT_FILES),
-                    default="csv")
+    ap.add_argument("--input-mode", choices=sorted(runner.INPUT_FILES), default="csv")
     ap.add_argument("--label", default="")
     ap.add_argument("--max-attempts", type=int, default=runner.MAX_ATTEMPTS)
-    ap.add_argument("--order", choices=("interleaved", "blocked"),
-                    default="interleaved",
-                    help="interleaved keeps network drift inside an arm "
-                         "rather than between arms; blocked is for debugging")
+    ap.add_argument(
+        "--order",
+        choices=("interleaved", "blocked"),
+        default="interleaved",
+        help="interleaved keeps network drift inside an arm "
+        "rather than between arms; blocked is for debugging",
+    )
     ap.add_argument("--results", type=Path, default=RESULTS)
     ap.add_argument("--questions", type=Path, default=QUESTIONS)
-    ap.add_argument("--dry-run", action="store_true",
-                    help="validate every arm, print what it removes, run nothing")
-    ap.add_argument("--report", action="store_true",
-                    help="compare the runs already on disk and exit")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate every arm, print what it removes, run nothing",
+    )
+    ap.add_argument(
+        "--report",
+        action="store_true",
+        help="compare the runs already on disk and exit",
+    )
     args = ap.parse_args()
 
     try:
@@ -298,8 +338,11 @@ def main() -> int:
     arms = [a for a in args.arms.split(",") if a]
     unknown = [a for a in arms if a not in config["arms"]]
     if unknown:
-        print(f"ablation: unknown arms {unknown}, expected some of "
-              f"{sorted(config['arms'])}", file=sys.stderr)
+        print(
+            f"ablation: unknown arms {unknown}, expected some of "
+            f"{sorted(config['arms'])}",
+            file=sys.stderr,
+        )
         return 2
 
     # Validate every arm before the first container, so a heading that has
@@ -315,14 +358,25 @@ def main() -> int:
     if args.dry_run:
         return 0
 
-    failures = sweep(args.model, config, arms, args.passes, args.order,
-                     input_mode=args.input_mode, label=args.label,
-                     max_attempts=args.max_attempts, ablations=args.ablations)
+    failures = sweep(
+        args.model,
+        config,
+        arms,
+        args.passes,
+        args.order,
+        input_mode=args.input_mode,
+        label=args.label,
+        max_attempts=args.max_attempts,
+        ablations=args.ablations,
+    )
     if failures:
         print(f"[sweep] failed sessions by arm: {failures}", file=sys.stderr)
 
-    subprocess.run([sys.executable, str(Path(__file__).parent / "grade.py")],
-                   cwd=REPO_ROOT, check=False)
+    subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "grade.py")],
+        cwd=REPO_ROOT,
+        check=False,
+    )
     print("\n".join(report(args.results, args.questions, config)))
     return 0
 

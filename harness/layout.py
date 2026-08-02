@@ -26,8 +26,7 @@ def run_dirs(results_dir: Path, model: str = "") -> list[Path]:
     Run ids start with a UTC timestamp, so sorting the names sorts by time.
     """
     pattern = f"{model}/*" if model else "*/*"
-    return sorted(d for d in results_dir.glob(pattern)
-                  if (d / "meta.json").exists())
+    return sorted(d for d in results_dir.glob(pattern) if (d / "meta.json").exists())
 
 
 def read_meta(run_dir: Path) -> dict:

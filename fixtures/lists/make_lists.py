@@ -92,8 +92,14 @@ def load_parcels(work: Path) -> list[dict]:
     ).fetchall()
     con.close()
     parcels = [
-        {"cod_imovel": r[0], "municipio": r[1], "cod_estado": r[2],
-         "wkt": r[3], "centroid_wkt": r[4], "flipped_wkt": r[5]}
+        {
+            "cod_imovel": r[0],
+            "municipio": r[1],
+            "cod_estado": r[2],
+            "wkt": r[3],
+            "centroid_wkt": r[4],
+            "flipped_wkt": r[5],
+        }
         for r in rows
     ]
     missing = sorted(set(DONORS.values()) - {p["cod_imovel"] for p in parcels})
@@ -119,50 +125,85 @@ def build_rows(parcels: list[dict]) -> list[dict]:
         if pid == DONORS["centroid"]:
             # Defect: a point where a polygon is expected, and no id to fall
             # back on. Resolves by point-in-parcel (INPUTS.md).
-            rows.append({
-                "cod_imovel": "", "municipio": "", "cod_estado": "",
-                "geometry": p["centroid_wkt"], "parcel_geometry":
-                p["centroid_wkt"], "defect": "centroid", "resolves_to": pid,
-            })
+            rows.append(
+                {
+                    "cod_imovel": "",
+                    "municipio": "",
+                    "cod_estado": "",
+                    "geometry": p["centroid_wkt"],
+                    "parcel_geometry": p["centroid_wkt"],
+                    "defect": "centroid",
+                    "resolves_to": pid,
+                }
+            )
         elif pid == DONORS["geometry"]:
             # Defect: a polygon with no id. Resolves by containment.
-            rows.append({
-                "cod_imovel": "", "municipio": "", "cod_estado": "",
-                "geometry": p["wkt"], "parcel_geometry": p["wkt"],
-                "defect": "geometry", "resolves_to": pid,
-            })
+            rows.append(
+                {
+                    "cod_imovel": "",
+                    "municipio": "",
+                    "cod_estado": "",
+                    "geometry": p["wkt"],
+                    "parcel_geometry": p["wkt"],
+                    "defect": "geometry",
+                    "resolves_to": pid,
+                }
+            )
         elif pid == DONORS["axis_flip"]:
             # Defect: latitude and longitude swapped, which puts a Goiás farm in
             # the South Atlantic. Resolves after the swap is undone.
-            rows.append({
-                "cod_imovel": "", "municipio": "", "cod_estado": "",
-                "geometry": p["flipped_wkt"], "parcel_geometry":
-                p["flipped_wkt"], "defect": "axis_flip", "resolves_to": pid,
-            })
+            rows.append(
+                {
+                    "cod_imovel": "",
+                    "municipio": "",
+                    "cod_estado": "",
+                    "geometry": p["flipped_wkt"],
+                    "parcel_geometry": p["flipped_wkt"],
+                    "defect": "axis_flip",
+                    "resolves_to": pid,
+                }
+            )
         else:
-            rows.append({
-                "cod_imovel": pid, "municipio": p["municipio"],
-                "cod_estado": p["cod_estado"], "geometry": "",
-                "parcel_geometry": p["wkt"], "defect": "", "resolves_to": pid,
-            })
+            rows.append(
+                {
+                    "cod_imovel": pid,
+                    "municipio": p["municipio"],
+                    "cod_estado": p["cod_estado"],
+                    "geometry": "",
+                    "parcel_geometry": p["wkt"],
+                    "defect": "",
+                    "resolves_to": pid,
+                }
+            )
 
     # Defect: the same id twice, identical in every column. Deduplicated on
     # (id, geometry) and counted.
     dup = by_id[DONORS["duplicate"]]
-    rows.append({
-        "cod_imovel": dup["cod_imovel"], "municipio": dup["municipio"],
-        "cod_estado": dup["cod_estado"], "geometry": "",
-        "parcel_geometry": dup["wkt"], "defect": "duplicate",
-        "resolves_to": dup["cod_imovel"],
-    })
+    rows.append(
+        {
+            "cod_imovel": dup["cod_imovel"],
+            "municipio": dup["municipio"],
+            "cod_estado": dup["cod_estado"],
+            "geometry": "",
+            "parcel_geometry": dup["wkt"],
+            "defect": "duplicate",
+            "resolves_to": dup["cod_imovel"],
+        }
+    )
 
     # Defect: a centroid landing in no parcel. Counted, never guessed at, never
     # dropped — the whole point of the unresolvable bucket.
-    rows.append({
-        "cod_imovel": "", "municipio": "", "cod_estado": "",
-        "geometry": UNRESOLVABLE_POINT, "parcel_geometry": UNRESOLVABLE_POINT,
-        "defect": "unresolvable", "resolves_to": "",
-    })
+    rows.append(
+        {
+            "cod_imovel": "",
+            "municipio": "",
+            "cod_estado": "",
+            "geometry": UNRESOLVABLE_POINT,
+            "parcel_geometry": UNRESOLVABLE_POINT,
+            "defect": "unresolvable",
+            "resolves_to": "",
+        }
+    )
     return rows
 
 
@@ -196,8 +237,10 @@ def write_parquets(rows: list[dict], geometry_path: Path, split_path: Path) -> N
     )
     con.executemany(
         "INSERT INTO staged VALUES (?, ?, ?, ?)",
-        [(r["cod_imovel"], r["municipio"], r["cod_estado"], r["parcel_geometry"])
-         for r in rows],
+        [
+            (r["cod_imovel"], r["municipio"], r["cod_estado"], r["parcel_geometry"])
+            for r in rows
+        ],
     )
     con.execute(
         """
@@ -223,16 +266,20 @@ def write_parquets(rows: list[dict], geometry_path: Path, split_path: Path) -> N
 def generate(work: Path, out_dir: Path) -> list[dict]:
     rows = build_rows(load_parcels(work))
     write_csv(rows, out_dir / "goias-sample.csv")
-    write_parquets(rows, out_dir / "goias-sample.parquet",
-                   out_dir / "goias-sample-geom.parquet")
+    write_parquets(
+        rows, out_dir / "goias-sample.parquet", out_dir / "goias-sample-geom.parquet"
+    )
     return rows
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--work", type=Path,
-                    default=REPO_ROOT / "fixtures/golden/_work",
-                    help="where oracle/render.py cached the CAR extract")
+    ap.add_argument(
+        "--work",
+        type=Path,
+        default=REPO_ROOT / "fixtures/golden/_work",
+        help="where oracle/render.py cached the CAR extract",
+    )
     ap.add_argument("--out", type=Path, default=LISTS_DIR)
     args = ap.parse_args()
     rows = generate(args.work, args.out)

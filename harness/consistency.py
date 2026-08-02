@@ -127,8 +127,7 @@ def compare_runs(runs: list, oracle: dict | None) -> dict:
 
     # Cadasters flagged by some runs but not all — where models disagree about
     # who is in scope, the sharpest output of this stage.
-    unstable = [k for k in universe
-                if 0 < sum(1 for r in runs if k in r) < n]
+    unstable = [k for k in universe if 0 < sum(1 for r in runs if k in r) < n]
 
     # Cadasters every run flagged, for the metrics that need aligned rows.
     shared = [k for k in universe if all(k in r for r in runs)]
@@ -136,8 +135,10 @@ def compare_runs(runs: list, oracle: dict | None) -> dict:
     taus = []
     if len(shared) >= 2:
         for a, b in itertools.combinations(runs, 2):
-            tau = _kendall_tau([a[k]["post2020_loss_ha"] for k in shared],
-                               [b[k]["post2020_loss_ha"] for k in shared])
+            tau = _kendall_tau(
+                [a[k]["post2020_loss_ha"] for k in shared],
+                [b[k]["post2020_loss_ha"] for k in shared],
+            )
             if tau is not None:
                 taus.append(tau)
 
@@ -171,12 +172,22 @@ def compare_runs(runs: list, oracle: dict | None) -> dict:
         oracle_flags = set(oracle)
         result["oracle"] = {
             "flag_jaccard": statistics.mean(
-                _jaccard(set(r), oracle_flags) for r in runs),
-            "contact_agreement": (statistics.mean(
+                _jaccard(set(r), oracle_flags) for r in runs
+            ),
+            "contact_agreement": (
                 statistics.mean(
-                    1.0 if r.get(k, {}).get("top_contact_entity_id")
-                    == oracle[k]["top_contact_entity_id"] else 0.0
-                    for k in oracle) for r in runs) if oracle else None),
+                    statistics.mean(
+                        1.0
+                        if r.get(k, {}).get("top_contact_entity_id")
+                        == oracle[k]["top_contact_entity_id"]
+                        else 0.0
+                        for k in oracle
+                    )
+                    for r in runs
+                )
+                if oracle
+                else None
+            ),
         }
     return result
 
@@ -185,13 +196,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--results", type=Path, default=REPO_ROOT / "results")
-    ap.add_argument("--oracle", type=Path,
-                    default=REPO_ROOT / "fixtures/golden/workflow.csv")
+    ap.add_argument(
+        "--oracle", type=Path, default=REPO_ROOT / "fixtures/golden/workflow.csv"
+    )
     args = ap.parse_args()
 
-    runs = [load_artifact(d / "answers" / "workflow.csv")
-            for d in run_dirs(args.results, args.model)
-            if is_scored(read_meta(d))]
+    runs = [
+        load_artifact(d / "answers" / "workflow.csv")
+        for d in run_dirs(args.results, args.model)
+        if is_scored(read_meta(d))
+    ]
     runs = [r for r in runs if r]
     if not runs:
         print(f"no workflow artifacts under {args.results / args.model}")
@@ -200,8 +214,7 @@ def main() -> int:
     oracle = load_artifact(args.oracle) or None
     out = compare_runs(runs, oracle)
     dest = args.results / "consistency.json"
-    dest.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    dest.write_text(json.dumps(out, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     fj = out["flag_jaccard"]
     ca = out["contact_agreement"]

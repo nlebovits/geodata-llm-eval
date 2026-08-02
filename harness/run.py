@@ -35,8 +35,9 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import ablation
 from pricing import PRICES, imputed_cost_usd
@@ -100,7 +101,10 @@ def harness_commit() -> str:
     try:
         return subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
     except subprocess.CalledProcessError:
         return "unknown"
@@ -145,10 +149,14 @@ def auth_args(session_home: Path) -> list[str]:
     )
 
 
-def docker_command(workspace: Path, session_home: Path,
-                   model_id: str, container: str,
-                   prompt: str = INITIAL_PROMPT,
-                   resume_session: str | None = None) -> list[str]:
+def docker_command(
+    workspace: Path,
+    session_home: Path,
+    model_id: str,
+    container: str,
+    prompt: str = INITIAL_PROMPT,
+    resume_session: str | None = None,
+) -> list[str]:
     resume = ["--resume", resume_session] if resume_session else []
     return [
         # `--rm` already drops the container's anonymous volumes on exit.
@@ -156,20 +164,29 @@ def docker_command(workspace: Path, session_home: Path,
         # container afterwards. (`-v` belongs on `docker rm`, not here: on
         # `docker run` it takes a mount spec and would swallow the next
         # argument.)
-        "docker", "run", "--rm", "--name", container,
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        container,
         # Run as the invoking user. The mounted credential copy is 0600 and
         # host-owned, and the CLI has to both read it and write a refreshed
         # token back; a container uid that isn't the file's owner cannot do
         # either. The image's own `runner` account can't be relied on for
         # this, since its uid is fixed at build time and the host's is not.
-        "--user", f"{os.getuid()}:{os.getgid()}",
-        "-v", f"{workspace}:/workspace",
+        "--user",
+        f"{os.getuid()}:{os.getgid()}",
+        "-v",
+        f"{workspace}:/workspace",
         *auth_args(session_home),
         IMAGE,
-        "-p", prompt,
+        "-p",
+        prompt,
         *resume,
-        "--model", model_id,
-        "--output-format", "stream-json",
+        "--model",
+        model_id,
+        "--output-format",
+        "stream-json",
         "--verbose",
         "--dangerously-skip-permissions",
     ]
@@ -182,7 +199,9 @@ def read_records(transcript_path: Path):
     session is still writing.
     """
     try:
-        handle = open(transcript_path, encoding="utf-8")
+        # Opened outside the `with` so a missing transcript returns an
+        # empty generator instead of raising; the handle is closed below.
+        handle = open(transcript_path, encoding="utf-8")  # noqa: SIM115
     except FileNotFoundError:
         return
     with handle as f:
@@ -257,9 +276,10 @@ def credential_rejected(transcript_path: Path) -> bool:
     so a rule that inspected only the latest attempt would have missed the
     very failure it was written for.
     """
-    return any(record.get("subtype") == "api_retry"
-               and record.get("error_status") == 401
-               for record in read_records(transcript_path))
+    return any(
+        record.get("subtype") == "api_retry" and record.get("error_status") == 401
+        for record in read_records(transcript_path)
+    )
 
 
 # The CLI caps a Bash call here. A call reported at or above the cap was
@@ -293,9 +313,7 @@ def tool_timings(transcript_path: Path) -> dict:
     per_tool: dict[str, float] = {}
     for name, seconds in longest.values():
         per_tool[name] = round(per_tool.get(name, 0.0) + seconds, 1)
-    timed_out = sum(
-        1 for _, s in longest.values() if s >= TOOL_TIMEOUT_SECONDS
-    )
+    timed_out = sum(1 for _, s in longest.values() if s >= TOOL_TIMEOUT_SECONDS)
     return {
         "slow_tool_calls": len(longest),
         "slow_tool_seconds": round(sum(s for _, s in longest.values()), 1),
@@ -350,8 +368,9 @@ def answer_name(question_id: str) -> str:
 def missing_answers(out_dir: Path) -> list[str]:
     """Answer files a complete session would have written and this one has not."""
     written = {path.stem for path in (out_dir / "answers").glob("q*.csv")}
-    return [answer_name(qid) for qid in question_ids()
-            if answer_name(qid) not in written]
+    return [
+        answer_name(qid) for qid in question_ids() if answer_name(qid) not in written
+    ]
 
 
 def resume_prompt(missing: list[str]) -> str:
@@ -396,8 +415,9 @@ def result_text(block: dict) -> str:
     """A tool result's text, whatever shape the record put it in."""
     content = block.get("content")
     if isinstance(content, list):
-        content = "".join(part.get("text", "") for part in content
-                          if isinstance(part, dict))
+        content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
     return " ".join(str(content or "").split())
 
 
@@ -414,17 +434,23 @@ class Follower:
     def __init__(self, clock=time.monotonic) -> None:
         self.offset = 0
         self.clock = clock
-        self.pending: dict[str, tuple[str, float]] = {}
+        # A malformed record can arrive without an id; "?" keeps it out of
+        # the way of real calls rather than crashing the follow display.
+        self.pending: dict[str, tuple[str, float | None]] = {}
         self.beat_shown: dict[str, float] = {}
 
     def stamp(self) -> str:
-        return datetime.now().strftime("%H:%M:%S")
+        # Local wall clock on purpose: this is the timestamp beside a
+        # progress line, read by whoever is watching the run. Stored
+        # timestamps elsewhere in this file are UTC and tz-aware.
+        return datetime.now().strftime("%H:%M:%S")  # noqa: DTZ005
 
     def running_for(self) -> float:
         """Seconds the oldest unfinished call has been going, 0 when idle."""
         if not self.pending:
             return 0.0
-        return self.clock() - min(start for _, start in self.pending.values())
+        started = [s for _, s in self.pending.values() if s is not None]
+        return self.clock() - min(started) if started else 0.0
 
     def consume(self, transcript_path: Path) -> None:
         """Print everything written since the last call.
@@ -460,19 +486,20 @@ class Follower:
 
     def emit_call(self, block: dict) -> None:
         name = block.get("name", "?")
-        self.pending[block.get("id")] = (name, self.clock())
-        line = (f"  {self.stamp()} {name[:9]:<9} "
-                f"{tool_subject(block.get('input', {}))}")
+        self.pending[block.get("id") or "?"] = (name, self.clock())
+        line = f"  {self.stamp()} {name[:9]:<9} {tool_subject(block.get('input', {}))}"
         print(line[:FOLLOW_WIDTH], flush=True)
 
     def emit_result(self, block: dict) -> None:
-        call_id = block.get("tool_use_id")
+        call_id = block.get("tool_use_id") or "?"
         _name, start = self.pending.pop(call_id, ("?", None))
         self.beat_shown.pop(call_id, None)
         took = f"{self.clock() - start:.1f}s" if start is not None else "?"
         if block.get("is_error"):
-            line = (f"  {self.stamp()} {'':<9}   ↳ FAILED after {took}: "
-                    f"{result_text(block)}")
+            line = (
+                f"  {self.stamp()} {'':<9}   ↳ FAILED after {took}: "
+                f"{result_text(block)}"
+            )
         else:
             line = f"  {self.stamp()} {'':<9}   ↳ {took}"
         print(line[:FOLLOW_WIDTH], flush=True)
@@ -480,13 +507,12 @@ class Follower:
     def emit_heartbeat(self, record: dict) -> None:
         """One line a minute while a call runs, so a long wait shows a pulse
         instead of silence."""
-        call_id = record.get("parent_tool_use_id") or record.get("tool_use_id")
+        call_id = record.get("parent_tool_use_id") or record.get("tool_use_id") or "?"
         seconds = float(record.get("elapsed_time_seconds") or 0)
         if seconds - self.beat_shown.get(call_id, 0.0) < HEARTBEAT_SECONDS:
             return
         self.beat_shown[call_id] = seconds
-        print(f"  {self.stamp()} {'':<9}   ↳ still running, {seconds:.0f}s",
-              flush=True)
+        print(f"  {self.stamp()} {'':<9}   ↳ still running, {seconds:.0f}s", flush=True)
 
 
 def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
@@ -514,9 +540,12 @@ def stop_session(proc: subprocess.Popen, container: str) -> None:
     # `docker run --rm` deletes the container on a normal exit, so this is a
     # no-op for a session that finished. It is the interrupted case that
     # leaves one behind.
-    subprocess.run(["docker", "rm", "-f", "-v", container],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                   check=False)
+    subprocess.run(
+        ["docker", "rm", "-f", "-v", container],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
 
 
 def clear_pass_dir(out_dir: Path) -> None:
@@ -535,26 +564,32 @@ def clear_pass_dir(out_dir: Path) -> None:
             path.unlink()
 
 
-def run_session(model: str, dry_run: bool, input_mode: str = "csv",
-                follow: bool = False, label: str = "",
-                max_attempts: int = MAX_ATTEMPTS, arm: str = "",
-                ablations: Path | None = None) -> None:
+def run_session(
+    model: str,
+    dry_run: bool,
+    input_mode: str = "csv",
+    follow: bool = False,
+    label: str = "",
+    max_attempts: int = MAX_ATTEMPTS,
+    arm: str = "",
+    ablations: Path | None = None,
+) -> None:
     # Resolve the arm before any work: a heading that no longer matches the
     # document should cost a second, not a container.
-    arm_spec = {"arm": arm or FULL_SPEC, "why": "", "ops": []}
+    arm_spec: dict[str, Any] = {"arm": arm or FULL_SPEC, "why": "", "ops": []}
     if arm:
         config = ablation.load_arms(ablations or ABLATIONS)
         if arm not in config["arms"]:
             raise ablation.AblationError(
-                f"unknown arm {arm!r}, expected one of {sorted(config['arms'])}")
+                f"unknown arm {arm!r}, expected one of {sorted(config['arms'])}"
+            )
         chosen = config["arms"][arm]
         # The resolved operations are copied in, not referenced. A config
         # edited next week must not change what this run says it did.
-        arm_spec = {"arm": arm, "why": str(chosen["why"]).strip(),
-                    "ops": chosen["ops"]}
+        arm_spec = {"arm": arm, "why": str(chosen["why"]).strip(), "ops": chosen["ops"]}
 
     model_id = PRICES[model].model_id
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     name = run_id(started, harness_commit())
     out_dir = REPO_ROOT / "results" / model / name
     container = f"geodata-eval-{model}-{name}-{os.getpid()}"
@@ -604,8 +639,10 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
         catalog_before = source_coop_sample()
         rate = catalog_before.get("bytes_per_second")
         speed = f"{rate / 1e6:.1f} MB/s" if rate else "unreachable"
-        print(f"[{model}/{name}] starting"
-              f" (source.coop {speed} via {catalog_before.get('colo') or '?'})")
+        print(
+            f"[{model}/{name}] starting"
+            f" (source.coop {speed} via {catalog_before.get('colo') or '?'})"
+        )
 
         follower = Follower() if follow else None
 
@@ -619,10 +656,13 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             Both files are opened in the caller's mode so a resumed attempt
             adds to the record of the first rather than erasing it.
             """
-            with open(transcript_path, mode, encoding="utf-8") as transcript, \
-                    open(errors_path, mode, encoding="utf-8") as errors:
-                proc = subprocess.Popen(cmd, stdout=transcript, stderr=errors,
-                                        text=True)
+            with (
+                open(transcript_path, mode, encoding="utf-8") as transcript,
+                open(errors_path, mode, encoding="utf-8") as errors,
+            ):
+                proc = subprocess.Popen(
+                    cmd, stdout=transcript, stderr=errors, text=True
+                )
                 next_beat = time.monotonic() + HEARTBEAT_SECONDS
                 try:
                     while proc.poll() is None:
@@ -637,11 +677,13 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
                         # Counted in the workspace, which is where the session
                         # writes. The results directory only receives them
                         # once the session is over.
-                        answered = question_count() - len(
-                            missing_answers(workspace))
+                        answered = question_count() - len(missing_answers(workspace))
                         waiting = follower.running_for() if follower else 0.0
-                        detail = (f"in {last_tool} {waiting:.0f}s" if waiting
-                                  else f"last: {last_tool}")
+                        detail = (
+                            f"in {last_tool} {waiting:.0f}s"
+                            if waiting
+                            else f"last: {last_tool}"
+                        )
                         print(
                             f"[{model}/{name}] {elapsed:.0f}m ·"
                             f" {turns} turns · {answered}/{question_count()}"
@@ -658,10 +700,11 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
                 if follower:
                     follower.consume(transcript_path)
             if proc.returncode != 0:
-                print(f"[{model}/{name}] session exited {proc.returncode}",
-                      file=sys.stderr)
-                print(errors_path.read_text(encoding="utf-8")[-2000:],
-                      file=sys.stderr)
+                print(
+                    f"[{model}/{name}] session exited {proc.returncode}",
+                    file=sys.stderr,
+                )
+                print(errors_path.read_text(encoding="utf-8")[-2000:], file=sys.stderr)
             return proc.returncode
 
         attempts = 0
@@ -681,24 +724,37 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             # the CLI already retried the credential ten times, and every
             # further attempt fails the same way. One sweep spent all three
             # proving it, and the arm came back n=1.
-            if len(missing) == question_count() and credential_rejected(transcript_path):
-                print(f"[{model}/{name}] the credential was rejected and"
-                      f" nothing was answered; not resuming. Run `claude"
-                      f" login` on the host and start this arm again.",
-                      file=sys.stderr)
+            if len(missing) == question_count() and credential_rejected(
+                transcript_path
+            ):
+                print(
+                    f"[{model}/{name}] the credential was rejected and"
+                    f" nothing was answered; not resuming. Run `claude"
+                    f" login` on the host and start this arm again.",
+                    file=sys.stderr,
+                )
                 break
             resume = session_id(transcript_path)
             if not resume:
-                print(f"[{model}/{name}] no session id in the transcript;"
-                      f" cannot resume")
+                print(
+                    f"[{model}/{name}] no session id in the transcript; cannot resume"
+                )
                 break
-            print(f"[{model}/{name}] resuming: {len(missing)} of"
-                  f" {question_count()} answers missing"
-                  f" (attempt {attempts + 1} of {max_attempts})", flush=True)
+            print(
+                f"[{model}/{name}] resuming: {len(missing)} of"
+                f" {question_count()} answers missing"
+                f" (attempt {attempts + 1} of {max_attempts})",
+                flush=True,
+            )
             returncode = stream(
-                docker_command(workspace, session_home, model_id,
-                               f"{container}-{attempts + 1}",
-                               resume_prompt(missing), resume),
+                docker_command(
+                    workspace,
+                    session_home,
+                    model_id,
+                    f"{container}-{attempts + 1}",
+                    resume_prompt(missing),
+                    resume,
+                ),
                 f"{container}-{attempts + 1}",
                 "a",
             )
@@ -717,7 +773,7 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
             "run_id": name,
             "label": label,
             "started_utc": started.isoformat(),
-            "finished_utc": datetime.now(timezone.utc).isoformat(),
+            "finished_utc": datetime.now(UTC).isoformat(),
             "duration_seconds": duration,
             "exit_code": returncode,
             "attempts": attempts,
@@ -788,16 +844,19 @@ def source_coop_sample() -> dict:
     there is no way to tell a slow model from a slow route afterwards, and the
     route is gone by the time anyone asks.
     """
-    url = json.loads((REPO_ROOT / "fixtures" / "pins.json")
-                     .read_text(encoding="utf-8"))["catalogs"]["cadastral"]["car_parquet"]
+    url = json.loads(
+        (REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8")
+    )["catalogs"]["cadastral"]["car_parquet"]
     request = urllib.request.Request(
-        url, headers={"Range": f"bytes=0-{PROBE_BYTES - 1}"})
+        url, headers={"Range": f"bytes=0-{PROBE_BYTES - 1}"}
+    )
     started = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
+        # url comes from fixtures/pins.json, which is committed.
+        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:  # nosec B310
             payload = response.read()
             colo = (response.headers.get("cf-ray") or "").rsplit("-", 1)[-1]
-    except Exception as exc:                       # noqa: BLE001 - never fatal
+    except Exception as exc:  # noqa: BLE001 - never fatal
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
     elapsed = time.monotonic() - started
     return {
@@ -823,30 +882,61 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", choices=sorted(PRICES), required=True)
     ap.add_argument("--passes", type=int, default=10)
-    ap.add_argument("--label", default="",
-                    help="tag these runs so a comparison can select them "
-                         "later, e.g. --label experiment-1")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="print the docker command instead of running")
-    ap.add_argument("--follow", action="store_true",
-                    help="print each tool call as the session makes it")
-    ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
-                    help="encoding of the input list; see policies/INPUTS.md")
-    ap.add_argument("--max-attempts", type=int, default=MAX_ATTEMPTS,
-                    help="how many times a session that stops with questions "
-                         "unanswered is resumed (1 disables resuming)")
-    ap.add_argument("--arm", default="",
-                    help="withhold part of the spec, by arm name from the "
-                         "ablations config; default is the whole spec")
-    ap.add_argument("--ablations", type=Path, default=ABLATIONS,
-                    help="the ablation config to read --arm from")
+    ap.add_argument(
+        "--label",
+        default="",
+        help="tag these runs so a comparison can select them "
+        "later, e.g. --label experiment-1",
+    )
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the docker command instead of running",
+    )
+    ap.add_argument(
+        "--follow",
+        action="store_true",
+        help="print each tool call as the session makes it",
+    )
+    ap.add_argument(
+        "--input-mode",
+        choices=sorted(INPUT_FILES),
+        default="csv",
+        help="encoding of the input list; see policies/INPUTS.md",
+    )
+    ap.add_argument(
+        "--max-attempts",
+        type=int,
+        default=MAX_ATTEMPTS,
+        help="how many times a session that stops with questions "
+        "unanswered is resumed (1 disables resuming)",
+    )
+    ap.add_argument(
+        "--arm",
+        default="",
+        help="withhold part of the spec, by arm name from the "
+        "ablations config; default is the whole spec",
+    )
+    ap.add_argument(
+        "--ablations",
+        type=Path,
+        default=ABLATIONS,
+        help="the ablation config to read --arm from",
+    )
     args = ap.parse_args()
 
     for _ in range(args.passes):
         try:
-            run_session(args.model, args.dry_run, args.input_mode, args.follow,
-                        args.label, max_attempts=args.max_attempts,
-                        arm=args.arm, ablations=args.ablations)
+            run_session(
+                args.model,
+                args.dry_run,
+                args.input_mode,
+                args.follow,
+                args.label,
+                max_attempts=args.max_attempts,
+                arm=args.arm,
+                ablations=args.ablations,
+            )
         except ablation.AblationError as exc:
             # A mistyped arm is a config problem, not a crash. Say so in one
             # line rather than a traceback, and stop before spending anything.
