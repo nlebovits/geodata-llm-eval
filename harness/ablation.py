@@ -2,8 +2,8 @@
 
 The benchmark measures whether a model implements a written spec. It cannot,
 on its own, say how much any part of that spec is worth. An ablation answers
-that by removing a piece and re-running: drop a whole policy document, or cut
-one section out of one.
+that by removing a piece and re-running: cut a whole section of SPEC.md, or a
+single rule inside one.
 
 Two rules run through everything here.
 
@@ -24,16 +24,17 @@ from __future__ import annotations
 
 import hashlib
 import re
-import shutil
 from pathlib import Path
 from typing import Any
+
+import specdoc
 
 # What spec_fingerprint covers, relative to the assembled workspace. The input
 # lists are deliberately outside it: input_mode is already its own recorded
 # axis, and folding it in here would make every csv-versus-geometry comparison
 # read as two different specs. When a future operation reaches something new --
 # a mirrored catalog, say -- it belongs in this tuple.
-FINGERPRINTED = ("task.md", "policies")
+FINGERPRINTED = ("SPEC.md",)
 
 # An ATX heading: up to six hashes, whitespace, the text, optional closing
 # hashes. Setext headings (text underlined with === or ---) are not supported,
@@ -261,25 +262,13 @@ def load_arms(path: Path) -> dict[str, Any]:
     return {"baseline": baseline, "arms": arms}
 
 
-def spec_sources(repo_root: Path) -> dict[str, Path]:
-    """Where each fingerprinted workspace path comes from in the repo.
-
-    run.py assembles the workspace from these; validation stages the same set
-    so a dry run exercises the paths a session will.
-    """
-    return {
-        "task.md": repo_root / "prompts" / "task.md",
-        "policies": repo_root / "policies",
-    }
-
-
 def stage_spec(repo_root: Path, dest: Path) -> None:
-    """Copy the spec into `dest` the way run.py assembles a workspace."""
-    for name, src in spec_sources(repo_root).items():
-        if src.is_dir():
-            shutil.copytree(src, dest / name)
-        else:
-            shutil.copy(src, dest / name)
+    """Render the spec into `dest` the way run.py assembles a workspace.
+
+    Validation stages the same rendered view a session receives, so a dry run
+    exercises the exact text an arm's operations will cut.
+    """
+    (dest / "SPEC.md").write_text(specdoc.render(repo_root), encoding="utf-8")
 
 
 def validate_arms(
