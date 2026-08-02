@@ -25,7 +25,8 @@ SPEC_PATH = REPO_ROOT / "SPEC.md"
 # provenance/equivalence bullets. A bullet's wrapped continuation lines are
 # indented, so they are stripped with it.
 METADATA = re.compile(
-    r"^(Questions affected:|- (provenance|questions|equivalence):)")
+    r"^(Questions affected:|Provenance:"
+    r"|- (provenance|questions|equivalence):)")
 CONTINUATION = re.compile(r"^ {2,}\S")
 
 # The agent-facing preamble that replaces the Status paragraph and the
