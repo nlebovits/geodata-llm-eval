@@ -10,16 +10,16 @@ The 31 questions are not independent lookups. They form six dependent stages tha
 
 1. **Catalog discovery** — navigate three catalogs from metadata alone.
 2. **Cadaster resolution** — resolve property IDs against the 8.45-million-row national CAR file; repair a list that arrives with duplicates, missing ids, and swapped coordinate axes; account for smallholdings.
-3. **Field and cadaster matching** — implement the containment policy in `policies/MATCHING.md`. The rule is 2/3 containment, applied to either a single parcel or a buffered union.
-4. **EUDR deforestation** — classify Mapbiomas classes as EUDR Annex I commodities using `policies/EUDR_CROPS.md`. Then measure post-2020 loss on the in-scope ones.
-5. **Commodity infrastructure** — route each flagged property to the right cooperative or buyer using `policies/COOPS.md`. Report infrastructure gaps where they exist.
+3. **Field and cadaster matching** — implement the containment policy in `SPEC.md` §5. The rule is 2/3 containment, applied to either a single parcel or a buffered union.
+4. **EUDR deforestation** — classify Mapbiomas classes as EUDR Annex I commodities using the scope table in `SPEC.md` §7. Then measure post-2020 loss on the in-scope ones.
+5. **Commodity infrastructure** — route each flagged property to the right cooperative or buyer using the candidate rules in `SPEC.md` §8. Report infrastructure gaps where they exist.
 6. **Portfolio decision** — for every non-compliant property, identify its top-ranked contact.
 
 An error in stage 3 propagates visibly into stages 4 and 5. The grader measures that propagation.
 
 ## Built on EUDR policy documents
 
-The policy documents in `policies/` are mounted into the session as the binding specification. This eval measures whether a model can implement a written compliance policy against live cloud-native data.
+A rendered view of `SPEC.md` is mounted into the session as the binding specification. This eval measures whether a model can implement a written compliance policy against live cloud-native data.
 
 The 2/3 containment bar, the 25-meter buffer, the EPSG:5880 distance rule, and the Annex I commodity mapping are stated. The agent must read and apply them. The scope policy in `EUDR_CROPS.md` is not leaked into the prompt.
 
@@ -43,7 +43,7 @@ Grading is executable, not model-judged. The comparator checks each session's `a
 
 Counts must match exactly. Strings must match apart from case. Numerics match within relative 1e-3. Geometry-sensitive questions grade at relative 1e-2 with integer slack of max(2, 1% of golden).
 
-Case is ignored because capitalization is not what the benchmark measures. The lowercase style for `annex1_commodity` is stated only in `policies/EUDR_CROPS.md`, so an ablation arm run without that document cannot recover it, and seven questions across three stages report the column. One formatting choice was costing five points and hiding whether the model had classified the crops correctly at all. No golden column anywhere distinguishes two values by case alone, so folding case can only turn a right answer into a passing one.
+Case is ignored because capitalization is not what the benchmark measures. The lowercase style for `annex1_commodity` is stated only in the scope section of `SPEC.md`, so an ablation arm run without that section cannot recover it, and seven questions across three stages report the column. One formatting choice was costing five points and hiding whether the model had classified the crops correctly at all. No golden column anywhere distinguishes two values by case alone, so folding case can only turn a right answer into a passing one.
 
 Rounding is done on output only, never in a table that a later question filters on. Axis order is not a convention anyone should guess. GeoParquet is longitude-first, and DuckDB's ST_Area_Spheroid and ST_Transform read latitude-first unless `geometry_always_xy` is set. Every oracle template that loads `spatial` declares the setting.
 

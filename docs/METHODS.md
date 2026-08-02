@@ -44,7 +44,7 @@ Each question declares its dependencies so the grader can separate answers wrong
 
 ## Policy as specification
 
-The four documents in `policies/` define the specification. They state the 2/3 containment threshold, the 25 m buffer, the EPSG:5880 distance rule, and the Annex I commodity mapping. The task is the spatial work of applying them across a live portfolio.
+`SPEC.md` defines the specification. They state the 2/3 containment threshold, the 25 m buffer, the EPSG:5880 distance rule, and the Annex I commodity mapping. The task is the spatial work of applying them across a live portfolio.
 
 `EUDR_CROPS.md` defines crop scope. The agent must read this policy and carry its caveats through nine downstream questions. This mirrors the real job, where a compliance rule arrives as a document and the analyst implements it.
 

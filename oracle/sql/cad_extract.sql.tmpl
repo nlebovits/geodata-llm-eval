@@ -10,7 +10,7 @@
 --
 -- The list is no longer read here, and no longer read with SELECT DISTINCT.
 -- That distinct collapsed duplicate ids before anything could count them, which
--- made the reconciliation identity in policies/INPUTS.md unmeasurable: a
+-- made the reconciliation identity in SPEC.md §4 unmeasurable: a
 -- silently dropped row and a correctly deduplicated one produced the same
 -- extract. RESOLVED_PARQUET carries one row per input row with the rule it
 -- landed on, and this stage takes the parcels behind them.
