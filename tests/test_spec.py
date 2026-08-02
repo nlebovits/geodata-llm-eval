@@ -39,7 +39,7 @@ def spec_questions() -> dict[str, dict]:
             stage = stages[pos][1]
             pos += 1
         body = match.group("body")
-        rows = re.search(r"rows: (\d+|data)\.", body)
+        rows = re.search(r"Rows: (\d+|data)\.", body)
         depends = re.search(r"Depends: ([q\d, ]+)\.", body)
         found[match.group("id")] = {
             "stage": stage,
@@ -93,7 +93,8 @@ def test_spec_names_the_geometry_graded_questions():
     """Section 2 lists the geometry-graded set in one line; it must be the
     set questions.yaml actually grades that way."""
     graded = {q["id"] for q in QUESTIONS if q.get("grading") == "geometry"}
-    line = next(ln for ln in SPEC.splitlines() if "geometry-graded are" in ln)
+    line = next(ln for ln in SPEC.splitlines()
+                if "Geometry-graded questions:" in ln)
     named: set[str] = set()
     for start, end in re.findall(r"q(\d{2})–q(\d{2})", line):
         named.update(f"{n:02d}" for n in range(int(start), int(end) + 1))
@@ -111,6 +112,8 @@ def test_agent_view_strips_what_a_session_must_not_see():
     assert "equivalence:" not in view, "grader equivalences reach the session"
     assert "Open questions" not in view, "the contested list reaches the session"
     assert "PR #" not in view, "repo history reaches the session"
+    assert "Questions affected" not in view, (
+        "the per-rule impact map reaches the session")
 
 
 def test_agent_view_keeps_the_rules_and_tables():

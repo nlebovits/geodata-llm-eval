@@ -21,9 +21,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SPEC_PATH = REPO_ROOT / "SPEC.md"
 
-# The per-rule metadata bullets. A bullet's wrapped continuation lines are
+# The per-rule metadata lines: "Questions affected:" paragraphs and any
+# provenance/equivalence bullets. A bullet's wrapped continuation lines are
 # indented, so they are stripped with it.
-METADATA = re.compile(r"^- (provenance|questions|equivalence):")
+METADATA = re.compile(
+    r"^(Questions affected:|- (provenance|questions|equivalence):)")
 CONTINUATION = re.compile(r"^ {2,}\S")
 
 # The agent-facing preamble that replaces the Status paragraph and the
