@@ -108,7 +108,7 @@ def test_spec_names_the_geometry_graded_questions():
 
 def test_agent_view_strips_what_a_session_must_not_see():
     view = specdoc.agent_view(SPEC)
-    assert "provenance:" not in view, "provenance reaches the session"
+    assert "provenance:" not in view.lower(), "provenance reaches the session"
     assert "equivalence:" not in view, "grader equivalences reach the session"
     assert "Open questions" not in view, "the contested list reaches the session"
     assert "PR #" not in view, "repo history reaches the session"
