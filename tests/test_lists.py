@@ -19,8 +19,8 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "harness"))
 sys.path.insert(0, str(REPO / "fixtures" / "lists"))
 
-import make_lists  # noqa: E402
-import run  # noqa: E402
+import make_lists
+import run
 
 LISTS = REPO / "fixtures" / "lists"
 GOLDEN = REPO / "fixtures" / "golden"
@@ -55,6 +55,7 @@ def golden_row(qid: str) -> dict:
 
 
 # --- the shipped fixtures ----------------------------------------------------
+
 
 def test_every_promised_input_file_exists():
     """run.py copies these into the workspace before a container starts, so a
@@ -121,7 +122,9 @@ def test_the_damaged_list_still_names_the_whole_portfolio():
     the q06-q30 goldens, which is where it belongs."""
     named = {r["cod_imovel"] for r in read_list() if r["cod_imovel"]}
     assert len(named | set(make_lists.DONORS.values())) == RESOLVED_PARCELS
-    carved = {donor for defect, donor in make_lists.DONORS.items() if defect != "duplicate"}
+    carved = {
+        donor for defect, donor in make_lists.DONORS.items() if defect != "duplicate"
+    }
     assert not named & carved, (
         "a defect donor must not also appear as a clean id, or the defect "
         "would resolve to a parcel the list already carries and prove nothing"
@@ -137,7 +140,7 @@ def test_the_three_encodings_describe_the_same_list():
         "SELECT count(*), count(*) FILTER (WHERE cod_imovel <> '') "
         f"FROM read_parquet('{(LISTS / 'goias-sample.parquet').as_posix()}')"
     ).fetchone()
-    split_rows, = con.execute(
+    (split_rows,) = con.execute(
         "SELECT count(*) FROM read_parquet("
         f"'{(LISTS / 'goias-sample-geom.parquet').as_posix()}')"
     ).fetchone()
@@ -158,8 +161,11 @@ def test_the_generator_is_deterministic(tmp_path):
     Otherwise a regeneration moves the golden fingerprint for no reason and
     every stored run silently stops being comparable."""
     make_lists.generate(GOLDEN / "_work", tmp_path)
-    for name in ("goias-sample.csv", "goias-sample.parquet",
-                 "goias-sample-geom.parquet"):
+    for name in (
+        "goias-sample.csv",
+        "goias-sample.parquet",
+        "goias-sample-geom.parquet",
+    ):
         assert (tmp_path / name).read_bytes() == (LISTS / name).read_bytes(), name
 
 
@@ -172,6 +178,7 @@ def test_the_generator_never_reaches_the_network():
 
 
 # --- the reconciliation golden -----------------------------------------------
+
 
 def test_the_reconciliation_identity_holds():
     """policies/INPUTS.md:34. Every input row lands in exactly one bucket, so
@@ -215,8 +222,11 @@ def test_no_template_reads_the_list_through_a_silent_distinct():
     for path in sorted((REPO / "oracle" / "sql").rglob("*.sql.tmpl")):
         if path.name == "list_resolve.sql.tmpl":
             continue
-        body = "\n".join(line for line in path.read_text("utf-8").splitlines()
-                         if not line.lstrip().startswith("--"))
+        body = "\n".join(
+            line
+            for line in path.read_text("utf-8").splitlines()
+            if not line.lstrip().startswith("--")
+        )
         if "read_csv_auto" in body:
             offenders.append(path.name)
     assert not offenders, f"templates still reading the raw list: {offenders}"
@@ -227,7 +237,129 @@ def test_the_generator_runs_from_the_command_line():
     generator that only works when imported is a generator nobody reruns."""
     proc = subprocess.run(
         [sys.executable, str(LISTS / "make_lists.py"), "--help"],
-        capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 0, proc.stderr
     assert "--work" in proc.stdout
+
+
+def _parcel(pid: str, lon: float = -51.0, lat: float = -15.5) -> dict:
+    """A CAR row in the shape build_rows reads, with distinguishable WKT."""
+    return {
+        "cod_imovel": pid,
+        "municipio": "Jussara",
+        "cod_estado": "GO",
+        "wkt": f"POLYGON (({lon} {lat}, {lon + 0.1} {lat}, {lon} {lat + 0.1}, "
+        f"{lon} {lat}))",
+        "centroid_wkt": f"POINT ({lon} {lat})",
+        "flipped_wkt": f"POINT ({lat} {lon})",
+    }
+
+
+def test_each_donor_contributes_its_own_defect():
+    """The four donors are what make the list a repair exercise rather than
+    a lookup. Losing one silently turns a stage-2 test into a freebie."""
+    parcels = [_parcel(pid) for pid in make_lists.DONORS.values()]
+    parcels.append(_parcel("GO-5212204-CLEAN"))
+
+    rows = make_lists.build_rows(parcels)
+
+    defects = [r["defect"] for r in rows if r["defect"]]
+    assert sorted(set(defects)) == [
+        "axis_flip",
+        "centroid",
+        "duplicate",
+        "geometry",
+        "unresolvable",
+    ]
+
+
+def test_a_defective_row_still_names_the_parcel_it_resolves_to():
+    """resolves_to is the answer key. It stays in the fixture and never
+    reaches a session."""
+    parcels = [_parcel(pid) for pid in make_lists.DONORS.values()]
+
+    rows = make_lists.build_rows(parcels)
+
+    by_defect = {r["defect"]: r for r in rows}
+    assert by_defect["centroid"]["resolves_to"] == make_lists.DONORS["centroid"]
+    assert by_defect["geometry"]["resolves_to"] == make_lists.DONORS["geometry"]
+    assert by_defect["axis_flip"]["resolves_to"] == make_lists.DONORS["axis_flip"]
+    assert by_defect["duplicate"]["resolves_to"] == make_lists.DONORS["duplicate"]
+    assert by_defect["unresolvable"]["resolves_to"] == ""
+
+
+def test_the_three_id_stripping_defects_ship_without_an_id():
+    """A session that could read the id would never exercise the geometry
+    path these defects exist to test."""
+    parcels = [_parcel(pid) for pid in make_lists.DONORS.values()]
+
+    rows = make_lists.build_rows(parcels)
+
+    for defect in ("centroid", "geometry", "axis_flip", "unresolvable"):
+        row = next(r for r in rows if r["defect"] == defect)
+        assert row["cod_imovel"] == ""
+        assert row["geometry"], f"{defect} must ship geometry instead"
+
+
+def test_the_axis_flip_row_carries_swapped_coordinates():
+    """Latitude and longitude swapped puts a Goiás farm in the South
+    Atlantic. Shipping the unflipped polygon would make the row clean."""
+    donor = _parcel(make_lists.DONORS["axis_flip"])
+    # The duplicate donor has to be present: build_rows copies it verbatim.
+    rows = make_lists.build_rows([donor, _parcel(make_lists.DONORS["duplicate"])])
+
+    flipped = next(r for r in rows if r["defect"] == "axis_flip")
+    assert flipped["geometry"] == donor["flipped_wkt"]
+    assert flipped["geometry"] != donor["wkt"]
+
+
+def test_the_duplicate_is_identical_in_every_column():
+    """Deduplication is on (id, geometry). A duplicate that differed
+    anywhere would be a different exercise."""
+    donor = _parcel(make_lists.DONORS["duplicate"])
+
+    rows = make_lists.build_rows([donor])
+
+    clean = next(
+        r for r in rows if r["cod_imovel"] == donor["cod_imovel"] and not r["defect"]
+    )
+    dup = next(r for r in rows if r["defect"] == "duplicate")
+    assert clean["parcel_geometry"] == dup["parcel_geometry"]
+    assert clean["municipio"] == dup["municipio"]
+
+
+def test_an_ordinary_parcel_keeps_its_id_and_ships_no_geometry():
+    rows = make_lists.build_rows(
+        [_parcel("GO-5207600-CLEAN"), _parcel(make_lists.DONORS["duplicate"])]
+    )
+
+    row = next(r for r in rows if r["cod_imovel"] == "GO-5207600-CLEAN")
+    assert row["defect"] == ""
+    assert row["geometry"] == ""
+    assert row["parcel_geometry"]
+
+
+def test_main_writes_three_encodings(tmp_path, monkeypatch, capsys):
+    """The generator is documented as a command. A generator that only
+    works when imported is one nobody reruns."""
+    parcels = [_parcel(pid) for pid in make_lists.DONORS.values()]
+    parcels.append(_parcel("GO-5207600-CLEAN"))
+    monkeypatch.setattr(make_lists, "load_parcels", lambda work: parcels)
+    monkeypatch.setattr(
+        sys, "argv", ["make_lists.py", "--work", str(tmp_path), "--out", str(tmp_path)]
+    )
+
+    assert make_lists.main() == 0
+
+    for name in (
+        "goias-sample.csv",
+        "goias-sample.parquet",
+        "goias-sample-geom.parquet",
+    ):
+        assert (tmp_path / name).exists(), name
+    out = capsys.readouterr().out
+    assert "wrote 3 encodings" in out
+    assert "axis_flip" in out

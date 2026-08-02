@@ -1,12 +1,13 @@
 """Session assembly: the workspace gets the policies and the input list, and
 never the golden fixtures. Does not require Docker."""
 
+import itertools
 import json
 import os
 import re
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HARNESS = REPO_ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 
-import run  # noqa: E402
+import run
 
 
 def test_image_duckdb_matches_the_pin():
@@ -39,7 +40,9 @@ def test_image_duckdb_matches_the_pin():
 def test_list_files_resolves_each_mode():
     assert [p.name for p in run.list_files("csv")] == ["goias-sample.csv"]
     assert [p.name for p in run.list_files("split")] == [
-        "goias-sample.csv", "goias-sample-geom.parquet"]
+        "goias-sample.csv",
+        "goias-sample-geom.parquet",
+    ]
     assert run.INPUT_FILES["geometry"] == ["goias-sample.parquet"]
 
 
@@ -66,9 +69,11 @@ def test_the_ablation_config_is_not_inside_the_policies_directory():
 
 
 def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
-        monkeypatch, capsys, tmp_path):
+    monkeypatch, capsys, tmp_path
+):
     """The receipt printed here is what makes "did this arm do anything?"
     answerable before a sweep is paid for rather than after."""
+
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -86,6 +91,7 @@ def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
 def test_an_unknown_arm_fails_before_a_container_starts(monkeypatch, tmp_path):
     """A mistyped arm that fell through to the full spec would score like the
     baseline and read as "the withheld text did not matter"."""
+
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -95,10 +101,12 @@ def test_an_unknown_arm_fails_before_a_container_starts(monkeypatch, tmp_path):
         run.run_session("haiku", dry_run=True, arm="no-such-arm")
 
 
-def test_a_plain_run_records_the_full_spec_and_reads_no_config(monkeypatch,
-                                                               capsys, tmp_path):
+def test_a_plain_run_records_the_full_spec_and_reads_no_config(
+    monkeypatch, capsys, tmp_path
+):
     """Every run already on disk saw the whole spec, so an unablated run has
     to group with them rather than becoming a fourth category."""
+
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -120,8 +128,7 @@ def fake_credentials(tmp_path, monkeypatch):
     return cred
 
 
-def test_dry_run_assembles_workspace_without_docker(monkeypatch, capsys,
-                                                    tmp_path):
+def test_dry_run_assembles_workspace_without_docker(monkeypatch, capsys, tmp_path):
     # dry_run prints the docker command and returns before invoking anything;
     # it still copies policies + the list, so this exercises the mounting.
     class FakePrice:
@@ -135,8 +142,7 @@ def test_dry_run_assembles_workspace_without_docker(monkeypatch, capsys,
     assert "--model claude-haiku-4-5-20251001" in out
 
 
-def test_auth_mounts_a_session_copy_not_the_host_credentials(monkeypatch,
-                                                             tmp_path):
+def test_auth_mounts_a_session_copy_not_the_host_credentials(monkeypatch, tmp_path):
     """The host file is copied, never bind-mounted. A session that corrupts
     or rewrites the token must not be able to reach the real login."""
     cred = fake_credentials(tmp_path, monkeypatch)
@@ -194,8 +200,7 @@ def test_container_runs_as_the_host_user(monkeypatch, tmp_path):
     assert cmd[cmd.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
 
 
-def test_credentials_never_land_inside_the_mounted_workspace(monkeypatch,
-                                                             tmp_path):
+def test_credentials_never_land_inside_the_mounted_workspace(monkeypatch, tmp_path):
     """The agent is pointed at /workspace with permissions skipped. The
     credential copy lives in a sibling directory, not under it."""
     fake_credentials(tmp_path, monkeypatch)
@@ -212,7 +217,8 @@ def test_credentials_never_land_inside_the_mounted_workspace(monkeypatch,
 def write_transcript(tmp_path, records):
     path = tmp_path / "transcript.jsonl"
     path.write_text(
-        "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8",
+        "".join(json.dumps(r) + "\n" for r in records),
+        encoding="utf-8",
     )
     return path
 
@@ -224,22 +230,38 @@ def test_a_rejected_credential_is_read_off_the_transcript(tmp_path):
     from a session that stopped with work left, so it starts it again into the
     same rejection. One sweep spent all three attempts on that and returned
     the arm at n=1."""
-    dead = write_transcript(tmp_path, [
-        {"type": "system", "subtype": "init", "session_id": "s"},
-        {"type": "system", "subtype": "api_retry", "attempt": 1,
-         "error_status": 401, "error": "authentication_failed"},
-        {"type": "result", "is_error": True},
-    ])
+    dead = write_transcript(
+        tmp_path,
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "system",
+                "subtype": "api_retry",
+                "attempt": 1,
+                "error_status": 401,
+                "error": "authentication_failed",
+            },
+            {"type": "result", "is_error": True},
+        ],
+    )
     assert run.credential_rejected(dead)
 
 
 def test_a_transcript_with_no_401_is_not_read_as_a_credential_failure(tmp_path):
-    healthy = write_transcript(tmp_path, [
-        {"type": "system", "subtype": "init", "session_id": "s"},
-        {"type": "system", "subtype": "api_retry", "attempt": 1,
-         "error_status": 529, "error": "overloaded"},
-        {"type": "result", "is_error": False},
-    ])
+    healthy = write_transcript(
+        tmp_path,
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "system",
+                "subtype": "api_retry",
+                "attempt": 1,
+                "error_status": 529,
+                "error": "overloaded",
+            },
+            {"type": "result", "is_error": False},
+        ],
+    )
     assert not run.credential_rejected(healthy)
 
 
@@ -248,30 +270,40 @@ def test_the_credential_check_reads_every_attempt_not_just_the_last(tmp_path):
     by then the CLI could not find its config file and failed before reaching
     the API at all. A check scoped to the latest attempt would have missed the
     failure it was written for."""
-    path = write_transcript(tmp_path, [
-        {"type": "system", "subtype": "init", "session_id": "s"},
-        {"type": "system", "subtype": "api_retry", "error_status": 401},
-        {"type": "result", "is_error": True},
-        {"type": "system", "subtype": "init", "session_id": "s"},
-        {"type": "assistant", "message": {"content": []}},
-        {"type": "result", "is_error": True},
-    ])
+    path = write_transcript(
+        tmp_path,
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {"type": "system", "subtype": "api_retry", "error_status": 401},
+            {"type": "result", "is_error": True},
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {"type": "assistant", "message": {"content": []}},
+            {"type": "result", "is_error": True},
+        ],
+    )
     assert run.credential_rejected(path)
 
 
 def heartbeat(call_id, tool, seconds):
-    return {"type": "tool_heartbeat", "tool_use_id": call_id,
-            "tool_name": tool, "elapsed_time_seconds": seconds}
+    return {
+        "type": "tool_heartbeat",
+        "tool_use_id": call_id,
+        "tool_name": tool,
+        "elapsed_time_seconds": seconds,
+    }
 
 
 def test_tool_timings_take_the_last_heartbeat_per_call(tmp_path):
     """Heartbeats report a running elapsed for one call, so summing them all
     would count a single slow query several times over."""
-    path = write_transcript(tmp_path, [
-        heartbeat("a", "Bash", 30),
-        heartbeat("a", "Bash", 60),
-        heartbeat("a", "Bash", 90),
-    ])
+    path = write_transcript(
+        tmp_path,
+        [
+            heartbeat("a", "Bash", 30),
+            heartbeat("a", "Bash", 60),
+            heartbeat("a", "Bash", 90),
+        ],
+    )
 
     timings = run.tool_timings(path)
 
@@ -284,10 +316,13 @@ def test_tool_timings_count_calls_that_hit_the_cap(tmp_path):
     """A call at the cap was killed, not answered. That is the difference
     between a slow query and one that never returned, and a run whose wall
     clock is mostly killed queries has measured nothing."""
-    path = write_transcript(tmp_path, [
-        heartbeat("a", "Bash", run.TOOL_TIMEOUT_SECONDS),
-        heartbeat("b", "Bash", run.TOOL_TIMEOUT_SECONDS - 1),
-    ])
+    path = write_transcript(
+        tmp_path,
+        [
+            heartbeat("a", "Bash", run.TOOL_TIMEOUT_SECONDS),
+            heartbeat("b", "Bash", run.TOOL_TIMEOUT_SECONDS - 1),
+        ],
+    )
 
     assert run.tool_timings(path)["timed_out_tool_calls"] == 1
 
@@ -303,14 +338,25 @@ def test_tool_timings_survive_a_transcript_still_being_written(tmp_path):
 
 
 def test_progress_snapshot_reports_turns_and_the_last_tool(tmp_path):
-    path = write_transcript(tmp_path, [
-        {"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Read"}]}},
-        {"type": "assistant", "message": {"content": [
-            {"type": "text", "text": "thinking"},
-            {"type": "tool_use", "name": "Bash"}]}},
-        {"type": "user", "message": {"content": []}},
-    ])
+    path = write_transcript(
+        tmp_path,
+        [
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "tool_use", "name": "Read"}]},
+            },
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "thinking"},
+                        {"type": "tool_use", "name": "Bash"},
+                    ]
+                },
+            },
+            {"type": "user", "message": {"content": []}},
+        ],
+    )
 
     assert run.progress_snapshot(path) == (2, "Bash")
 
@@ -325,7 +371,7 @@ def test_a_run_is_named_for_when_it_ran_and_what_it_ran():
     it and the second destroyed the first. Every guard against that -- the
     scan for a free number, --start-pass, --force -- managed a collision a
     timestamped name cannot have."""
-    started = datetime(2026, 7, 26, 11, 46, 46, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 26, 11, 46, 46, tzinfo=UTC)
     name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca")
     assert name == "20260726T114646Z-7f8fb7a"
 
@@ -333,25 +379,23 @@ def test_a_run_is_named_for_when_it_ran_and_what_it_ran():
 def test_run_names_sort_chronologically():
     """Run ids are read and globbed as strings, so ordering has to fall out
     of the name rather than out of a stat call."""
-    earlier = run.run_id(datetime(2026, 7, 26, 9, 0, tzinfo=timezone.utc), "a" * 40)
-    later = run.run_id(datetime(2026, 7, 26, 17, 0, tzinfo=timezone.utc), "b" * 40)
+    earlier = run.run_id(datetime(2026, 7, 26, 9, 0, tzinfo=UTC), "a" * 40)
+    later = run.run_id(datetime(2026, 7, 26, 17, 0, tzinfo=UTC), "b" * 40)
     assert sorted([later, earlier]) == [earlier, later]
 
 
 def test_two_runs_a_second_apart_do_not_collide():
-    a = run.run_id(datetime(2026, 7, 26, 9, 0, 0, tzinfo=timezone.utc), "abc1234")
-    b = run.run_id(datetime(2026, 7, 26, 9, 0, 1, tzinfo=timezone.utc), "abc1234")
+    a = run.run_id(datetime(2026, 7, 26, 9, 0, 0, tzinfo=UTC), "abc1234")
+    b = run.run_id(datetime(2026, 7, 26, 9, 0, 1, tzinfo=UTC), "abc1234")
     assert a != b
 
 
 def test_the_collision_guards_are_gone(monkeypatch, tmp_path):
     """--force and --start-pass existed only to arbitrate a name clash."""
     monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(sys, "argv",
-                        ["run.py", "--model", "opus", "--passes", "2"])
+    monkeypatch.setattr(sys, "argv", ["run.py", "--model", "opus", "--passes", "2"])
     calls = []
-    monkeypatch.setattr(run, "run_session",
-                        lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: calls.append(a))
 
     assert run.main() == 0
     assert len(calls) == 2
@@ -362,12 +406,13 @@ def test_a_label_groups_runs_without_moving_them(monkeypatch, tmp_path):
     """More than ten runs of one configuration needs a way to say which runs
     belong together, and a directory convention is the wrong place for it."""
     monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(sys, "argv",
-                        ["run.py", "--model", "opus", "--passes", "1",
-                         "--label", "experiment-1"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["run.py", "--model", "opus", "--passes", "1", "--label", "experiment-1"],
+    )
     seen = []
-    monkeypatch.setattr(run, "run_session",
-                        lambda *a, **k: seen.append(a[-1]))
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: seen.append(a[-1]))
 
     assert run.main() == 0
     assert seen == ["experiment-1"]
@@ -375,39 +420,77 @@ def test_a_label_groups_runs_without_moving_them(monkeypatch, tmp_path):
 
 # --- observability and cleanup ----------------------------------------------
 
+
 def transcript_line(name, payload):
-    return json.dumps({
-        "type": "assistant",
-        "message": {"content": [
-            {"type": "tool_use", "name": name, "input": payload}]},
-    }) + "\n"
+    return (
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [{"type": "tool_use", "name": name, "input": payload}]
+                },
+            }
+        )
+        + "\n"
+    )
 
 
 def result_line(call_id, text, is_error=False):
-    return json.dumps({
-        "type": "user",
-        "message": {"content": [{
-            "type": "tool_result", "tool_use_id": call_id,
-            "is_error": is_error,
-            "content": [{"type": "text", "text": text}]}]},
-    }) + "\n"
+    return (
+        json.dumps(
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": call_id,
+                            "is_error": is_error,
+                            "content": [{"type": "text", "text": text}],
+                        }
+                    ]
+                },
+            }
+        )
+        + "\n"
+    )
 
 
 def call_line(call_id, name, payload):
-    return json.dumps({
-        "type": "assistant",
-        "message": {"content": [{
-            "type": "tool_use", "id": call_id, "name": name,
-            "input": payload}]},
-    }) + "\n"
+    return (
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": call_id,
+                            "name": name,
+                            "input": payload,
+                        }
+                    ]
+                },
+            }
+        )
+        + "\n"
+    )
 
 
 def heartbeat_line(call_id, seconds):
-    return json.dumps({
-        "type": "tool_progress", "tool_use_id": f"{call_id}-hb",
-        "parent_tool_use_id": call_id, "tool_name": "Bash",
-        "elapsed_time_seconds": seconds, "heartbeat": True,
-    }) + "\n"
+    return (
+        json.dumps(
+            {
+                "type": "tool_progress",
+                "tool_use_id": f"{call_id}-hb",
+                "parent_tool_use_id": call_id,
+                "tool_name": "Bash",
+                "elapsed_time_seconds": seconds,
+                "heartbeat": True,
+            }
+        )
+        + "\n"
+    )
 
 
 def test_follow_prints_each_tool_call_as_it_lands(tmp_path, capsys):
@@ -437,8 +520,9 @@ def test_follow_times_each_call_and_names_the_failures(tmp_path, capsys):
 
     path.write_text(
         call_line("t1", "Bash", {"command": "duckdb < build.sql"})
-        + result_line("t1", "Invalid Error: Failure receiving data from peer",
-                      is_error=True)
+        + result_line(
+            "t1", "Invalid Error: Failure receiving data from peer", is_error=True
+        )
         + call_line("t2", "Bash", {"command": "echo ok"})
         + result_line("t2", "ok")
     )
@@ -456,14 +540,13 @@ def test_follow_shows_a_pulse_while_a_call_blocks(tmp_path, capsys):
     follower = run.Follower()
     path.write_text(
         call_line("t1", "Bash", {"command": "duckdb < slow.sql"})
-        + heartbeat_line("t1", 30)      # under the interval, stays quiet
+        + heartbeat_line("t1", 30)  # under the interval, stays quiet
         + heartbeat_line("t1", 60)
-        + heartbeat_line("t1", 90)      # under the interval again
+        + heartbeat_line("t1", 90)  # under the interval again
         + heartbeat_line("t1", 120)
     )
     follower.consume(path)
-    beats = [ln for ln in capsys.readouterr().out.splitlines()
-             if "still running" in ln]
+    beats = [ln for ln in capsys.readouterr().out.splitlines() if "still running" in ln]
     assert [b.split(", ")[-1] for b in beats] == ["60s", "120s"]
 
 
@@ -482,8 +565,9 @@ def test_follow_reports_how_long_the_current_call_has_blocked(tmp_path):
 def test_follow_forgets_a_call_once_it_finishes(tmp_path):
     path = tmp_path / "transcript.jsonl"
     follower = run.Follower()
-    path.write_text(call_line("t1", "Bash", {"command": "echo hi"})
-                    + result_line("t1", "hi"))
+    path.write_text(
+        call_line("t1", "Bash", {"command": "echo hi"}) + result_line("t1", "hi")
+    )
     follower.consume(path)
     assert follower.running_for() == 0.0
 
@@ -510,8 +594,9 @@ def test_follow_collapses_a_multiline_command_to_one_line(tmp_path, capsys):
     """Sessions write heredocs of SQL. The transcript keeps the full text; the
     terminal gets one line per call."""
     path = tmp_path / "transcript.jsonl"
-    path.write_text(call_line(
-        "t1", "Bash", {"command": "cat > q.sql <<'EOF'\nSELECT 1;\nEOF"}))
+    path.write_text(
+        call_line("t1", "Bash", {"command": "cat > q.sql <<'EOF'\nSELECT 1;\nEOF"})
+    )
 
     run.Follower().consume(path)
     printed = capsys.readouterr().out.strip().splitlines()
@@ -533,7 +618,8 @@ def test_a_rerun_leaves_nothing_of_the_run_before_it(tmp_path):
 
 
 def test_the_container_is_named_and_the_image_is_still_the_last_word(
-        monkeypatch, tmp_path):
+    monkeypatch, tmp_path
+):
     """`docker run --rm` cleans up only a container it is still attached to,
     so an interrupted run needs the name to remove its own container after
     the fact.
@@ -547,22 +633,20 @@ def test_the_container_is_named_and_the_image_is_still_the_last_word(
     session_home = tmp_path / "home"
     session_home.mkdir()
 
-    cmd = run.docker_command(tmp_path / "workspace", session_home, "m",
-                             "geodata-eval-opus-pass3-42")
+    cmd = run.docker_command(
+        tmp_path / "workspace", session_home, "m", "geodata-eval-opus-pass3-42"
+    )
 
-    assert cmd[:5] == ["docker", "run", "--rm", "--name",
-                       "geodata-eval-opus-pass3-42"]
+    assert cmd[:5] == ["docker", "run", "--rm", "--name", "geodata-eval-opus-pass3-42"]
     # Every -v carries its mount spec in the same token, so none can swallow
     # the argument that follows it.
-    assert all(arg != "-v" or ":" in cmd[i + 1]
-               for i, arg in enumerate(cmd[:-1]))
+    assert all(arg != "-v" or ":" in cmd[i + 1] for i, arg in enumerate(cmd[:-1]))
 
 
 def test_stop_session_removes_a_container_the_client_left_running(monkeypatch):
     """Ctrl-C kills the docker client, not the container it started."""
     calls = []
-    monkeypatch.setattr(run.subprocess, "run",
-                        lambda cmd, **kw: calls.append(cmd))
+    monkeypatch.setattr(run.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
 
     class Finished:
         returncode = 0
@@ -571,8 +655,7 @@ def test_stop_session_removes_a_container_the_client_left_running(monkeypatch):
             return 0
 
     run.stop_session(Finished(), "geodata-eval-opus-pass3-42")
-    assert calls == [["docker", "rm", "-f", "-v",
-                      "geodata-eval-opus-pass3-42"]]
+    assert calls == [["docker", "rm", "-f", "-v", "geodata-eval-opus-pass3-42"]]
 
 
 def test_stop_session_terminates_a_client_still_running(monkeypatch):
@@ -652,8 +735,7 @@ def test_the_resume_prompt_says_the_background_work_is_gone(tmp_path):
 def test_the_resume_prompt_stays_short_when_everything_is_missing():
     """A session that stops at question four owes 26 ids. Listing all of them
     buries the instruction they are attached to."""
-    prompt = run.resume_prompt(
-        [run.answer_name(qid) for qid in run.question_ids()])
+    prompt = run.resume_prompt([run.answer_name(qid) for qid in run.question_ids()])
 
     assert prompt.count("q0") + prompt.count("q1") + prompt.count("q2") <= 12
     assert "more" in prompt
@@ -667,8 +749,9 @@ def test_a_resumed_attempt_asks_for_its_own_session(monkeypatch, tmp_path):
     session_home = tmp_path / "home"
     session_home.mkdir()
 
-    cmd = run.docker_command(tmp_path / "workspace", session_home, "m", "c1",
-                             "keep going", "sess-1234")
+    cmd = run.docker_command(
+        tmp_path / "workspace", session_home, "m", "c1", "keep going", "sess-1234"
+    )
 
     assert cmd[cmd.index("--resume") + 1] == "sess-1234"
     assert cmd[cmd.index("-p") + 1] == "keep going"
@@ -687,11 +770,14 @@ def test_the_first_attempt_does_not_resume_anything(monkeypatch, tmp_path):
 
 
 def test_the_session_id_is_the_last_one_the_transcript_carries(tmp_path):
-    path = write_transcript(tmp_path, [
-        {"type": "system", "session_id": "sess-1"},
-        {"type": "assistant", "session_id": "sess-1"},
-        {"type": "result", "session_id": "sess-1"},
-    ])
+    path = write_transcript(
+        tmp_path,
+        [
+            {"type": "system", "session_id": "sess-1"},
+            {"type": "assistant", "session_id": "sess-1"},
+            {"type": "result", "session_id": "sess-1"},
+        ],
+    )
 
     assert run.session_id(path) == "sess-1"
     assert run.session_id(tmp_path / "absent.jsonl") is None
@@ -713,7 +799,7 @@ def test_a_session_that_stops_short_is_resumed(monkeypatch, tmp_path):
     finishes the set."""
     root = fake_repo(tmp_path, monkeypatch)
     fake_credentials(tmp_path, monkeypatch)
-    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "source_coop_sample", dict)
     monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
     monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
     monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
@@ -729,10 +815,16 @@ def test_a_session_that_stops_short_is_resumed(monkeypatch, tmp_path):
             names = [run.answer_name(q) for q in run.question_ids()]
             for name in names if len(calls) > 1 else names[:4]:
                 (answers / f"{name}.csv").write_text("value\n1\n")
-            stdout.write(json.dumps({
-                "type": "result", "session_id": "sess-9",
-                "usage": {"input_tokens": 3, "output_tokens": 1},
-            }) + "\n")
+            stdout.write(
+                json.dumps(
+                    {
+                        "type": "result",
+                        "session_id": "sess-9",
+                        "usage": {"input_tokens": 3, "output_tokens": 1},
+                    }
+                )
+                + "\n"
+            )
             self.returncode = 0
 
         def poll(self):
@@ -758,7 +850,7 @@ def test_a_complete_session_is_not_resumed(monkeypatch, tmp_path):
     be told there is nothing to do."""
     fake_repo(tmp_path, monkeypatch)
     fake_credentials(tmp_path, monkeypatch)
-    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "source_coop_sample", dict)
     monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
     monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
     monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
@@ -791,7 +883,7 @@ def test_resuming_is_bounded(monkeypatch, tmp_path):
     over."""
     fake_repo(tmp_path, monkeypatch)
     fake_credentials(tmp_path, monkeypatch)
-    monkeypatch.setattr(run, "source_coop_sample", lambda: {})
+    monkeypatch.setattr(run, "source_coop_sample", dict)
     monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
     monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
     monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
@@ -818,14 +910,21 @@ def test_usage_is_summed_across_attempts(tmp_path):
     """Each invocation closes with its own cumulative `result` record. Reading
     only the last one bills a resumed run for its final attempt alone, and the
     imputed cost then understates what the run actually spent."""
-    usage = {"input_tokens": 10, "output_tokens": 2,
-             "cache_creation_input_tokens": 5, "cache_read_input_tokens": 7}
-    path = write_transcript(tmp_path, [
-        {"type": "assistant"},
-        {"type": "result", "usage": usage},
-        {"type": "assistant"},
-        {"type": "result", "usage": usage},
-    ])
+    usage = {
+        "input_tokens": 10,
+        "output_tokens": 2,
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 7,
+    }
+    path = write_transcript(
+        tmp_path,
+        [
+            {"type": "assistant"},
+            {"type": "result", "usage": usage},
+            {"type": "assistant"},
+            {"type": "result", "usage": usage},
+        ],
+    )
 
     stats = run.parse_result_record(path)
 
@@ -834,3 +933,223 @@ def test_usage_is_summed_across_attempts(tmp_path):
     assert stats["output_tokens"] == 4
     assert stats["cache_creation_tokens"] == 10
     assert stats["cache_read_tokens"] == 14
+
+
+class SampleResponse:
+    """A ranged read of the catalog, without the catalog."""
+
+    def __init__(self, body: bytes, ray: str | None = None):
+        self._body = body
+        self.headers = {"cf-ray": ray} if ray else {}
+
+    def read(self, size=None):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_the_route_sample_records_the_edge_that_served_it(monkeypatch, tmp_path):
+    """A run's wall clock is mostly the route. Without the colo beside it,
+    a slow model and a slow route look the same afterwards."""
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * run.PROBE_BYTES, "abc-GRU"),
+    )
+
+    sample = run.source_coop_sample()
+
+    assert sample["ok"] is True
+    assert sample["bytes"] == run.PROBE_BYTES
+    assert sample["colo"] == "GRU"
+
+
+def test_a_short_route_sample_is_not_ok(monkeypatch, tmp_path):
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * 128),
+    )
+
+    assert run.source_coop_sample()["ok"] is False
+
+
+def test_an_unreachable_catalog_never_fails_the_run(monkeypatch, tmp_path):
+    """The sample is diagnostic. A run that dies because the probe failed
+    would lose the session it was there to describe."""
+    fake_repo(tmp_path, monkeypatch)
+
+    def refuse(request, timeout=None):
+        raise run.urllib.error.URLError("connection reset")
+
+    monkeypatch.setattr(run.urllib.request, "urlopen", refuse)
+
+    sample = run.source_coop_sample()
+
+    assert sample["ok"] is False
+    assert "URLError" in sample["error"]
+
+
+def session_that(
+    monkeypatch,
+    tmp_path,
+    *,
+    returncode=0,
+    session_id="sess-9",
+    answer_all=True,
+    stderr_text="",
+):
+    """Wire a fake session with the exit code and transcript we want."""
+    root = fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", dict)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+    calls = []
+
+    class FakePopen:
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            calls.append(cmd)
+            mount = next(a for a in cmd if a.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            if answer_all:
+                for question in run.question_ids():
+                    (answers / f"{run.answer_name(question)}.csv").write_text(
+                        "value\n1\n"
+                    )
+            record = {
+                "type": "result",
+                "usage": {"input_tokens": 3, "output_tokens": 1},
+            }
+            if session_id:
+                record["session_id"] = session_id
+            stdout.write(json.dumps(record) + "\n")
+            if stderr_text:
+                stderr.write(stderr_text)
+            self.returncode = returncode
+
+        def poll(self):
+            return returncode
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+    return root, calls
+
+
+def test_a_failed_session_reports_its_exit_code_and_stderr(
+    monkeypatch, tmp_path, capsys
+):
+    """A container that died leaves its reason in stderr, and that is the
+    only place it exists once the container is gone."""
+    session_that(
+        monkeypatch,
+        tmp_path,
+        returncode=1,
+        stderr_text="docker: image not found\n",
+    )
+
+    run.run_session("haiku", dry_run=False)
+
+    err = capsys.readouterr().err
+    assert "session exited 1" in err
+    assert "docker: image not found" in err
+
+
+def test_a_transcript_without_a_session_id_stops_the_resume(
+    monkeypatch, tmp_path, capsys
+):
+    """Resuming needs an id. Starting a fresh session instead would answer
+    the rest without the context that produced the first answers."""
+    session_that(monkeypatch, tmp_path, session_id="", answer_all=False)
+
+    run.run_session("haiku", dry_run=False)
+
+    assert "no session id in the transcript" in capsys.readouterr().out
+
+
+def test_a_long_session_prints_a_heartbeat(monkeypatch, tmp_path, capsys):
+    """A session runs for tens of minutes. Silence and a hang look the
+    same, so the run says where it has got to."""
+    root = fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", dict)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+
+    # Every reading is a minute later than the last, so the first poll is
+    # already past the heartbeat deadline.
+    ticks = itertools.count(0, run.HEARTBEAT_SECONDS + 1)
+    monkeypatch.setattr(run.time, "monotonic", lambda: next(ticks))
+
+    class SlowPopen:
+        polls = 0
+
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            mount = next(a for a in cmd if a.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            for question in run.question_ids():
+                (answers / f"{run.answer_name(question)}.csv").write_text("value\n1\n")
+            stdout.write(
+                json.dumps(
+                    {
+                        "type": "result",
+                        "session_id": "sess-9",
+                        "usage": {"input_tokens": 3, "output_tokens": 1},
+                    }
+                )
+                + "\n"
+            )
+            self.returncode = 0
+
+        def poll(self):
+            SlowPopen.polls += 1
+            return None if SlowPopen.polls < 3 else 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", SlowPopen)
+
+    run.run_session("haiku", dry_run=False)
+
+    out = capsys.readouterr().out
+    assert "turns ·" in out
+    assert "answers ·" in out
+    assert (root / "results" / "haiku").exists()
+
+
+def test_a_rejected_credential_stops_the_resume_loop(monkeypatch, tmp_path, capsys):
+    """A session that answered nothing after a 401 is not a session that
+    stopped early. The CLI already retried the credential ten times, and
+    every further attempt fails the same way. One sweep spent all three
+    attempts proving it and the arm came back n=1."""
+    fake_repo(tmp_path, monkeypatch)
+    fake_credentials(tmp_path, monkeypatch)
+    monkeypatch.setattr(run, "source_coop_sample", dict)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+    starts = []
+
+    class RejectedPopen:
+        def __init__(self, cmd, stdout, stderr, text, **kwargs):
+            starts.append(cmd)
+            stdout.write(
+                json.dumps({"subtype": "api_retry", "error_status": 401}) + "\n"
+            )
+            stdout.write(json.dumps({"type": "result", "session_id": "sess-9"}) + "\n")
+            self.returncode = 1
+
+        def poll(self):
+            return 1
+
+    monkeypatch.setattr(run.subprocess, "Popen", RejectedPopen)
+
+    run.run_session("haiku", dry_run=False)
+
+    assert len(starts) == 1, "a rejected credential must not be retried"
+    assert "the credential was rejected" in capsys.readouterr().err

@@ -8,8 +8,8 @@ source.coop; they skip when it is unreachable (it throttles and occasionally
 goes down), and are the real acceptance gate when it is up.
 """
 
+import csv
 import json
-import socket
 import sys
 import urllib.request
 from pathlib import Path
@@ -21,7 +21,7 @@ import yaml
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "oracle"))
 
-import render  # noqa: E402
+import render
 
 PINS = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))
 
@@ -35,7 +35,7 @@ def _source_coop_reachable() -> bool:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return len(resp.read()) > 0
-    except (urllib.error.URLError, socket.timeout, TimeoutError):
+    except (urllib.error.URLError, TimeoutError):
         return False
 
 
@@ -46,6 +46,7 @@ needs_network = pytest.mark.skipif(
 
 
 # --- offline -----------------------------------------------------------------
+
 
 def test_question_map_covers_exactly_the_question_set():
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
@@ -91,8 +92,9 @@ def test_the_axis_declaration_precedes_every_geometry_call():
         sql = path.read_text("utf-8")
         if "geometry_always_xy = true" not in sql:
             continue
-        body = "\n".join(line for line in sql.splitlines()
-                         if not line.lstrip().startswith("--"))
+        body = "\n".join(
+            line for line in sql.splitlines() if not line.lstrip().startswith("--")
+        )
         declaration = body.index("geometry_always_xy = true")
         for call in ("ST_Area_Spheroid", "ST_Transform", "ST_GeometryType"):
             first = body.find(call)
@@ -109,8 +111,8 @@ def test_the_decision_table_carries_unrounded_fractions():
     minimum-overlap rule MATCHING.md never states. Views round on output.
     """
     sql = (render.SQL_DIR / "match.sql.tmpl").read_text("utf-8")
-    body = sql[sql.index("CREATE OR REPLACE TABLE decision"):]
-    body = body[:body.index(";")]
+    body = sql[sql.index("CREATE OR REPLACE TABLE decision") :]
+    body = body[: body.index(";")]
     for column in ("max_single_frac", "union_frac"):
         assert f"round(coalesce({column}" not in body.replace(" ", "")
     assert "round(" not in body, "decision must carry raw fractions"
@@ -136,8 +138,7 @@ def test_every_question_reporting_a_computed_area_or_distance_is_tolerant():
     documented alongside it.
     """
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
-    graded = {q["id"] for q in spec["questions"]
-              if q.get("grading") == "geometry"}
+    graded = {q["id"] for q in spec["questions"] if q.get("grading") == "geometry"}
     assert {"14", "15", "19", "26", "30"} <= graded
     assert "23" not in graded
 
@@ -149,8 +150,11 @@ def test_q23_keeps_a_numeric_field_id_out_of_integer_slack():
     credit an answer naming the wrong farm."""
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     q23 = next(q for q in spec["questions"] if q["id"] == "23")
-    ids = [c for c in q23["output"]["columns"]
-           if c["name"] == "field_id" and c["type"] == "integer"]
+    ids = [
+        c
+        for c in q23["output"]["columns"]
+        if c["name"] == "field_id" and c["type"] == "integer"
+    ]
     assert ids, "q23 lost its integer field_id; revisit the grading choice"
     assert q23.get("grading") != "geometry"
 
@@ -183,8 +187,7 @@ def test_a_sql_error_fails_on_the_first_attempt(monkeypatch, tmp_path):
     monkeypatch.setattr(render.time, "sleep", lambda _s: None)
     con = _FlakyConnection(duckdb.Error("Binder Error: no such column"), 2)
     with pytest.raises(duckdb.Error):
-        render.run_stage(con, "eudr_crops",
-                         render.substitutions(PINS, tmp_path))
+        render.run_stage(con, "eudr_crops", render.substitutions(PINS, tmp_path))
     assert con.calls == 1
 
 
@@ -193,9 +196,12 @@ def test_remote_reads_are_configured_to_outlast_a_slow_route():
     than that on a slow route."""
     con = duckdb.connect()
     render.tune_for_remote_reads(con)
-    settings = dict(con.execute(
-        "SELECT name, value FROM duckdb_settings() WHERE name IN "
-        "('http_timeout', 'http_retries')").fetchall())
+    settings = dict(
+        con.execute(
+            "SELECT name, value FROM duckdb_settings() WHERE name IN "
+            "('http_timeout', 'http_retries')"
+        ).fetchall()
+    )
     assert int(settings["http_timeout"]) >= 120
     assert int(settings["http_retries"]) >= 5
 
@@ -222,11 +228,13 @@ def test_scope_tables_build_locally(tmp_path):
     n_classes, n_in_scope, n_routed = con.execute(
         "SELECT (SELECT count(*) FROM eudr_crops),"
         " (SELECT count(*) FROM eudr_crops WHERE in_scope),"
-        " (SELECT count(DISTINCT mbmode24) FROM crop_routing)").fetchone()
+        " (SELECT count(DISTINCT mbmode24) FROM crop_routing)"
+    ).fetchone()
     assert (n_classes, n_in_scope, n_routed) == (13, 5, 6)
 
 
 # --- needs the live catalogs -------------------------------------------------
+
 
 @needs_network
 def test_render_all_emits_every_golden_and_manifest(tmp_path):
@@ -253,17 +261,19 @@ def test_loss_partitions_into_in_scope_and_excluded(tmp_path):
     total: every matched field is either in scope or out, never dropped."""
     render.render_all(PINS, tmp_path)
 
-    def total(name):
-        rows = list(__import__("csv").reader(
-            open(tmp_path / name, encoding="utf-8")))[1:]
-        return sum(int(r[1]) for r in rows)
+    def rows(name):
+        with (tmp_path / name).open(encoding="utf-8") as handle:
+            return list(csv.reader(handle))
 
-    matched = int(list(__import__("csv").reader(
-        open(tmp_path / "q09.csv", encoding="utf-8")))[1][0])
+    def total(name):
+        return sum(int(row[1]) for row in rows(name)[1:])
+
+    matched = int(rows("q09.csv")[1][0])
     assert total("q17.csv") + total("q18.csv") == matched
 
 
 # --- statements that had to be run against synthetic inputs ------------------
+
 
 def _create_statement(sql: str, table: str) -> str:
     """The CREATE statement for `table`, lifted out of a rendered template.
@@ -274,11 +284,12 @@ def _create_statement(sql: str, table: str) -> str:
     than a paraphrase of it.
     """
     head = f"CREATE OR REPLACE TABLE {table} AS"
-    body = "\n".join(line for line in sql.splitlines()
-                     if not line.lstrip().startswith("--"))
+    body = "\n".join(
+        line for line in sql.splitlines() if not line.lstrip().startswith("--")
+    )
     start = body.index(head)
     end = body.index(";", start)
-    return body[start:end + 1]
+    return body[start : end + 1]
 
 
 def test_candidate_cap_applies(tmp_path):
@@ -305,7 +316,8 @@ def test_candidate_cap_applies(tmp_path):
     """)
     con.execute(stmt)
     n_kept, worst = con.execute(
-        "SELECT count(*), max(rank) FROM candidates_final").fetchone()
+        "SELECT count(*), max(rank) FROM candidates_final"
+    ).fetchone()
     cap = PINS["coops"]["max_candidates"]
     assert (n_kept, worst) == (cap, cap)
 
@@ -319,8 +331,7 @@ def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
     tier, so it decides whether a farmer hears from a silo or a slaughterhouse.
     """
     subs = render.substitutions(PINS, tmp_path)
-    stmt = _create_statement(render.render_sql("match", subs),
-                             "dominant_class")
+    stmt = _create_statement(render.render_sql("match", subs), "dominant_class")
 
     con = duckdb.connect()
     con.execute("""
@@ -336,11 +347,12 @@ def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
         ) v(cod_imovel, mbmode24, field_area_ha);
     """)
     con.execute(stmt)
-    rows = dict(con.execute(
-        "SELECT cod_imovel, dominant_mb FROM dominant_class").fetchall())
-    assert rows["CAD-MIXED"] == 39    # 144.9 ha of soya beats 42.5 ha over 4 plots
-    assert rows["CAD-TIE"] == 15      # equal hectares -> lower class code
-    assert "CAD-NULL" not in rows     # no classified field, no dominant class
+    rows = dict(
+        con.execute("SELECT cod_imovel, dominant_mb FROM dominant_class").fetchall()
+    )
+    assert rows["CAD-MIXED"] == 39  # 144.9 ha of soya beats 42.5 ha over 4 plots
+    assert rows["CAD-TIE"] == 15  # equal hectares -> lower class code
+    assert "CAD-NULL" not in rows  # no classified field, no dominant class
 
 
 def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path):
@@ -383,16 +395,15 @@ def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path):
         ) v(field_id, cod_imovel, inter_area, field_area);
     """)
     con.execute(stmt)
-    rows = dict(con.execute(
-        "SELECT field_id, primary_cod_imovel FROM single").fetchall())
-    assert rows == {1: "GO-B", 2: "GO-C", 3: "GO-C",
-                    4: "GO-C", 5: "GO-A", 6: "GO-Z"}
+    rows = dict(
+        con.execute("SELECT field_id, primary_cod_imovel FROM single").fetchall()
+    )
+    assert rows == {1: "GO-B", 2: "GO-C", 3: "GO-C", 4: "GO-C", 5: "GO-A", 6: "GO-Z"}
 
-    fracs = dict(con.execute(
-        "SELECT field_id, max_single_frac FROM single").fetchall())
-    assert fracs[1] == pytest.approx(0.8)   # the winner's ratio, not the loser's
+    fracs = dict(con.execute("SELECT field_id, max_single_frac FROM single").fetchall())
+    assert fracs[1] == pytest.approx(0.8)  # the winner's ratio, not the loser's
     assert fracs[2] == pytest.approx(0.5)
-    assert fracs[5] is None                 # nullif(0, 0), same as before
+    assert fracs[5] is None  # nullif(0, 0), same as before
     # The reported fraction stays the true maximum even when a tie hands the
     # field to the other parcel, so contain_threshold is unaffected.
     assert fracs[4] == pytest.approx(0.5 + tol / 10, abs=1e-15)
@@ -424,8 +435,11 @@ def test_no_template_picks_a_label_with_an_unordered_aggregate():
     """
     offenders = []
     for path in sorted(render.SQL_DIR.rglob("*.sql.tmpl")):
-        body = "\n".join(line for line in path.read_text("utf-8").splitlines()
-                         if not line.lstrip().startswith("--"))
+        body = "\n".join(
+            line
+            for line in path.read_text("utf-8").splitlines()
+            if not line.lstrip().startswith("--")
+        )
         for call in ("arg_max(", "arg_min(", "mode("):
             if call in body:
                 offenders.append(f"{path.name}: {call}")

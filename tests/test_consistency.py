@@ -1,5 +1,6 @@
 """Cross-run consistency metrics. Synthetic runs, no network."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -7,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
-from consistency import compare_runs  # noqa: E402
+from consistency import compare_runs
 
 RUN_A = {
     "GO-1": {"post2020_loss_ha": 10.0, "top_contact_entity_id": "SILO-1"},
@@ -66,3 +67,76 @@ def test_partial_flag_overlap_lists_only_the_unstable_ones():
     out = compare_runs([r1, r2], oracle=None)
     assert sorted(out["unstable_cadasters"]) == ["GO-1", "GO-3"]
     assert out["flag_jaccard"] == pytest.approx(1 / 3)  # {GO-2} / {GO-1,2,3}
+
+
+import consistency
+
+
+def _run_dir(results: Path, model: str, n: int, rows: str) -> Path:
+    d = results / model / f"2026072{n}T120000Z-abc1234"
+    (d / "answers").mkdir(parents=True)
+    (d / "answers" / "workflow.csv").write_text(rows, encoding="utf-8")
+    (d / "meta.json").write_text('{"status": "done"}', encoding="utf-8")
+    return d
+
+
+WORKFLOW = (
+    "cod_imovel,post2020_loss_ha,top_contact_entity_id\n"
+    "GO-1,10.0,SILO-1\n"
+    "GO-2,5.0,SILO-2\n"
+)
+
+
+def test_main_writes_consistency_beside_the_runs(tmp_path, monkeypatch, capsys):
+    """The report reads consistency.json from the results tree, so that is
+    where it has to land."""
+    results = tmp_path / "results"
+    _run_dir(results, "sonnet", 1, WORKFLOW)
+    _run_dir(results, "sonnet", 2, WORKFLOW)
+    monkeypatch.setattr(
+        sys, "argv", ["consistency.py", "--results", str(results), "--model", "sonnet"]
+    )
+
+    assert consistency.main() == 0
+
+    written = json.loads((results / "consistency.json").read_text(encoding="utf-8"))
+    assert written["n_runs"] == 2
+    assert written["flag_jaccard"] == 1.0
+    assert "consistency@2" in capsys.readouterr().out
+
+
+def test_main_compares_against_the_oracle_when_given_one(tmp_path, monkeypatch, capsys):
+    results = tmp_path / "results"
+    _run_dir(results, "sonnet", 1, WORKFLOW)
+    _run_dir(results, "sonnet", 2, WORKFLOW)
+    oracle = tmp_path / "workflow.csv"
+    oracle.write_text(WORKFLOW, encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "consistency.py",
+            "--results",
+            str(results),
+            "--model",
+            "sonnet",
+            "--oracle",
+            str(oracle),
+        ],
+    )
+
+    assert consistency.main() == 0
+    assert "vs oracle" in capsys.readouterr().out
+
+
+def test_main_says_so_when_no_run_wrote_a_workflow(tmp_path, monkeypatch, capsys):
+    """An empty tree and a tree of sessions that answered nothing are
+    different problems; only the second is worth a metric."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["consistency.py", "--results", str(tmp_path / "results"), "--model", "haiku"],
+    )
+
+    assert consistency.main() == 1
+    assert "no workflow artifacts" in capsys.readouterr().out

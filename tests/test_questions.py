@@ -5,6 +5,7 @@ skipped until the oracle has run). They guard the invariants the grader relies
 on: 31 questions, six stages, a dependency graph that points strictly backward,
 and a prompt that does not leak the EUDR scope answer.
 """
+
 import json
 from pathlib import Path
 
@@ -46,7 +47,8 @@ def test_no_question_mentions_the_banned_column():
     documents its exclusion is fine; the question text is not."""
     for q in load()["questions"]:
         blob = q["question"] + " ".join(
-            c["description"] for c in q["output"]["columns"])
+            c["description"] for c in q["output"]["columns"]
+        )
         assert "hansen_covered_area" not in blob, q["id"]
 
 
@@ -77,9 +79,9 @@ def test_prompt_names_the_files_the_oracle_reads():
     oracle reads is not listed as an asset. So the prompt names the files, and
     this pins the prompt to the oracle's pins.
     """
-    pins = json.loads(
-        (REPO / "fixtures" / "pins.json").read_text(encoding="utf-8")
-    )["catalogs"]
+    pins = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))[
+        "catalogs"
+    ]
     prompt = (REPO / "prompts" / "task.md").read_text(encoding="utf-8")
 
     reads = [

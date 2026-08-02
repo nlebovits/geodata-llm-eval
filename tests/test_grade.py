@@ -1,6 +1,7 @@
 """Comparator behavior is the grading contract — pin it with tests."""
 
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -9,11 +10,8 @@ GOLDEN_DIR = REPO / "fixtures" / "golden"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
-from layout import regraded  # noqa: E402
-
-from grade import (  # noqa: E402
+from grade import (
     CORRECT,
-    golden_fingerprint,
     MISSING,
     NEAR_MISS,
     UNPARSEABLE,
@@ -22,12 +20,14 @@ from grade import (  # noqa: E402
     diff_summary,
     diff_table,
     evaluate_question,
+    golden_fingerprint,
     grade_question,
     grade_session,
     load_table,
     stage_summary,
     values_match,
 )
+from layout import regraded
 
 
 def write(tmp_path, name, text):
@@ -86,7 +86,7 @@ class TestCompare:
 
     def test_float_relative_tolerance_boundary(self):
         golden = [[1000.0]]
-        assert compare([[1000.9]], golden)      # 0.09% off
+        assert compare([[1000.9]], golden)  # 0.09% off
         assert not compare([[1002.0]], golden)  # 0.2% off
 
     def test_integer_count_must_be_exact(self):
@@ -97,8 +97,7 @@ class TestCompare:
         assert compare([["Santa_Cruz"]], [["santa_cruz"]])
 
     def test_row_count_mismatch(self):
-        assert not compare([["beni", 847]],
-                           [["santa_cruz", 1523], ["beni", 847]])
+        assert not compare([["beni", 847]], [["santa_cruz", 1523], ["beni", 847]])
 
     def test_column_count_mismatch(self):
         assert not compare([["beni", 847, 1.0]], [["beni", 847]])
@@ -140,14 +139,12 @@ class TestLoadTable:
 class TestGradeQuestion:
     def test_correct(self, tmp_path):
         golden = write(tmp_path, "g.csv", GOLDEN)
-        answer = write(tmp_path, "a.csv",
-                       "n,region\n847,beni\n1523,santa_cruz\n")
+        answer = write(tmp_path, "a.csv", "n,region\n847,beni\n1523,santa_cruz\n")
         assert grade_question(answer, golden) == CORRECT
 
     def test_wrong(self, tmp_path):
         golden = write(tmp_path, "g.csv", GOLDEN)
-        answer = write(tmp_path, "a.csv",
-                       "region,count\nsanta_cruz,1\nbeni,2\n")
+        answer = write(tmp_path, "a.csv", "region,count\nsanta_cruz,1\nbeni,2\n")
         assert grade_question(answer, golden) == WRONG
 
     def test_missing(self, tmp_path):
@@ -162,6 +159,7 @@ class TestGradeQuestion:
 
 # --- geometry tolerance ----------------------------------------------------
 
+
 def test_geometry_int_slack_allows_small_boundary_difference():
     # 502 vs 500 matched fields: two boundary fields either way, within slack.
     assert values_match(502, 500, geometry=True)
@@ -175,7 +173,7 @@ def test_geometry_int_slack_uses_one_percent_on_large_counts():
 
 
 def test_geometry_float_tolerance_is_one_percent():
-    assert values_match(101.0, 100.0, geometry=True)      # 1% off, ok
+    assert values_match(101.0, 100.0, geometry=True)  # 1% off, ok
     assert not values_match(102.0, 100.0, geometry=True)  # 2% off, fails
     assert not values_match(100.5, 100.0, geometry=False)  # strict rejects 0.5%
 
@@ -202,7 +200,7 @@ def test_conditional_accuracy_excludes_questions_with_failed_dependencies():
     grades = {"q01": CORRECT, "q02": WRONG, "q03": WRONG}
     s = stage_summary(grades, QUESTIONS)
     assert s[2]["raw"] == 0.0
-    assert s[2]["n_eligible"] == 1          # only q02 had all deps correct
+    assert s[2]["n_eligible"] == 1  # only q02 had all deps correct
     assert s[2]["conditional"] == 0.0
 
 
@@ -215,6 +213,7 @@ def test_conditional_equals_raw_when_all_dependencies_pass():
 
 
 # --- rounding and boolean presentation -------------------------------------
+
 
 def test_answer_is_rounded_to_goldens_precision():
     # The oracle rounds to one decimal; comparing the unrounded answer against
@@ -255,6 +254,7 @@ def test_counts_are_not_read_as_booleans():
 
 
 # --- string casing ----------------------------------------------------------
+
 
 def test_commodity_casing_does_not_decide_a_question():
     """issue #20. The lowercase house style for `annex1_commodity` is stated
@@ -303,15 +303,16 @@ def test_no_golden_value_is_distinguished_by_case_alone():
 
 # --- near miss --------------------------------------------------------------
 
+
 def test_near_miss_for_an_answer_just_outside_tolerance(tmp_path):
     golden = write(tmp_path, "g.csv", "value\n1000.123456\n")
-    answer = write(tmp_path, "a.csv", "value\n1002.0\n")   # 0.19% off
+    answer = write(tmp_path, "a.csv", "value\n1002.0\n")  # 0.19% off
     assert grade_question(answer, golden) == NEAR_MISS
 
 
 def test_wrong_stays_wrong_when_the_answer_is_far_out(tmp_path):
     golden = write(tmp_path, "g.csv", "value\n1000.123456\n")
-    answer = write(tmp_path, "a.csv", "value\n1530.0\n")   # 53% off
+    answer = write(tmp_path, "a.csv", "value\n1530.0\n")  # 53% off
     assert grade_question(answer, golden) == WRONG
 
 
@@ -325,6 +326,7 @@ def test_near_miss_carries_its_diffs(tmp_path):
 
 
 # --- diffs ------------------------------------------------------------------
+
 
 def test_diff_names_the_failing_cells_only():
     golden = [["santa_cruz", 1523.0], ["beni", 847.0]]
@@ -345,8 +347,15 @@ def test_diff_survives_a_column_permutation():
 
 def test_diff_reports_shape_when_row_counts_differ():
     diffs = diff_table([[1.0]], [[1.0], [2.0]])
-    assert diffs == [{"kind": "shape", "golden_rows": 2, "answer_rows": 1,
-                      "golden_columns": 1, "answer_columns": 1}]
+    assert diffs == [
+        {
+            "kind": "shape",
+            "golden_rows": 2,
+            "answer_rows": 1,
+            "golden_columns": 1,
+            "answer_columns": 1,
+        }
+    ]
 
 
 def test_diff_summary_counts_cells_and_names_columns():
@@ -378,3 +387,124 @@ def test_transitive_dependency_failure_propagates():
     s = stage_summary(grades, QUESTIONS)
     assert s[2]["n_eligible"] == 0
     assert s[2]["conditional"] is None
+
+
+import grade
+
+
+def _graded_tree(tmp_path, status="done", answer="region,count\nsanta_cruz,1523\n"):
+    """A golden set, one session, and the questions file the grader reads."""
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text(GOLDEN, encoding="utf-8")
+
+    results = tmp_path / "results"
+    session = results / "sonnet" / "20260721T120000Z-abc1234"
+    (session / "answers").mkdir(parents=True)
+    (session / "answers" / "q01.csv").write_text(answer, encoding="utf-8")
+    (session / "meta.json").write_text(f'{{"status": "{status}"}}', encoding="utf-8")
+
+    questions = tmp_path / "questions.yaml"
+    questions.write_text("questions:\n  - id: q01\n    stage: 1\n", encoding="utf-8")
+    return golden, results, questions, session
+
+
+def test_main_writes_grades_and_diffs_beside_each_session(
+    tmp_path, monkeypatch, capsys
+):
+    """grades.json is what report.py reads; diffs.json is where triage
+    starts. Both belong in the run directory, not in a summary."""
+    golden, results, questions, session = _graded_tree(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+
+    grades = json.loads((session / "grades.json").read_text(encoding="utf-8"))
+    assert grades["q01"] == "wrong", "one row against two is not a match"
+    assert (session / "diffs.json").exists()
+    out = capsys.readouterr().out
+    assert "sonnet/20260721T120000Z-abc1234" in out
+    assert "stage 1:" in out
+
+
+def test_main_grades_a_matching_answer_correct(tmp_path, monkeypatch, capsys):
+    golden, results, questions, session = _graded_tree(tmp_path, answer=GOLDEN)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+    assert json.loads((session / "grades.json").read_text())["q01"] == "correct"
+
+
+def test_main_leaves_an_unscored_session_out(tmp_path, monkeypatch, capsys):
+    """A session that wrote nothing never attempted the questions. Scoring
+    it as wrong blames the model for a run that did not happen."""
+    golden, results, questions, session = _graded_tree(
+        tmp_path, status="produced_nothing"
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+    assert "not scored" in capsys.readouterr().out
+    assert not (session / "grades.json").exists()
+
+
+def test_main_refuses_a_tree_with_no_sessions(tmp_path, monkeypatch, capsys):
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text(GOLDEN, encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(tmp_path / "empty"),
+            "--golden",
+            str(golden),
+        ],
+    )
+
+    assert grade.main() == 1
+    assert "no sessions found" in capsys.readouterr().err
+
+
+def test_questions_are_optional(tmp_path):
+    """The grader still runs where questions.yaml is absent; only the
+    per-stage breakdown needs it."""
+    assert grade.load_questions(tmp_path / "absent.yaml") == []
