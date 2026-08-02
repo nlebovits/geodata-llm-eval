@@ -13,6 +13,7 @@ import json
 import sys
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import pytest
@@ -24,6 +25,18 @@ sys.path.insert(0, str(REPO / "oracle"))
 import render
 
 PINS = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))
+
+
+def one_row(result: duckdb.DuckDBPyConnection) -> tuple[Any, ...]:
+    """The single row a query is expected to return.
+
+    fetchone() is optional because a query can return nothing. These all ask
+    for aggregates, so nothing means the query is wrong rather than the data
+    being empty.
+    """
+    row = result.fetchone()
+    assert row is not None, "the query returned no row"
+    return row
 
 
 def _source_coop_reachable() -> bool:
@@ -48,24 +61,24 @@ needs_network = pytest.mark.skipif(
 # --- offline -----------------------------------------------------------------
 
 
-def test_question_map_covers_exactly_the_question_set():
+def test_question_map_covers_exactly_the_question_set() -> None:
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     yaml_ids = {f"q{q['id']}" for q in spec["questions"]}
     assert set(render.QUESTION_MAP) == yaml_ids
 
 
-def test_every_mapped_template_exists():
+def test_every_mapped_template_exists() -> None:
     for qid, (stem, _cols, _lim) in render.QUESTION_MAP.items():
         path = render.SQL_DIR / f"{stem}.sql.tmpl"
         assert path.exists(), f"{qid} -> missing template {path}"
 
 
-def test_pipeline_templates_exist():
+def test_pipeline_templates_exist() -> None:
     for stem in render.PIPELINE:
         assert (render.SQL_DIR / f"{stem}.sql.tmpl").exists(), stem
 
 
-def test_every_template_loading_spatial_declares_its_axis_order():
+def test_every_template_loading_spatial_declares_its_axis_order() -> None:
     """GeoParquet is longitude-first; DuckDB's spheroid and reprojection
     functions read latitude-first unless told otherwise.
 
@@ -85,7 +98,7 @@ def test_every_template_loading_spatial_declares_its_axis_order():
     assert not offenders, f"spatial templates missing axis declaration: {offenders}"
 
 
-def test_the_axis_declaration_precedes_every_geometry_call():
+def test_the_axis_declaration_precedes_every_geometry_call() -> None:
     """Setting the axis order after the first geometry call would leave that
     call reading the old convention while the file looks correct."""
     for path in sorted(render.SQL_DIR.rglob("*.sql.tmpl")):
@@ -102,7 +115,7 @@ def test_the_axis_declaration_precedes_every_geometry_call():
                 assert first > declaration, f"{path.name}: {call} precedes the setting"
 
 
-def test_the_decision_table_carries_unrounded_fractions():
+def test_the_decision_table_carries_unrounded_fractions() -> None:
     """Rounding a containment fraction that later questions filter on turns a
     display choice into an undeclared threshold.
 
@@ -118,7 +131,7 @@ def test_the_decision_table_carries_unrounded_fractions():
     assert "round(" not in body, "decision must carry raw fractions"
 
 
-def test_column_counts_match_the_question_contracts():
+def test_column_counts_match_the_question_contracts() -> None:
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     by_id = {f"q{q['id']}": q for q in spec["questions"]}
     for qid, (_stem, cols, _lim) in render.QUESTION_MAP.items():
@@ -126,7 +139,7 @@ def test_column_counts_match_the_question_contracts():
         assert len(cols) == n_contract, (qid, len(cols), n_contract)
 
 
-def test_every_question_reporting_a_computed_area_or_distance_is_tolerant():
+def test_every_question_reporting_a_computed_area_or_distance_is_tolerant() -> None:
     """No area or distance convention is stated to the session, so the grader
     has to absorb the spread between reasonable methods.
 
@@ -143,7 +156,7 @@ def test_every_question_reporting_a_computed_area_or_distance_is_tolerant():
     assert "23" not in graded
 
 
-def test_q23_keeps_a_numeric_field_id_out_of_integer_slack():
+def test_q23_keeps_a_numeric_field_id_out_of_integer_slack() -> None:
     """Integer slack under geometry grading is max(2, 1% of golden), and the
     comparator tries column permutations, so it cannot tell an identifier from
     a quantity. Neighbouring plots carry adjacent ids, so a tolerant q23 would
@@ -162,16 +175,18 @@ def test_q23_keeps_a_numeric_field_id_out_of_integer_slack():
 class _FlakyConnection:
     """Fails the first `failures` executions with `error`, then succeeds."""
 
-    def __init__(self, error, failures):
+    def __init__(self, error: Exception, failures: int) -> None:
         self.error, self.failures, self.calls = error, failures, 0
 
-    def execute(self, sql, params=None):
+    def execute(self, sql: str, params: object = None) -> None:
         self.calls += 1
         if self.calls <= self.failures:
             raise self.error
 
 
-def test_a_truncated_remote_read_is_retried(monkeypatch, tmp_path):
+def test_a_truncated_remote_read_is_retried(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """A throttled range request comes back short, and DuckDB reports the
     truncated body as a corrupt Parquet page rather than as an I/O error. Its
     own http_retries never see it, so the stage is retried here."""
@@ -181,7 +196,9 @@ def test_a_truncated_remote_read_is_retried(monkeypatch, tmp_path):
     assert con.calls == 3
 
 
-def test_a_sql_error_fails_on_the_first_attempt(monkeypatch, tmp_path):
+def test_a_sql_error_fails_on_the_first_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """A broken template fails identically every time; retrying it only delays
     the traceback."""
     monkeypatch.setattr(render.time, "sleep", lambda _s: None)
@@ -191,7 +208,7 @@ def test_a_sql_error_fails_on_the_first_attempt(monkeypatch, tmp_path):
     assert con.calls == 1
 
 
-def test_remote_reads_are_configured_to_outlast_a_slow_route():
+def test_remote_reads_are_configured_to_outlast_a_slow_route() -> None:
     """DuckDB defaults to a 30 s HTTP timeout, and the CAR scan runs longer
     than that on a slow route."""
     con = duckdb.connect()
@@ -206,7 +223,7 @@ def test_remote_reads_are_configured_to_outlast_a_slow_route():
     assert int(settings["http_retries"]) >= 5
 
 
-def test_substitution_leaves_no_placeholders(tmp_path):
+def test_substitution_leaves_no_placeholders(tmp_path: Path) -> None:
     subs = render.substitutions(PINS, tmp_path)
     seen = set()
     for stem, _cols, _lim in render.QUESTION_MAP.values():
@@ -220,16 +237,18 @@ def test_substitution_leaves_no_placeholders(tmp_path):
         assert "${" not in sql, f"{stem} has an unfilled placeholder"
 
 
-def test_scope_tables_build_locally(tmp_path):
+def test_scope_tables_build_locally(tmp_path: Path) -> None:
     # eudr_crops needs no network; it is the one pipeline stage that runs offline.
     subs = render.substitutions(PINS, tmp_path)
     con = duckdb.connect()
     con.execute(render.render_sql("eudr_crops", subs))
-    n_classes, n_in_scope, n_routed = con.execute(
-        "SELECT (SELECT count(*) FROM eudr_crops),"
-        " (SELECT count(*) FROM eudr_crops WHERE in_scope),"
-        " (SELECT count(DISTINCT mbmode24) FROM crop_routing)"
-    ).fetchone()
+    n_classes, n_in_scope, n_routed = one_row(
+        con.execute(
+            "SELECT (SELECT count(*) FROM eudr_crops),"
+            " (SELECT count(*) FROM eudr_crops WHERE in_scope),"
+            " (SELECT count(DISTINCT mbmode24) FROM crop_routing)"
+        )
+    )
     assert (n_classes, n_in_scope, n_routed) == (13, 5, 6)
 
 
@@ -237,7 +256,7 @@ def test_scope_tables_build_locally(tmp_path):
 
 
 @needs_network
-def test_render_all_emits_every_golden_and_manifest(tmp_path):
+def test_render_all_emits_every_golden_and_manifest(tmp_path: Path) -> None:
     written = render.render_all(PINS, tmp_path)
     assert sorted(written) == [f"q{n:02d}" for n in range(1, 32)]
     for path in written.values():
@@ -248,7 +267,7 @@ def test_render_all_emits_every_golden_and_manifest(tmp_path):
 
 
 @needs_network
-def test_render_all_is_deterministic(tmp_path):
+def test_render_all_is_deterministic(tmp_path: Path) -> None:
     a = render.render_all(PINS, tmp_path / "a")
     b = render.render_all(PINS, tmp_path / "b")
     for qid in a:
@@ -256,16 +275,16 @@ def test_render_all_is_deterministic(tmp_path):
 
 
 @needs_network
-def test_loss_partitions_into_in_scope_and_excluded(tmp_path):
+def test_loss_partitions_into_in_scope_and_excluded(tmp_path: Path) -> None:
     """q17 (in-scope) and q18 (excluded) field counts must sum to the matched
     total: every matched field is either in scope or out, never dropped."""
     render.render_all(PINS, tmp_path)
 
-    def rows(name):
+    def rows(name: str) -> list[list[str]]:
         with (tmp_path / name).open(encoding="utf-8") as handle:
             return list(csv.reader(handle))
 
-    def total(name):
+    def total(name: str) -> int:
         return sum(int(row[1]) for row in rows(name)[1:])
 
     matched = int(rows("q09.csv")[1][0])
@@ -292,7 +311,7 @@ def _create_statement(sql: str, table: str) -> str:
     return body[start : end + 1]
 
 
-def test_candidate_cap_applies(tmp_path):
+def test_candidate_cap_applies(tmp_path: Path) -> None:
     """The cap used to bind to a placeholder column and never fire.
 
     `candidates` carried its own `rank`, set to 0 by every INSERT, and QUALIFY
@@ -315,14 +334,14 @@ def test_candidate_cap_applies(tmp_path):
         FROM range(1, 41) t(i);
     """)
     con.execute(stmt)
-    n_kept, worst = con.execute(
-        "SELECT count(*), max(rank) FROM candidates_final"
-    ).fetchone()
+    n_kept, worst = one_row(
+        con.execute("SELECT count(*), max(rank) FROM candidates_final")
+    )
     cap = PINS["coops"]["max_candidates"]
     assert (n_kept, worst) == (cap, cap)
 
 
-def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
+def test_dominant_class_weighs_hectares_not_field_count(tmp_path: Path) -> None:
     """dominant_mb was mode() over field count, which breaks ties arbitrarily
     and lets many small plots outvote one large one.
 
@@ -355,7 +374,7 @@ def test_dominant_class_weighs_hectares_not_field_count(tmp_path):
     assert "CAD-NULL" not in rows  # no classified field, no dominant class
 
 
-def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path):
+def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path: Path) -> None:
     """CAR parcels overlap, so a field inside the overlap of two of them
     intersects each in the same polygon and the two areas agree bit for bit.
 
@@ -409,7 +428,7 @@ def test_the_primary_cadaster_gives_a_tie_to_the_lowest_id(tmp_path):
     assert fracs[4] == pytest.approx(0.5 + tol / 10, abs=1e-15)
 
 
-def test_the_tie_tolerance_is_narrower_than_the_closest_real_separation():
+def test_the_tie_tolerance_is_narrower_than_the_closest_real_separation() -> None:
     """The tolerance absorbs the spread between area methods and nothing more.
 
     Measured on the pinned extracts: the same fraction moves by a median 1e-12
@@ -423,7 +442,7 @@ def test_the_tie_tolerance_is_narrower_than_the_closest_real_separation():
     assert 1.7e-10 < tol < 1.6e-8
 
 
-def test_no_template_picks_a_label_with_an_unordered_aggregate():
+def test_no_template_picks_a_label_with_an_unordered_aggregate() -> None:
     """arg_max and mode resolve ties by scan order, so a golden built on one
     can change under a replan with identical inputs, and a session that breaks
     the tie deterministically is marked wrong for being reproducible.
@@ -446,7 +465,7 @@ def test_no_template_picks_a_label_with_an_unordered_aggregate():
     assert not offenders, f"unordered aggregate choosing a label: {offenders}"
 
 
-def test_excluded_count_ignores_the_buffer_only_near_misses(tmp_path):
+def test_excluded_count_ignores_the_buffer_only_near_misses(tmp_path: Path) -> None:
     """q12 asks how many fields intersect a listed parcel and fail both tests.
 
     The count used to include fields whose only overlap was with the parcels
@@ -474,10 +493,10 @@ def test_excluded_count_ignores_the_buffer_only_near_misses(tmp_path):
         ) v(field_id, max_single_frac, union_frac, by_primary, by_aggregate);
     """)
     con.execute(stmt)
-    assert con.execute("SELECT n_excluded FROM _q").fetchone()[0] == 2
+    assert one_row(con.execute("SELECT n_excluded FROM _q"))[0] == 2
 
 
-def test_no_qualify_binds_a_base_column_named_rank():
+def test_no_qualify_binds_a_base_column_named_rank() -> None:
     """Guard against the shadowing coming back in any template."""
     for path in sorted(render.SQL_DIR.glob("*.sql.tmpl")):
         text = path.read_text(encoding="utf-8")

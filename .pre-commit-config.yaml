@@ -112,8 +112,11 @@ repos:
       - id: xenon
         name: xenon
         description: Complexity gate (same thresholds as CI)
+        # Two grades tighter than the ops template's E/D/C, and the tightest
+        # this tree passes. Dropping absolute to B, or the average to A, means
+        # breaking up another dozen C-rank functions.
         entry: >-
-          uv run xenon --max-absolute=D --max-modules=C --max-average=B
+          uv run xenon --max-absolute=C --max-modules=B --max-average=B
           harness oracle scripts fixtures/lists
         language: system
         pass_filenames: false

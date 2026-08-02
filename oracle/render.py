@@ -24,6 +24,7 @@ import json
 import string
 import time
 from pathlib import Path
+from typing import Any, Protocol
 
 import duckdb
 
@@ -190,7 +191,7 @@ QUESTION_MAP = {
 }
 
 
-def substitutions(pins: dict, work: Path) -> dict:
+def substitutions(pins: dict[str, Any], work: Path) -> dict[str, str]:
     cat = pins["catalogs"]
     gap_m = pins["matching"]["neighbor_gap_tolerance_m"]
     return {
@@ -228,7 +229,7 @@ def substitutions(pins: dict, work: Path) -> dict:
     }
 
 
-def render_sql(stem: str, subs: dict) -> str:
+def render_sql(stem: str, subs: dict[str, str]) -> str:
     template = (SQL_DIR / f"{stem}.sql.tmpl").read_text(encoding="utf-8")
     return string.Template(template).substitute(subs)
 
@@ -267,7 +268,7 @@ def tune_for_remote_reads(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def build_state(
-    con: duckdb.DuckDBPyConnection, subs: dict, force: bool = False
+    con: duckdb.DuckDBPyConnection, subs: dict[str, str], force: bool = False
 ) -> None:
     """Run the pipeline so every question query has its inputs on disk.
 
@@ -286,7 +287,18 @@ def build_state(
         run_stage(con, stage, subs)
 
 
-def run_stage(con: duckdb.DuckDBPyConnection, stage: str, subs: dict) -> None:
+class Executes(Protocol):
+    """The one thing a stage needs from a connection.
+
+    Narrower than DuckDBPyConnection on purpose: the retry test drives this
+    with a stand-in that fails the first few calls, and a stand-in should not
+    have to impersonate a whole database handle to do that.
+    """
+
+    def execute(self, sql: str) -> object: ...
+
+
+def run_stage(con: Executes, stage: str, subs: dict[str, str]) -> None:
     """Execute one pipeline stage, retrying a read that source.coop truncated.
 
     Only I/O-shaped failures are retried. A SQL error in a template fails the
@@ -324,7 +336,7 @@ def _is_transport_error(exc: Exception) -> bool:
     return any(marker in text for marker in TRANSPORT_MARKERS)
 
 
-def write_csv(rows: list, columns: list, path: Path) -> None:
+def write_csv(rows: list[tuple[Any, ...]], columns: list[str], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh, lineterminator="\n")
@@ -332,7 +344,9 @@ def write_csv(rows: list, columns: list, path: Path) -> None:
         writer.writerows(rows)
 
 
-def render_all(pins: dict, out_dir: Path, force: bool = False) -> dict:
+def render_all(
+    pins: dict[str, Any], out_dir: Path, force: bool = False
+) -> dict[str, Path]:
     work = out_dir / "_work"
     work.mkdir(parents=True, exist_ok=True)
     subs = substitutions(pins, work)

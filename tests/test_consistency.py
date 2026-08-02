@@ -20,20 +20,20 @@ RUN_C = {
 }
 
 
-def test_identical_runs_agree_perfectly():
+def test_identical_runs_agree_perfectly() -> None:
     out = compare_runs([RUN_A, RUN_B], oracle=None)
     assert out["flag_jaccard"] == 1.0
     assert out["contact_agreement"] == 1.0
     assert out["unstable_cadasters"] == []
 
 
-def test_disjoint_runs_agree_not_at_all():
+def test_disjoint_runs_agree_not_at_all() -> None:
     out = compare_runs([RUN_A, RUN_C], oracle=None)
     assert out["flag_jaccard"] == 0.0
     assert sorted(out["unstable_cadasters"]) == ["GO-1", "GO-2", "GO-3"]
 
 
-def test_contact_disagreement_is_reported_per_cadaster():
+def test_contact_disagreement_is_reported_per_cadaster() -> None:
     # same properties flagged, different buyer chosen for GO-1 in one of 3 runs.
     variant = {
         "GO-1": {"post2020_loss_ha": 10.0, "top_contact_entity_id": "SILO-7"},
@@ -45,7 +45,7 @@ def test_contact_disagreement_is_reported_per_cadaster():
     assert out["contact_agreement"] == pytest.approx(5 / 6)
 
 
-def test_agreement_without_correctness_is_visible():
+def test_agreement_without_correctness_is_visible() -> None:
     # two runs agree with each other but not with the oracle: high consistency,
     # zero oracle agreement — the whole reason stage 7 exists.
     oracle = {"GO-9": {"post2020_loss_ha": 3.0, "top_contact_entity_id": "SILO-X"}}
@@ -54,7 +54,7 @@ def test_agreement_without_correctness_is_visible():
     assert out["oracle"]["flag_jaccard"] == 0.0
 
 
-def test_partial_flag_overlap_lists_only_the_unstable_ones():
+def test_partial_flag_overlap_lists_only_the_unstable_ones() -> None:
     # GO-2 flagged by both; GO-1 only by the first, GO-3 only by the second.
     r1 = {
         "GO-1": {"post2020_loss_ha": 4.0, "top_contact_entity_id": "A"},
@@ -87,7 +87,9 @@ WORKFLOW = (
 )
 
 
-def test_main_writes_consistency_beside_the_runs(tmp_path, monkeypatch, capsys):
+def test_main_writes_consistency_beside_the_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The report reads consistency.json from the results tree, so that is
     where it has to land."""
     results = tmp_path / "results"
@@ -105,7 +107,9 @@ def test_main_writes_consistency_beside_the_runs(tmp_path, monkeypatch, capsys):
     assert "consistency@2" in capsys.readouterr().out
 
 
-def test_main_compares_against_the_oracle_when_given_one(tmp_path, monkeypatch, capsys):
+def test_main_compares_against_the_oracle_when_given_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     results = tmp_path / "results"
     _run_dir(results, "sonnet", 1, WORKFLOW)
     _run_dir(results, "sonnet", 2, WORKFLOW)
@@ -129,7 +133,9 @@ def test_main_compares_against_the_oracle_when_given_one(tmp_path, monkeypatch, 
     assert "vs oracle" in capsys.readouterr().out
 
 
-def test_main_says_so_when_no_run_wrote_a_workflow(tmp_path, monkeypatch, capsys):
+def test_main_says_so_when_no_run_wrote_a_workflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """An empty tree and a tree of sessions that answered nothing are
     different problems; only the second is worth a metric."""
     monkeypatch.setattr(

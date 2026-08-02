@@ -31,8 +31,14 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 MB = 1024 * 1024
+
+# One measurement, or a collection of them. Every reading mixes byte counts,
+# timings, and the edge headers that served it, so the values are as varied as
+# the questions the probe asks.
+Reading = dict[str, Any]
 
 # Sizes that straddle the boundary we have seen in practice. 1 MB has always
 # returned whole; larger reads have not.
@@ -59,7 +65,7 @@ DEFAULT_URL = (
 
 def fetch_range(
     url: str, start: int, length: int, timeout: int = 120, open_ended: bool = False
-) -> dict:
+) -> Reading:
     """One ranged GET, timed in three parts.
 
     A single elapsed number cannot distinguish a host that answers slowly from
@@ -133,7 +139,7 @@ def other_load_present() -> list[str]:
     return [line for line in running if line.strip()]
 
 
-def control_reading() -> dict:
+def control_reading() -> Reading:
     """Throughput to an unrelated host, to place the local link."""
     began = time.monotonic()
     try:
@@ -156,7 +162,7 @@ def control_reading() -> dict:
         }
 
 
-def sequential_sweep(url: str) -> list[dict]:
+def sequential_sweep(url: str) -> list[Reading]:
     """Each size, several times, one stream at a time."""
     results = []
     for mb in SIZES_MB:
@@ -167,7 +173,7 @@ def sequential_sweep(url: str) -> list[dict]:
     return results
 
 
-def parallel_reading(url: str, streams: int = PARALLEL_STREAMS) -> dict:
+def parallel_reading(url: str, streams: int = PARALLEL_STREAMS) -> Reading:
     """Adjacent 1 MB ranges at once.
 
     The point is aggregate throughput against the single-stream rate. A host
@@ -193,7 +199,7 @@ def parallel_reading(url: str, streams: int = PARALLEL_STREAMS) -> dict:
     }
 
 
-def concurrency_sweep(url: str) -> list[dict]:
+def concurrency_sweep(url: str) -> list[Reading]:
     """Aggregate throughput as streams are added.
 
     Rising throughput points at a per-connection limit. A plateau points at a
@@ -203,7 +209,7 @@ def concurrency_sweep(url: str) -> list[dict]:
     return [parallel_reading(url, streams=n) for n in CONCURRENCY_STEPS]
 
 
-def range_form_reading(url: str, size_mb: int = 8) -> dict:
+def range_form_reading(url: str, size_mb: int = 8) -> Reading:
     """A closed range against an open-ended one of the same length.
 
     Different stopping points would mean the server decides on the request it
@@ -216,7 +222,7 @@ def range_form_reading(url: str, size_mb: int = 8) -> dict:
     }
 
 
-def repeat_reading(url: str, offset: int = 900 * MB) -> dict:
+def repeat_reading(url: str, offset: int = 900 * MB) -> Reading:
     """The same range twice, then an untouched one.
 
     Faster on the second read means something caches. Equal timings mean the
@@ -228,7 +234,7 @@ def repeat_reading(url: str, offset: int = 900 * MB) -> dict:
     return {"first": first, "repeat": second, "untouched": elsewhere}
 
 
-def truncation_pattern(sweep: list[dict]) -> dict:
+def truncation_pattern(sweep: list[Reading]) -> Reading:
     """Where incomplete responses stop, by bytes and by seconds.
 
     A byte cap holds the size steady while the duration moves with throughput.
@@ -250,7 +256,10 @@ def truncation_pattern(sweep: list[dict]) -> dict:
 
 
 def verdicts(
-    control: dict, sweep: list[dict], parallel: dict, repeat: dict
+    control: Reading,
+    sweep: list[Reading],
+    parallel: Reading,
+    repeat: Reading,
 ) -> list[str]:
     """Which explanations the numbers rule out.
 
@@ -327,7 +336,7 @@ def verdicts(
     return out
 
 
-def concurrency_verdict(steps: list[dict]) -> str:
+def concurrency_verdict(steps: list[Reading]) -> str:
     """Whether adding streams keeps paying."""
     usable = [s for s in steps if s["bytes_per_second"]]
     if len(usable) < 2:
@@ -347,7 +356,7 @@ def concurrency_verdict(steps: list[dict]) -> str:
     )
 
 
-def range_form_verdict(forms: dict) -> str:
+def range_form_verdict(forms: Reading) -> str:
     closed, opened = forms["closed"], forms["open_ended"]
     if closed["complete"] and opened["complete"]:
         return "RULED OUT range syntax: both forms returned in full"
@@ -365,7 +374,7 @@ def range_form_verdict(forms: dict) -> str:
     )
 
 
-def second_object_verdict(here: dict, there: dict) -> str:
+def second_object_verdict(here: Reading, there: Reading) -> str:
     if here["truncated"] and there["truncated"]:
         return (
             "RULED OUT a single bad object: both objects truncate, in different buckets"
@@ -377,7 +386,7 @@ def second_object_verdict(here: dict, there: dict) -> str:
     return "RULED OUT truncation on both objects"
 
 
-def run(url: str, quick: bool = False) -> dict:
+def run(url: str, quick: bool = False) -> Reading:
     contention = other_load_present()
     control = control_reading()
     sweep = sequential_sweep(url)
@@ -388,8 +397,8 @@ def run(url: str, quick: bool = False) -> dict:
     lines = verdicts(control, sweep, parallel, repeat)
     lines.append(range_form_verdict(forms))
 
-    steps: list[dict] = []
-    second: list[dict] = []
+    steps: list[Reading] = []
+    second: list[Reading] = []
     if not quick:
         steps = concurrency_sweep(url)
         lines.append(concurrency_verdict(steps))
@@ -422,7 +431,7 @@ def run(url: str, quick: bool = False) -> dict:
     }
 
 
-def render(report: dict) -> str:
+def render(report: Reading) -> str:
     lines = [f"target: {report['url']}", f"measured: {report['measured_utc']}", ""]
     control = report["control"]
     if control["bytes_per_second"]:

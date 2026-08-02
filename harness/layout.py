@@ -14,6 +14,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
+
+# A run's meta.json, read back as JSON. Heterogeneous by nature: strings,
+# counts, nested blocks. Naming it once keeps every reader's signature honest
+# without pretending the shape is narrower than it is.
+Meta = dict[str, Any]
 
 # A session that wrote no answer at all measured nothing about the model. It
 # stays on disk for the audit trail and stays out of the averages.
@@ -29,8 +35,9 @@ def run_dirs(results_dir: Path, model: str = "") -> list[Path]:
     return sorted(d for d in results_dir.glob(pattern) if (d / "meta.json").exists())
 
 
-def read_meta(run_dir: Path) -> dict:
-    return json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+def read_meta(run_dir: Path) -> Meta:
+    meta: Meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+    return meta
 
 
 def run_name(run_dir: Path) -> str:
@@ -38,7 +45,7 @@ def run_name(run_dir: Path) -> str:
     return f"{run_dir.parent.name}/{run_dir.name}"
 
 
-def is_scored(meta: dict) -> bool:
+def is_scored(meta: Meta) -> bool:
     """Whether a run belongs in an average.
 
     Runs predating the status field were all complete, so absence reads as
@@ -47,7 +54,7 @@ def is_scored(meta: dict) -> bool:
     return meta.get("status", "done") in SCORED_STATUSES
 
 
-def arm_of(meta: dict) -> str:
+def arm_of(meta: Meta) -> str:
     """Which ablation arm a run was given, defaulting to the whole spec.
 
     Runs predating the ablation harness carry no block, and they did see the
@@ -56,7 +63,7 @@ def arm_of(meta: dict) -> str:
     return meta.get("ablation", {}).get("arm") or "full"
 
 
-def spec_of(meta: dict) -> str | None:
+def spec_of(meta: Meta) -> str | None:
     """The digest of the spec a run actually saw, or None if it predates it."""
     return meta.get("spec_fingerprint")
 
@@ -76,7 +83,7 @@ def group_by_arm(dirs: list[Path]) -> dict[tuple[str, str | None], list[Path]]:
     return groups
 
 
-def regraded(meta: dict) -> bool:
+def regraded(meta: Meta) -> bool:
     """Whether a run's score comes from different fixtures than it ran against.
 
     True only when both digests are known and disagree. Runs predating either

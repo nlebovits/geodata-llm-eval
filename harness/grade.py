@@ -26,7 +26,9 @@ import itertools
 import json
 import math
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from layout import is_scored, read_meta, regraded, run_dirs, run_name
 
@@ -69,6 +71,11 @@ NEAR_MISS_FACTOR = 10
 MAX_DIFF_PERM_COLS = 6
 
 # Grade outcomes
+# One mismatched cell, as written into diffs.json.
+Diff = dict[str, Any]
+# One question from questions.yaml.
+Question = dict[str, Any]
+
 CORRECT = "correct"
 NEAR_MISS = "near_miss"
 WRONG = "wrong"
@@ -239,8 +246,8 @@ def values_match(
 
 
 def _rows_match_under_permutation(
-    answer: list[list[object]],
-    golden: list[list[object]],
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
     perm: tuple[int, ...],
     geometry: bool = False,
     slack: float = 1.0,
@@ -262,8 +269,8 @@ def _rows_match_under_permutation(
 
 
 def compare(
-    answer: list[list[object]],
-    golden: list[list[object]],
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
     geometry: bool = False,
     slack: float = 1.0,
 ) -> bool:
@@ -286,8 +293,8 @@ def compare(
 
 
 def _align_under_permutation(
-    answer: list[list[object]],
-    golden: list[list[object]],
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
     perm: tuple[int, ...],
     geometry: bool,
 ) -> tuple[int, list[tuple[int, int]]]:
@@ -319,11 +326,11 @@ def _align_under_permutation(
 
 
 def diff_table(
-    answer: list[list[object]],
-    golden: list[list[object]],
+    answer: Sequence[Sequence[object]],
+    golden: Sequence[Sequence[object]],
     geometry: bool = False,
     golden_header: list[str] | None = None,
-) -> list[dict]:
+) -> list[Diff]:
     """Per-cell differences between a wrong answer and golden.
 
     Rows are paired by similarity, not by position, because the comparator
@@ -362,7 +369,7 @@ def diff_table(
         if cost == 0:
             break
 
-    diffs: list[dict] = []
+    diffs: list[Diff] = []
     for g_idx, a_idx in best_pairs:
         g_row = golden[g_idx]
         projected = [answer[a_idx][i] for i in best_perm]
@@ -393,7 +400,7 @@ def _rel_error(got: object, want: object) -> float | None:
     return round(abs(float(got) - float(want)) / abs(float(want)), 6)
 
 
-def diff_summary(diffs: list[dict]) -> str:
+def diff_summary(diffs: list[Diff]) -> str:
     """One line naming what failed: how many cells, in which columns, how far.
 
     Triage starts here. A question that missed four cells of twenty-four in one
@@ -416,7 +423,7 @@ def diff_summary(diffs: list[dict]) -> str:
 
 def evaluate_question(
     answer_path: Path, golden_path: Path, geometry: bool = False
-) -> tuple[str, list[dict]]:
+) -> tuple[str, list[Diff]]:
     """Grade one question and, when it fails, say where.
 
     Returns the outcome and the per-cell diffs behind it. A miss that clears
@@ -467,7 +474,7 @@ def grade_session(
     session_dir: Path,
     golden_dir: Path,
     geometry_ids: set[str] | None = None,
-) -> tuple[dict[str, str], dict[str, list[dict]]]:
+) -> tuple[dict[str, str], dict[str, list[Diff]]]:
     """Grade every golden question against a session's answers/ dir.
 
     Returns the outcome per question and the diffs behind each failure.
@@ -476,7 +483,7 @@ def grade_session(
     """
     geometry_ids = geometry_ids or set()
     grades: dict[str, str] = {}
-    diffs: dict[str, list[dict]] = {}
+    diffs: dict[str, list[Diff]] = {}
     for golden_path in sorted(golden_dir.glob("q*.csv")):
         qid = golden_path.stem
         answer_path = session_dir / "answers" / f"{qid}.csv"
@@ -489,7 +496,9 @@ def grade_session(
     return grades, diffs
 
 
-def _deps_all_correct(qid: str, by_id: dict, grades: dict) -> bool:
+def _deps_all_correct(
+    qid: str, by_id: dict[str, Question], grades: dict[str, str]
+) -> bool:
     """True if every transitive dependency of qid graded correct.
 
     Transitive, not direct: a question whose parent was itself downstream of a
@@ -505,7 +514,9 @@ def _deps_all_correct(qid: str, by_id: dict, grades: dict) -> bool:
     return True
 
 
-def stage_summary(grades: dict, questions: list) -> dict:
+def stage_summary(
+    grades: dict[str, str], questions: list[Question]
+) -> dict[Any, dict[str, Any]]:
     """Per-stage raw and conditional accuracy.
 
     raw          — correct / all questions in the stage.
@@ -518,7 +529,7 @@ def stage_summary(grades: dict, questions: list) -> dict:
     reverse means it is mostly inheriting upstream errors.
     """
     by_id = {q["id"]: q for q in questions}
-    out: dict = {}
+    out: dict[Any, dict[str, Any]] = {}
     for stage in sorted({q["stage"] for q in questions}):
         in_stage = [q for q in questions if q["stage"] == stage]
         n = len(in_stage)
@@ -537,7 +548,7 @@ def stage_summary(grades: dict, questions: list) -> dict:
     return out
 
 
-def load_questions(questions_path: Path) -> list:
+def load_questions(questions_path: Path) -> list[Question]:
     """questions.yaml questions list, or [] if unavailable."""
     try:
         import yaml
@@ -545,9 +556,9 @@ def load_questions(questions_path: Path) -> list:
         return []
     if not questions_path.exists():
         return []
-    return yaml.safe_load(questions_path.read_text(encoding="utf-8")).get(
-        "questions", []
-    )
+    loaded = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
+    questions: list[Question] = loaded.get("questions", [])
+    return questions
 
 
 def main() -> int:

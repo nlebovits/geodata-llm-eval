@@ -10,10 +10,14 @@ since a scanner nothing invokes is no guard at all.
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 import yaml
+
+# The `written` fixture: give it a name and a body, get back a path.
+Writer = Callable[[str, str], str]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = REPO_ROOT / "scripts"
@@ -33,7 +37,7 @@ PAYLOAD = '{"' + "access" + 'Token": "x", "refreshToken": "y"}\n'
 
 
 @pytest.fixture
-def written(tmp_path: Path):
+def written(tmp_path: Path) -> Writer:
     """Write a file under tmp_path and hand back its path as a string."""
 
     def _written(name: str, body: str) -> str:
@@ -45,7 +49,7 @@ def written(tmp_path: Path):
     return _written
 
 
-def test_token_in_content_is_blocked(written):
+def test_token_in_content_is_blocked(written: Writer) -> None:
     """The case .gitignore cannot catch: a token inside a transcript."""
     path = written(
         "results/opus/pass-1/transcript.jsonl",
@@ -56,14 +60,14 @@ def test_token_in_content_is_blocked(written):
     assert "sk-ant-* token" in problems[0]
 
 
-def test_token_report_names_the_line(written):
+def test_token_report_names_the_line(written: Writer) -> None:
     """A transcript is thousands of lines; the number is what makes it
     findable."""
     path = written("transcript.jsonl", f"clean\nclean\n{DECOY}\n")
     assert problems_in([path])[0].endswith(":3: contains an sk-ant-* token")
 
 
-def test_credential_path_is_blocked_without_reading_it(written):
+def test_credential_path_is_blocked_without_reading_it(written: Writer) -> None:
     """Path alone is enough. The file need not still exist."""
     problems = problems_in(["home/.claude/.credentials.json"])
     assert len(problems) == 1
@@ -81,11 +85,11 @@ def test_credential_path_is_blocked_without_reading_it(written):
         "keys/server.pem",
     ],
 )
-def test_every_blocked_path_shape(path):
+def test_every_blocked_path_shape(path: str) -> None:
     assert problems_in([path]), f"{path} should be refused"
 
 
-def test_credential_payload_shape_is_blocked(written):
+def test_credential_payload_shape_is_blocked(written: Writer) -> None:
     """Belt and braces: catches a payload whose token stops matching the
     sk-ant- prefix, without firing on prose that mentions one key."""
     path = written("dump.json", PAYLOAD)
@@ -94,7 +98,7 @@ def test_credential_payload_shape_is_blocked(written):
     assert "credentials payload" in problems[0]
 
 
-def test_prose_about_refresh_tokens_is_allowed(written):
+def test_prose_about_refresh_tokens_is_allowed(written: Writer) -> None:
     """Docs discussing the auth flow are not collateral damage."""
     path = written(
         "README.md",
@@ -103,17 +107,17 @@ def test_prose_about_refresh_tokens_is_allowed(written):
     assert problems_in([path]) == []
 
 
-def test_clean_tree_reports_nothing(written):
+def test_clean_tree_reports_nothing(written: Writer) -> None:
     paths = [written("a.py", "x = 1\n"), written("b.md", "# title\n")]
     assert problems_in(paths) == []
 
 
-def test_missing_file_is_not_an_error():
+def test_missing_file_is_not_an_error() -> None:
     """prek can hand over a path deleted since staging."""
     assert problems_in(["no/such/file.txt"]) == []
 
 
-def test_guard_is_wired_into_prek():
+def test_guard_is_wired_into_prek() -> None:
     """The scanner has to run on every commit and every CI run. This is
     the line that makes that true."""
     config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))

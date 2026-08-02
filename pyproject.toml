@@ -55,14 +55,17 @@ exclude_also = [
 
 [tool.mypy]
 python_version = "3.12"
-# Source only. The suite leans on test doubles that stand in for Popen and
-# DuckDBPyConnection, and annotating those into agreement would buy nothing
-# a passing test does not already prove.
-files = ["harness", "oracle", "scripts", "fixtures/lists"]
+files = ["harness", "oracle", "scripts", "fixtures/lists", "tests"]
+strict = true
+# The one strict rule that does not fit this layout. The harness modules are
+# scripts imported off sys.path rather than a package with an export surface,
+# and the tests patch what those modules imported (`sweep.subprocess`,
+# `run.PRICES`), which is exactly what implicit re-export forbids.
+implicit_reexport = true
 # The harness modules are imported bare off sys.path rather than as a
 # package, so mypy sees eleven top-level modules in one directory.
 explicit_package_bases = true
-mypy_path = "harness:oracle:fixtures/lists"
+mypy_path = "harness:oracle:scripts:fixtures/lists"
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true

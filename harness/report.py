@@ -17,6 +17,7 @@ import json
 import statistics
 import sys
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 from layout import is_scored, run_dirs
@@ -27,6 +28,10 @@ import matplotlib.pyplot as plt
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from grade import load_questions, stage_summary
 
+# One graded session, flattened for the tables and the plot: identity,
+# scores, cost, and runtime in one row.
+Session = dict[str, Any]
+
 MODEL_ORDER = ["haiku", "sonnet", "opus"]
 MODEL_LABELS = {
     "haiku": "Haiku 4.5",
@@ -35,8 +40,8 @@ MODEL_LABELS = {
 }
 
 
-def load_sessions(results_dir: Path) -> list[dict]:
-    sessions = []
+def load_sessions(results_dir: Path) -> list[Session]:
+    sessions: list[Session] = []
     for session_dir in run_dirs(results_dir):
         grades_path = session_dir / "grades.json"
         meta_path = session_dir / "meta.json"
@@ -72,12 +77,14 @@ def load_sessions(results_dir: Path) -> list[dict]:
     return sessions
 
 
-def _mean_or_none(values: list) -> float | None:
+def _mean_or_none(values: list[float | None]) -> float | None:
     vals = [v for v in values if v is not None]
     return statistics.mean(vals) if vals else None
 
 
-def stage_grid_lines(sessions: list[dict], questions: list) -> list[str]:
+def stage_grid_lines(
+    sessions: list[Session], questions: list[dict[str, Any]]
+) -> list[str]:
     """Per-model, per-stage mean raw and conditional accuracy across sessions.
 
     Conditional accuracy is 'correct given every upstream dependency was
@@ -132,7 +139,7 @@ def consistency_lines(results_dir: Path) -> list[str]:
         "|--------|-------------|-----------|",
     ]
 
-    def fmt(x):
+    def fmt(x: object) -> str:
         return f"{x:.3f}" if isinstance(x, (int, float)) else "–"
 
     oracle = c.get("oracle") or {}
@@ -162,7 +169,7 @@ def consistency_lines(results_dir: Path) -> list[str]:
     return lines
 
 
-def runtime_lines(sessions: list[dict]) -> list[str]:
+def runtime_lines(sessions: list[Session]) -> list[str]:
     """Wall clock, and how much of it went to waiting on remote reads.
 
     A session that loses a third of its turns to source.coop timeouts scores
@@ -195,7 +202,7 @@ def runtime_lines(sessions: list[dict]) -> list[str]:
     return lines
 
 
-def write_summary_csv(sessions: list[dict], path: Path) -> None:
+def write_summary_csv(sessions: list[Session], path: Path) -> None:
     fields = [
         "model",
         "run_id",
@@ -217,9 +224,9 @@ def write_summary_csv(sessions: list[dict], path: Path) -> None:
 
 
 def write_report_md(
-    sessions: list[dict],
+    sessions: list[Session],
     path: Path,
-    questions: list | None = None,
+    questions: list[dict[str, Any]] | None = None,
     results_dir: Path | None = None,
 ) -> None:
     lines = [
@@ -263,7 +270,7 @@ def write_report_md(
     path.write_text("\n".join(lines))
 
 
-def write_pareto_png(sessions: list[dict], path: Path) -> None:
+def write_pareto_png(sessions: list[Session], path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
     colors = {"haiku": "tab:green", "sonnet": "tab:blue", "opus": "tab:purple"}
     for model in MODEL_ORDER:

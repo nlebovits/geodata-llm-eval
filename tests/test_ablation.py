@@ -52,7 +52,9 @@ def workspace(tmp_path: Path, **files: str) -> Path:
 # --- cut ---------------------------------------------------------------------
 
 
-def test_cut_removes_the_heading_and_its_body_up_to_the_next_peer(tmp_path):
+def test_cut_removes_the_heading_and_its_body_up_to_the_next_peer(
+    tmp_path: Path,
+) -> None:
     ws = workspace(tmp_path, **{"policies__p.md": DOC})
     receipt = ablation.apply_arm(
         ws, [{"cut": {"file": "policies/p.md", "heading": "Keep me"}}]
@@ -63,7 +65,7 @@ def test_cut_removes_the_heading_and_its_body_up_to_the_next_peer(tmp_path):
     assert receipt == {"policies/p.md": 4}
 
 
-def test_cut_takes_nested_subsections_with_their_parent(tmp_path):
+def test_cut_takes_nested_subsections_with_their_parent(tmp_path: Path) -> None:
     """A `###` orphaned under an unrelated `##` reads as a corrupted document,
     which tells the session something was removed."""
     ws = workspace(tmp_path, **{"policies__p.md": DOC})
@@ -74,7 +76,7 @@ def test_cut_takes_nested_subsections_with_their_parent(tmp_path):
     assert "Keep me" in out and "Keep me too" in out
 
 
-def test_cut_on_a_subsection_leaves_its_parent_and_siblings(tmp_path):
+def test_cut_on_a_subsection_leaves_its_parent_and_siblings(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__p.md": DOC})
     ablation.apply_arm(
         ws, [{"cut": {"file": "policies/p.md", "heading": "Nested under cut"}}]
@@ -84,7 +86,7 @@ def test_cut_on_a_subsection_leaves_its_parent_and_siblings(tmp_path):
     assert "## Cut me" in out and "Body of cut." in out
 
 
-def test_cut_on_the_last_section_runs_to_the_end_of_the_file(tmp_path):
+def test_cut_on_the_last_section_runs_to_the_end_of_the_file(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__p.md": DOC})
     ablation.apply_arm(
         ws, [{"cut": {"file": "policies/p.md", "heading": "Keep me too"}}]
@@ -94,7 +96,9 @@ def test_cut_on_the_last_section_runs_to_the_end_of_the_file(tmp_path):
     assert out.endswith("Nested body.\n")
 
 
-def test_cut_raises_when_the_heading_is_absent_rather_than_ablating_nothing(tmp_path):
+def test_cut_raises_when_the_heading_is_absent_rather_than_ablating_nothing(
+    tmp_path: Path,
+) -> None:
     """The whole point. A silent no-op produces an arm that scores like the
     baseline, which reads as "the spec does not matter" and is both false and
     invisible. The error names the headings the file does have."""
@@ -107,7 +111,7 @@ def test_cut_raises_when_the_heading_is_absent_rather_than_ablating_nothing(tmp_
     assert "Keep me" in str(err.value), "the error must list what is available"
 
 
-def test_cut_raises_when_a_heading_appears_twice(tmp_path):
+def test_cut_raises_when_a_heading_appears_twice(tmp_path: Path) -> None:
     ws = workspace(
         tmp_path, **{"policies__p.md": "# A\n\n## Dup\n\nx\n\n## Dup\n\ny\n"}
     )
@@ -115,7 +119,7 @@ def test_cut_raises_when_a_heading_appears_twice(tmp_path):
         ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "Dup"}}])
 
 
-def test_cut_matches_heading_text_without_the_hashes(tmp_path):
+def test_cut_matches_heading_text_without_the_hashes(tmp_path: Path) -> None:
     """The level lives in the file, not in the config, so promoting a heading
     later does not silently break an arm."""
     ws = workspace(tmp_path, **{"policies__p.md": DOC})
@@ -123,7 +127,7 @@ def test_cut_matches_heading_text_without_the_hashes(tmp_path):
     assert "Cut me" not in (ws / "policies/p.md").read_text(encoding="utf-8")
 
 
-def test_cut_leaves_no_marker_and_no_run_of_blank_lines(tmp_path):
+def test_cut_leaves_no_marker_and_no_run_of_blank_lines(tmp_path: Path) -> None:
     """A visible seam tells the session that spec was withheld, and it will
     hedge or report the policy as incomplete. That measures the notice, not
     the missing text."""
@@ -136,7 +140,7 @@ def test_cut_leaves_no_marker_and_no_run_of_blank_lines(tmp_path):
     assert out.endswith("Trailing body.\n")
 
 
-def test_cut_ignores_heading_shaped_lines_inside_a_code_fence(tmp_path):
+def test_cut_ignores_heading_shaped_lines_inside_a_code_fence(tmp_path: Path) -> None:
     doc = "# T\n\n## One\n\n```sql\n# not a heading\n```\n\nstill one\n\n## Two\n\nb\n"
     ws = workspace(tmp_path, **{"policies__p.md": doc})
     ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "One"}}])
@@ -145,7 +149,7 @@ def test_cut_ignores_heading_shaped_lines_inside_a_code_fence(tmp_path):
     assert "## Two" in out
 
 
-def test_a_horizontal_rule_is_not_read_as_a_setext_heading(tmp_path):
+def test_a_horizontal_rule_is_not_read_as_a_setext_heading(tmp_path: Path) -> None:
     """policies/MATCHING.md ends its body with a bare `---`. A setext parser
     reads that as underlining the line above it."""
     doc = "# T\n\n## One\n\nbody\n\n---\n\n## Two\n\nb\n"
@@ -155,7 +159,7 @@ def test_a_horizontal_rule_is_not_read_as_a_setext_heading(tmp_path):
     assert "## One" in out and "---" in out
 
 
-def test_cutting_a_file_empty_points_at_drop_instead(tmp_path):
+def test_cutting_a_file_empty_points_at_drop_instead(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__p.md": "# Only\n\nbody\n"})
     with pytest.raises(ablation.AblationError, match="drop"):
         ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "Only"}}])
@@ -164,7 +168,7 @@ def test_cutting_a_file_empty_points_at_drop_instead(tmp_path):
 # --- drop --------------------------------------------------------------------
 
 
-def test_drop_removes_only_the_named_file(tmp_path):
+def test_drop_removes_only_the_named_file(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__a.md": "a\n", "policies__b.md": "b\n"})
     receipt = ablation.apply_arm(ws, [{"drop": "policies/a.md"}])
     assert not (ws / "policies/a.md").exists()
@@ -172,21 +176,21 @@ def test_drop_removes_only_the_named_file(tmp_path):
     assert receipt == {"policies/a.md": 1}
 
 
-def test_drop_raises_when_the_file_is_not_there(tmp_path):
+def test_drop_raises_when_the_file_is_not_there(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__a.md": "a\n"})
     with pytest.raises(ablation.AblationError):
         ablation.apply_arm(ws, [{"drop": "policies/gone.md"}])
 
 
 @pytest.mark.parametrize("escape", ["../outside.md", "/etc/passwd"])
-def test_a_path_escaping_the_workspace_is_rejected(tmp_path, escape):
+def test_a_path_escaping_the_workspace_is_rejected(tmp_path: Path, escape: str) -> None:
     ws = workspace(tmp_path, **{"policies__a.md": "a\n"})
     (tmp_path / "outside.md").write_text("secret\n", encoding="utf-8")
     with pytest.raises(ablation.AblationError):
         ablation.apply_arm(ws, [{"drop": escape}])
 
 
-def test_an_unknown_operation_is_rejected(tmp_path):
+def test_an_unknown_operation_is_rejected(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__a.md": "a\n"})
     with pytest.raises(ablation.AblationError, match="unknown operation"):
         ablation.apply_arm(ws, [{"shred": "policies/a.md"}])
@@ -195,20 +199,20 @@ def test_an_unknown_operation_is_rejected(tmp_path):
 # --- fingerprint -------------------------------------------------------------
 
 
-def test_two_identical_workspaces_fingerprint_the_same(tmp_path):
+def test_two_identical_workspaces_fingerprint_the_same(tmp_path: Path) -> None:
     a = workspace(tmp_path / "a", **{"policies__p.md": DOC, "task.md": "t\n"})
     b = workspace(tmp_path / "b", **{"policies__p.md": DOC, "task.md": "t\n"})
     assert ablation.spec_fingerprint(a)[0] == ablation.spec_fingerprint(b)[0]
 
 
-def test_the_fingerprint_moves_when_a_section_is_cut(tmp_path):
+def test_the_fingerprint_moves_when_a_section_is_cut(tmp_path: Path) -> None:
     ws = workspace(tmp_path, **{"policies__p.md": DOC, "task.md": "t\n"})
     before, _ = ablation.spec_fingerprint(ws)
     ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "Cut me"}}])
     assert ablation.spec_fingerprint(ws)[0] != before
 
 
-def test_the_fingerprint_moves_when_a_file_is_dropped(tmp_path):
+def test_the_fingerprint_moves_when_a_file_is_dropped(tmp_path: Path) -> None:
     """Dropping changes no surviving file, so the path has to be inside the
     digest or the deletion is invisible to it."""
     ws = workspace(tmp_path, **{"policies__a.md": "a\n", "policies__b.md": "b\n"})
@@ -217,7 +221,7 @@ def test_the_fingerprint_moves_when_a_file_is_dropped(tmp_path):
     assert ablation.spec_fingerprint(ws)[0] != before
 
 
-def test_the_manifest_names_every_spec_file(tmp_path):
+def test_the_manifest_names_every_spec_file(tmp_path: Path) -> None:
     """It turns "these two runs disagree" into "...because MATCHING.md
     differs" without re-running either of them."""
     ws = workspace(tmp_path, **{"policies__a.md": "a\n", "task.md": "t\n"})
@@ -225,7 +229,7 @@ def test_the_manifest_names_every_spec_file(tmp_path):
     assert sorted(manifest) == ["policies/a.md", "task.md"]
 
 
-def test_the_input_lists_are_outside_the_fingerprint():
+def test_the_input_lists_are_outside_the_fingerprint() -> None:
     """input_mode is already its own recorded axis; folding the lists in here
     would make every csv-versus-geometry comparison read as two specs."""
     assert "lists" not in ablation.FINGERPRINTED
@@ -240,25 +244,27 @@ def config(tmp_path: Path, text: str) -> Path:
     return path
 
 
-def test_an_arm_without_a_why_is_rejected(tmp_path):
+def test_an_arm_without_a_why_is_rejected(tmp_path: Path) -> None:
     path = config(tmp_path, "baseline: full\narms:\n  full:\n    ops: []\n")
     with pytest.raises(ablation.AblationError, match="why"):
         ablation.load_arms(path)
 
 
-def test_an_arm_without_ops_is_rejected(tmp_path):
+def test_an_arm_without_ops_is_rejected(tmp_path: Path) -> None:
     path = config(tmp_path, "baseline: full\narms:\n  full:\n    why: x\n")
     with pytest.raises(ablation.AblationError, match="ops"):
         ablation.load_arms(path)
 
 
-def test_a_baseline_naming_no_arm_is_rejected(tmp_path):
+def test_a_baseline_naming_no_arm_is_rejected(tmp_path: Path) -> None:
     path = config(tmp_path, "baseline: nope\narms:\n  full:\n    why: x\n    ops: []\n")
     with pytest.raises(ablation.AblationError, match="baseline"):
         ablation.load_arms(path)
 
 
-def test_the_shipped_config_validates_against_the_real_policy_files(tmp_path):
+def test_the_shipped_config_validates_against_the_real_policy_files(
+    tmp_path: Path,
+) -> None:
     """The highest-value test here. Reword a heading in COOPS.md and this
     fails in CI, rather than four hours into a sweep whose arms all quietly
     scored like the baseline."""
@@ -274,7 +280,7 @@ def test_the_shipped_config_validates_against_the_real_policy_files(tmp_path):
         assert all(n > 0 for n in receipt.values()), f"arm {arm} removed 0 lines"
 
 
-def test_validation_reports_which_arm_failed(tmp_path):
+def test_validation_reports_which_arm_failed(tmp_path: Path) -> None:
     path = config(
         tmp_path,
         """

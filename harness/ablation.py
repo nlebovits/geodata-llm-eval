@@ -26,6 +26,7 @@ import hashlib
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 # What spec_fingerprint covers, relative to the assembled workspace. The input
 # lists are deliberately outside it: input_mode is already its own recorded
@@ -96,7 +97,7 @@ def _tidy(lines: list[str]) -> list[str]:
     return out
 
 
-def _drop(workspace: Path, spec, receipt: dict) -> None:
+def _drop(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
     """Delete a whole file from the workspace."""
     if not isinstance(spec, str):
         raise AblationError(f"drop takes a path, got {spec!r}")
@@ -108,7 +109,7 @@ def _drop(workspace: Path, spec, receipt: dict) -> None:
     receipt[spec] = n
 
 
-def _cut(workspace: Path, spec, receipt: dict) -> None:
+def _cut(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
     """Remove one markdown section: its heading and everything under it.
 
     A section runs to the next heading at the same level or shallower, so a
@@ -160,7 +161,7 @@ def _cut(workspace: Path, spec, receipt: dict) -> None:
 OPS = {"drop": _drop, "cut": _cut}
 
 
-def apply_arm(workspace: Path, ops: list) -> dict[str, int]:
+def apply_arm(workspace: Path, ops: list[Any]) -> dict[str, int]:
     """Shape an assembled workspace, returning {path: lines removed}.
 
     Runs after the workspace is copied, never instead of the copy, so there
@@ -210,7 +211,7 @@ def spec_fingerprint(workspace: Path) -> tuple[str, dict[str, str]]:
     return digest.hexdigest()[:12], dict(sorted(manifest.items()))
 
 
-def load_arms(path: Path) -> dict:
+def load_arms(path: Path) -> dict[str, Any]:
     """Read and structurally validate the ablation config.
 
     grade.py imports yaml inside the function and falls back to an empty
@@ -282,7 +283,7 @@ def stage_spec(repo_root: Path, dest: Path) -> None:
 
 
 def validate_arms(
-    config: dict, repo_root: Path, workdir: Path
+    config: dict[str, Any], repo_root: Path, workdir: Path
 ) -> dict[str, dict[str, int]]:
     """Dry-apply every arm against the real spec, returning each receipt.
 

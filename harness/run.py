@@ -35,12 +35,17 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import ablation
 from pricing import PRICES, imputed_cost_usd
+
+# A record from the session's stream-json transcript, or a content block
+# inside one. The CLI's schema varies by record type, so this stays open.
+Record = dict[str, Any]
 
 IMAGE = "geodata-llm-eval"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -192,7 +197,7 @@ def docker_command(
     ]
 
 
-def read_records(transcript_path: Path):
+def read_records(transcript_path: Path) -> Iterator[Record]:
     """Yield the parseable records of a transcript.
 
     Tolerates a truncated final line, so this works on a transcript the
@@ -224,7 +229,7 @@ USAGE_FIELDS = {
 }
 
 
-def parse_result_record(transcript_path: Path) -> dict:
+def parse_result_record(transcript_path: Path) -> dict[str, int]:
     """Pull token counts and turn count from the stream-json transcript.
 
     A `result` record carries the cumulative usage of one CLI invocation, and
@@ -288,7 +293,7 @@ def credential_rejected(transcript_path: Path) -> bool:
 TOOL_TIMEOUT_SECONDS = 120
 
 
-def tool_timings(transcript_path: Path) -> dict:
+def tool_timings(transcript_path: Path) -> dict[str, Any]:
     """Where a session spent its wall clock.
 
     The CLI emits heartbeat records carrying a running `elapsed_time_seconds`
@@ -322,7 +327,7 @@ def tool_timings(transcript_path: Path) -> dict:
     }
 
 
-def tool_subject(payload: dict) -> str:
+def tool_subject(payload: Record) -> str:
     """The interesting part of a tool call's input, as one line.
 
     Session scratch paths carry a session uuid and a task id, which is 90
@@ -411,7 +416,7 @@ def session_verdict(answered: int) -> str:
     return "done"
 
 
-def result_text(block: dict) -> str:
+def result_text(block: Record) -> str:
     """A tool result's text, whatever shape the record put it in."""
     content = block.get("content")
     if isinstance(content, list):
@@ -431,7 +436,7 @@ class Follower:
     the heartbeats through, is what makes the terminal readable.
     """
 
-    def __init__(self, clock=time.monotonic) -> None:
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         self.offset = 0
         self.clock = clock
         # A malformed record can arrive without an id; "?" keeps it out of
@@ -472,7 +477,7 @@ class Follower:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
 
-    def emit(self, record: dict) -> None:
+    def emit(self, record: Record) -> None:
         if record.get("type") == "tool_progress":
             self.emit_heartbeat(record)
             return
@@ -484,13 +489,13 @@ class Follower:
             elif block.get("type") == "tool_result":
                 self.emit_result(block)
 
-    def emit_call(self, block: dict) -> None:
+    def emit_call(self, block: Record) -> None:
         name = block.get("name", "?")
         self.pending[block.get("id") or "?"] = (name, self.clock())
         line = f"  {self.stamp()} {name[:9]:<9} {tool_subject(block.get('input', {}))}"
         print(line[:FOLLOW_WIDTH], flush=True)
 
-    def emit_result(self, block: dict) -> None:
+    def emit_result(self, block: Record) -> None:
         call_id = block.get("tool_use_id") or "?"
         _name, start = self.pending.pop(call_id, ("?", None))
         self.beat_shown.pop(call_id, None)
@@ -504,7 +509,7 @@ class Follower:
             line = f"  {self.stamp()} {'':<9}   ↳ {took}"
         print(line[:FOLLOW_WIDTH], flush=True)
 
-    def emit_heartbeat(self, record: dict) -> None:
+    def emit_heartbeat(self, record: Record) -> None:
         """One line a minute while a call runs, so a long wait shows a pulse
         instead of silence."""
         call_id = record.get("parent_tool_use_id") or record.get("tool_use_id") or "?"
@@ -529,7 +534,20 @@ def progress_snapshot(transcript_path: Path) -> tuple[int, str]:
     return turns, last_tool
 
 
-def stop_session(proc: subprocess.Popen, container: str) -> None:
+class Killable(Protocol):
+    """What stopping a session needs from the process running it.
+
+    Narrower than Popen so the tests can hand it a two-method stand-in
+    instead of impersonating a subprocess.
+    """
+
+    def poll(self) -> int | None: ...
+    def terminate(self) -> None: ...
+    def kill(self) -> None: ...
+    def wait(self, timeout: float | None = None) -> int: ...
+
+
+def stop_session(proc: Killable, container: str) -> None:
     """Make sure neither the client process nor the container outlives us."""
     if proc.poll() is None:
         proc.terminate()
@@ -564,6 +582,56 @@ def clear_pass_dir(out_dir: Path) -> None:
             path.unlink()
 
 
+def resolve_arm(arm: str, ablations: Path | None) -> dict[str, Any]:
+    """The ablation this run implements, resolved before any work happens.
+
+    A heading that no longer matches the document should cost a second, not a
+    container. The resolved operations are copied in, not referenced: a config
+    edited next week must not change what this run says it did.
+    """
+    if not arm:
+        return {"arm": FULL_SPEC, "why": "", "ops": []}
+    config = ablation.load_arms(ablations or ABLATIONS)
+    if arm not in config["arms"]:
+        raise ablation.AblationError(
+            f"unknown arm {arm!r}, expected one of {sorted(config['arms'])}"
+        )
+    chosen = config["arms"][arm]
+    return {"arm": arm, "why": str(chosen["why"]).strip(), "ops": chosen["ops"]}
+
+
+def assemble_workspace(workspace: Path, input_mode: str) -> None:
+    """Build the tree the session is pointed at.
+
+    The policy documents are the binding spec the agent implements. The golden
+    fixtures never enter the workspace.
+    """
+    shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
+    shutil.copy(
+        REPO_ROOT / "fixtures" / "questions.yaml",
+        workspace / "questions.yaml",
+    )
+    shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
+    lists_dir = workspace / "lists"
+    lists_dir.mkdir()
+    for src in list_files(input_mode):
+        shutil.copy(src, lists_dir / src.name)
+    (workspace / "answers").mkdir()
+
+
+def print_plan(
+    cmd: list[str], arm_spec: dict[str, Any], digest: str, manifest: dict[str, Any]
+) -> None:
+    """What --dry-run shows: the command, the spec it would mount, and what
+    the arm removed to get there."""
+    print(" ".join(cmd))
+    print(f"arm {arm_spec['arm']} -> spec {digest}")
+    for path in sorted(manifest):
+        print(f"  {path}")
+    for path, removed in sorted(arm_spec["receipt"].items()):
+        print(f"  removed {removed} lines from {path}")
+
+
 def run_session(
     model: str,
     dry_run: bool,
@@ -574,19 +642,7 @@ def run_session(
     arm: str = "",
     ablations: Path | None = None,
 ) -> None:
-    # Resolve the arm before any work: a heading that no longer matches the
-    # document should cost a second, not a container.
-    arm_spec: dict[str, Any] = {"arm": arm or FULL_SPEC, "why": "", "ops": []}
-    if arm:
-        config = ablation.load_arms(ablations or ABLATIONS)
-        if arm not in config["arms"]:
-            raise ablation.AblationError(
-                f"unknown arm {arm!r}, expected one of {sorted(config['arms'])}"
-            )
-        chosen = config["arms"][arm]
-        # The resolved operations are copied in, not referenced. A config
-        # edited next week must not change what this run says it did.
-        arm_spec = {"arm": arm, "why": str(chosen["why"]).strip(), "ops": chosen["ops"]}
+    arm_spec = resolve_arm(arm, ablations)
 
     model_id = PRICES[model].model_id
     started = datetime.now(UTC)
@@ -602,19 +658,7 @@ def run_session(
         session_home = Path(tmp) / "home"
         workspace.mkdir()
         session_home.mkdir()
-        shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
-        shutil.copy(
-            REPO_ROOT / "fixtures" / "questions.yaml",
-            workspace / "questions.yaml",
-        )
-        # The policy documents are the binding spec the agent implements; the
-        # golden fixtures never enter the workspace.
-        shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
-        lists_dir = workspace / "lists"
-        lists_dir.mkdir()
-        for src in list_files(input_mode):
-            shutil.copy(src, lists_dir / src.name)
-        (workspace / "answers").mkdir()
+        assemble_workspace(workspace, input_mode)
 
         # Shaping happens after assembly, never instead of it, so there stays
         # one place a workspace is built and the ablation is a mutation of it.
@@ -623,12 +667,7 @@ def run_session(
 
         cmd = docker_command(workspace, session_home, model_id, container)
         if dry_run:
-            print(" ".join(cmd))
-            print(f"arm {arm_spec['arm']} -> spec {spec_digest}")
-            for path in sorted(spec_manifest):
-                print(f"  {path}")
-            for path, removed in sorted(arm_spec["receipt"].items()):
-                print(f"  removed {removed} lines from {path}")
+            print_plan(cmd, arm_spec, spec_digest, spec_manifest)
             return
 
         clear_pass_dir(out_dir)
@@ -835,7 +874,7 @@ def run_id(started: datetime, commit: str) -> str:
     return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}"
 
 
-def source_coop_sample() -> dict:
+def source_coop_sample() -> dict[str, Any]:
     """How fast the catalogs are answering, right now.
 
     A session's wall clock is mostly waiting on source.coop, whose throughput

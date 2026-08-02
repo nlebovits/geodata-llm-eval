@@ -35,6 +35,7 @@ import sys
 import tempfile
 import traceback
 from pathlib import Path
+from typing import Any
 
 import ablation
 import run as runner
@@ -42,6 +43,12 @@ from grade import load_questions, stage_summary
 from layout import group_by_arm, is_scored, read_meta, regraded, run_dirs
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# One arm's aggregated result: its name, the spec digest it saw, and the
+# grades of every run in it.
+ArmRow = dict[str, Any]
+# A run excluded from an arm, with the reason.
+Excluded = tuple[Path, str]
+
 RESULTS = REPO_ROOT / "results"
 QUESTIONS = REPO_ROOT / "fixtures" / "questions.yaml"
 REPORT = RESULTS / "ablations.md"
@@ -51,7 +58,7 @@ REPORT = RESULTS / "ablations.md"
 
 
 def plan(
-    config: dict, arms: list[str], passes: int, order: str
+    config: dict[str, Any], arms: list[str], passes: int, order: str
 ) -> list[tuple[int, str]]:
     """The (pass, arm) sequence a sweep will execute, in order."""
     names = arms or list(config["arms"])
@@ -61,7 +68,11 @@ def plan(
 
 
 def describe(
-    config: dict, receipts: dict, arms: list[str], passes: int, model: str
+    config: dict[str, Any],
+    receipts: dict[str, Any],
+    arms: list[str],
+    passes: int,
+    model: str,
 ) -> list[str]:
     """The pre-flight summary: what each arm removes, and what it will cost."""
     names = arms or list(config["arms"])
@@ -84,7 +95,12 @@ def describe(
 
 
 def sweep(
-    model: str, config: dict, arms: list[str], passes: int, order: str, **session_kwargs
+    model: str,
+    config: dict[str, Any],
+    arms: list[str],
+    passes: int,
+    order: str,
+    **session_kwargs: Any,
 ) -> dict[str, int]:
     """Run every (pass, arm) in order, surviving a session that fails.
 
@@ -108,9 +124,12 @@ def sweep(
 # --- reporting ---------------------------------------------------------------
 
 
-def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list]:
+def arm_rows(
+    results_dir: Path, model: str, questions: list[dict[str, Any]]
+) -> tuple[list[ArmRow], list[Excluded]]:
     """One row per (arm, spec), plus the runs excluded and why."""
-    rows, excluded = [], []
+    rows: list[ArmRow] = []
+    excluded: list[Excluded] = []
     groups = group_by_arm(run_dirs(results_dir, model))
     # Runs predating the ablation harness carry no fingerprint, so a results
     # directory holding both sorts a str against None unless the key says
@@ -156,11 +175,11 @@ def arm_rows(results_dir: Path, model: str, questions: list) -> tuple[list, list
     return rows, excluded
 
 
-def _pct(x) -> str:
+def _pct(x: float | None) -> str:
     return "  -  " if x is None else f"{x * 100:4.0f}%"
 
 
-def arm_table(rows: list) -> list[str]:
+def arm_table(rows: list[ArmRow]) -> list[str]:
     """The headline table: accuracy and per-stage scores, one row per arm."""
     stages = sorted({s for r in rows for st in r["stages"] for s in st})
     head = (
@@ -190,7 +209,9 @@ def arm_table(rows: list) -> list[str]:
     return out
 
 
-def question_table(rows: list, baseline: str, questions: list) -> list[str]:
+def question_table(
+    rows: list[ArmRow], baseline: str, questions: list[dict[str, Any]]
+) -> list[str]:
     """Per-question pass rate, which is where a bimodal result actually shows.
 
     Scores are bimodal because the questions are staged: one early error
@@ -204,52 +225,80 @@ def question_table(rows: list, baseline: str, questions: list) -> list[str]:
     # real tree they span several -- three runs there covered two task briefs
     # and two tie-break rules. Comparing an arm against that average measures
     # the repository's history rather than the withheld text.
-    candidates = [r for r in rows if r["arm"] == baseline]
-    base = next((r for r in candidates if r["spec"] != "-"), None) or next(
-        iter(candidates), None
-    )
+    base = _baseline_row(rows, baseline)
     if base is None:
         return ["", f"(no runs for the baseline arm {baseline!r}, so no deltas)"]
 
     stage_of = {f"q{q['id']}": q.get("stage", "") for q in questions}
     qids = sorted({q for r in rows for g in r["grades"] for q in g})
-
-    def rate(row, qid):
-        seen = [g for g in row["grades"] if qid in g]
-        if not seen:
-            return None
-        return sum(1 for g in seen if g[qid] == "correct") / len(seen)
-
     others = [r for r in rows if r is not base]
+
     head = f"{'Q':<5}{'st':>3}  {baseline + ' ' + base['spec']:>12}"
     for r in others:
         head += f"  {r['arm'] + ' ' + r['spec']:>19}{'d':>6}"
+
     out, hidden = [head, "-" * len(head)], 0
     for qid in qids:
-        b = rate(base, qid)
-        cells, moved = [], False
-        for r in others:
-            v = rate(r, qid)
-            if v is None or b is None:
-                cells.append(f"  {'-':>19}{'-':>6}")
-                continue
-            delta = (v - b) * 100
-            moved = moved or abs(delta) >= 1
-            cells.append(f"  {v * 100:18.0f}%{delta:>6.0f}")
-        if not moved:
+        line = _question_line(qid, stage_of.get(qid, ""), base, others)
+        if line is None:
             hidden += 1
             continue
-        out.append(
-            f"{qid:<5}{stage_of.get(qid, ''):>3}  "
-            f"{'-' if b is None else format(b * 100, '11.0f') + '%':>12}"
-            + "".join(cells)
-        )
+        out.append(line)
     if hidden:
         out.append(f"({hidden} questions scored the same in every arm, hidden)")
     return out
 
 
-def report(results_dir: Path, questions_path: Path, config: dict | None) -> list[str]:
+def _baseline_row(rows: list[ArmRow], baseline: str) -> ArmRow | None:
+    """The baseline arm's row, preferring one that can name its spec.
+
+    Runs predating the harness group under the same name but cannot say what
+    spec they saw, and in a real tree they span several.
+    """
+    candidates = [r for r in rows if r["arm"] == baseline]
+    return next((r for r in candidates if r["spec"] != "-"), None) or next(
+        iter(candidates), None
+    )
+
+
+def _pass_rate(row: ArmRow, qid: str) -> float | None:
+    """Share of this arm's runs that got the question right, or None if no
+    run in the arm attempted it."""
+    seen = [g for g in row["grades"] if qid in g]
+    if not seen:
+        return None
+    return sum(1 for g in seen if g[qid] == "correct") / len(seen)
+
+
+def _question_line(
+    qid: str, stage: object, base: ArmRow, others: list[ArmRow]
+) -> str | None:
+    """One question's row, or None when every arm scored it the same.
+
+    A question nobody moved on carries no result, and thirty such lines bury
+    the few that do.
+    """
+    b = _pass_rate(base, qid)
+    cells, moved = [], False
+    for r in others:
+        v = _pass_rate(r, qid)
+        if v is None or b is None:
+            cells.append(f"  {'-':>19}{'-':>6}")
+            continue
+        delta = (v - b) * 100
+        moved = moved or abs(delta) >= 1
+        cells.append(f"  {v * 100:18.0f}%{delta:>6.0f}")
+    if not moved:
+        return None
+    return (
+        f"{qid:<5}{stage:>3}  "
+        f"{'-' if b is None else format(b * 100, '11.0f') + '%':>12}" + "".join(cells)
+    )
+
+
+def report(
+    results_dir: Path, questions_path: Path, config: dict[str, Any] | None
+) -> list[str]:
     questions = load_questions(questions_path)
     baseline = (config or {}).get("baseline", "full")
     out: list[str] = []

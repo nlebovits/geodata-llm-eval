@@ -4,9 +4,11 @@ No network, no real model runs."""
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
+import pytest
 import report
 
 QUESTIONS = [
@@ -16,7 +18,14 @@ QUESTIONS = [
 ]
 
 
-def _session(tmp, model, pass_n, grades, cost, runtime=None):
+def _session(
+    tmp: Path,
+    model: str,
+    pass_n: int,
+    grades: dict[str, str],
+    cost: float,
+    runtime: dict[str, Any] | None = None,
+) -> None:
     run_id = f"2026072{pass_n}T120000Z-abc1234"
     d = tmp / model / run_id
     (d / "answers").mkdir(parents=True)
@@ -33,7 +42,7 @@ def _session(tmp, model, pass_n, grades, cost, runtime=None):
     (d / "meta.json").write_text(json.dumps(meta))
 
 
-def test_stage_grid_and_consistency_render(tmp_path):
+def test_stage_grid_and_consistency_render(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _session(
         results, "sonnet", 1, {"q01": "correct", "q02": "correct", "q03": "wrong"}, 0.5
@@ -69,7 +78,7 @@ def test_stage_grid_and_consistency_render(tmp_path):
     assert "0.400" in text
 
 
-def test_runtime_breakdown_is_reported_next_to_accuracy(tmp_path):
+def test_runtime_breakdown_is_reported_next_to_accuracy(tmp_path: Path) -> None:
     """A run that spent 73% of its wall clock waiting on source.coop scores
     worse for reasons that are not the model's; the report has to say so."""
     results = tmp_path / "results"
@@ -104,7 +113,7 @@ def test_runtime_breakdown_is_reported_next_to_accuracy(tmp_path):
     assert row.endswith("1858.2,1350.0,4")
 
 
-def test_report_without_consistency_file_still_renders(tmp_path):
+def test_report_without_consistency_file_still_renders(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _session(
         results, "haiku", 1, {"q01": "correct", "q02": "correct", "q03": "correct"}, 0.1
@@ -117,7 +126,7 @@ def test_report_without_consistency_file_still_renders(tmp_path):
     assert "Cross-run consistency" not in text  # no consistency.json present
 
 
-def test_a_run_that_wrote_nothing_stays_out_of_the_averages(tmp_path):
+def test_a_run_that_wrote_nothing_stays_out_of_the_averages(tmp_path: Path) -> None:
     """A session that ended without attempting the questions is not thirty
     wrong answers. Scoring it as one blamed the model for a run that never
     happened and dragged every average it appeared in."""
@@ -137,7 +146,7 @@ def test_a_run_that_wrote_nothing_stays_out_of_the_averages(tmp_path):
     assert sessions[0]["run_id"].startswith("20260721T")
 
 
-def test_sessions_carry_their_run_id_and_label(tmp_path):
+def test_sessions_carry_their_run_id_and_label(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _session(results, "opus", 1, {"q01": "correct"}, 1.0)
     (sess,) = report.load_sessions(results)
@@ -145,7 +154,9 @@ def test_sessions_carry_their_run_id_and_label(tmp_path):
     assert sess["label"] == ""
 
 
-def test_main_writes_every_artifact(tmp_path, monkeypatch, capsys):
+def test_main_writes_every_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """One command produces the three files the write-up is built from."""
     results = tmp_path / "results"
     _session(results, "sonnet", 1, {"q01": "correct"}, 1.5)
@@ -165,7 +176,9 @@ def test_main_writes_every_artifact(tmp_path, monkeypatch, capsys):
     assert "wrote summary.csv" in capsys.readouterr().out
 
 
-def test_main_refuses_an_ungraded_tree(tmp_path, monkeypatch, capsys):
+def test_main_refuses_an_ungraded_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Reporting on nothing would print an empty table rather than say the
     grader has not run."""
     monkeypatch.setattr(

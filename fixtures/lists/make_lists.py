@@ -57,10 +57,14 @@ DONORS = {
 # than on being on the wrong continent.
 UNRESOLVABLE_POINT = "POINT (-35 -10)"
 
+# A parcel from the CAR extract and a row of the shipped list are both
+# string-valued throughout: ids, names, and WKT.
+Row = dict[str, str]
+
 CSV_COLUMNS = ["cod_imovel", "municipio", "cod_estado", "geometry"]
 
 
-def load_parcels(work: Path) -> list[dict]:
+def load_parcels(work: Path) -> list[Row]:
     """Read the cached CAR extract, ordered so the output never moves.
 
     oracle/render.py writes this parquet on its first run and reuses it after;
@@ -108,7 +112,7 @@ def load_parcels(work: Path) -> list[dict]:
     return parcels
 
 
-def build_rows(parcels: list[dict]) -> list[dict]:
+def build_rows(parcels: list[Row]) -> list[Row]:
     """Assemble the list: 117 parcels, three of them damaged, two rows added.
 
     Each row carries `cod_imovel` and `geometry` as the *encodings* see them —
@@ -207,7 +211,7 @@ def build_rows(parcels: list[dict]) -> list[dict]:
     return rows
 
 
-def write_csv(rows: list[dict], path: Path) -> None:
+def write_csv(rows: list[Row], path: Path) -> None:
     """The `csv` encoding: ids, plus WKT on the rows that arrived without one."""
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS, lineterminator="\n")
@@ -216,7 +220,7 @@ def write_csv(rows: list[dict], path: Path) -> None:
             writer.writerow({c: row[c] for c in CSV_COLUMNS})
 
 
-def write_parquets(rows: list[dict], geometry_path: Path, split_path: Path) -> None:
+def write_parquets(rows: list[Row], geometry_path: Path, split_path: Path) -> None:
     """The `geometry` and `split` encodings.
 
     `geometry` is every row as a geometry: the clean rows carry their parcel
@@ -263,7 +267,7 @@ def write_parquets(rows: list[dict], geometry_path: Path, split_path: Path) -> N
     con.close()
 
 
-def generate(work: Path, out_dir: Path) -> list[dict]:
+def generate(work: Path, out_dir: Path) -> list[Row]:
     rows = build_rows(load_parcels(work))
     write_csv(rows, out_dir / "goias-sample.csv")
     write_parquets(
