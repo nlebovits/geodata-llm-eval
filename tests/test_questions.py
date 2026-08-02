@@ -7,6 +7,7 @@ and a prompt that does not leak the EUDR scope answer.
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,10 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 QUESTIONS = REPO / "fixtures" / "questions.yaml"
+sys.path.insert(0, str(REPO / "harness"))
+
+import ablation
+import specdoc
 
 
 def load() -> dict[str, Any]:
@@ -54,14 +59,32 @@ def test_no_question_mentions_the_banned_column() -> None:
         assert "hansen_covered_area" not in blob, q["id"]
 
 
-def test_prompt_does_not_leak_the_eudr_scope_answer() -> None:
-    """The scope mapping lives in policies/EUDR_CROPS.md, which the agent must
-    read and apply. The prompt and question text must not hand over the answer
-    by naming the in-scope commodity list inline."""
-    text = (REPO / "prompts" / "task.md").read_text(encoding="utf-8").lower()
-    text += QUESTIONS.read_text(encoding="utf-8").lower()
-    for leak in ("cattle, cocoa, coffee", "soya and wood", "annex i lists"):
+def test_ablated_spec_does_not_leak_the_eudr_scope_answer(tmp_path: Path) -> None:
+    """The scope mapping lives in SPEC.md section 7, which the no-crops arm
+    withholds. Once that section is cut, nothing left in the rendered view —
+    the task, the other rules, the question definitions — may hand the answer
+    back by naming the in-scope commodity list inline."""
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "SPEC.md").write_text(specdoc.render(REPO), encoding="utf-8")
+    cfg = ablation.load_arms(REPO / "fixtures" / "ablations.yaml")
+    ablation.apply_arm(ws, cfg["arms"]["no-crops"]["ops"])
+    text = (ws / "SPEC.md").read_text(encoding="utf-8").lower()
+    for leak in (
+        "cattle, cocoa, coffee",
+        "soya and wood",
+        "annex i lists",
+        "annex i covers",
+    ):
         assert leak not in text, f"scope answer leaked: {leak!r}"
+
+
+def test_the_full_spec_does_contain_the_scope_table() -> None:
+    """The inverse guard: if the scope table ever moves out of the section
+    the no-crops arm cuts, the leak test above passes vacuously. Pin the
+    table's presence in the full view so the pair of tests stays meaningful."""
+    text = specdoc.render(REPO)
+    assert "Forest Plantation" in text and "assumed_pasture" in text
 
 
 def test_geometry_questions_are_marked() -> None:
@@ -100,7 +123,7 @@ def test_prompt_names_the_files_the_oracle_reads() -> None:
     pins = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))[
         "catalogs"
     ]
-    prompt = (REPO / "prompts" / "task.md").read_text(encoding="utf-8")
+    prompt = specdoc.render(REPO)
 
     reads = [
         pins["trazo"]["goias_parquet"],
@@ -110,6 +133,6 @@ def test_prompt_names_the_files_the_oracle_reads() -> None:
     for url in reads:
         name = url.rsplit("/", 1)[-1]
         assert name in prompt, (
-            f"prompts/task.md must name {name}; the agent cannot reach it "
+            f"SPEC.md must name {name}; the agent cannot reach it "
             f"from catalog metadata alone"
         )
