@@ -1,5 +1,5 @@
-"""Session assembly: the workspace gets the policies and the input list, and
-never the golden fixtures. Does not require Docker."""
+"""Session assembly: the workspace gets the rendered spec view and the input
+list, and never the golden fixtures. Does not require Docker."""
 
 import json
 import os
@@ -57,12 +57,17 @@ def test_run_py_never_copies_the_golden_fixtures():
             assert "golden" not in line.lower(), line.strip()
 
 
-def test_the_ablation_config_is_not_inside_the_policies_directory():
-    """policies/ is copied into the workspace wholesale. A config living there
-    would hand the session an itemised list of what was withheld from it,
-    which is the one thing an ablation must not reveal."""
+def test_the_ablation_config_never_reaches_the_workspace():
+    """The workspace receives only the rendered SPEC.md and the input list. A
+    session that could read the ablation config would be handed an itemised
+    list of what was withheld from it, which is the one thing an ablation must
+    not reveal. Structural check: no assembly line copies or writes the
+    config, and it lives outside anything that is mounted."""
     assert run.ABLATIONS.exists(), "the shipped ablation config must be committed"
-    assert (REPO_ROOT / "policies") not in run.ABLATIONS.parents
+    source = (HARNESS / "run.py").read_text(encoding="utf-8")
+    for line in source.splitlines():
+        if "shutil.copy" in line or "copytree" in line or "write_text" in line:
+            assert "ablation" not in line.lower(), line.strip()
 
 
 def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
@@ -78,9 +83,9 @@ def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
     out = capsys.readouterr().out
 
     assert "arm no-coops" in out
-    assert "policies/COOPS.md" not in out.split("removed")[0], "COOPS.md must be gone"
-    assert "policies/MATCHING.md" in out, "the other policies must survive"
-    assert "removed 150 lines from policies/COOPS.md" in out
+    assert "removed" in out and "SPEC.md" in out
+    lines = [ln for ln in out.splitlines() if "removed" in ln]
+    assert lines and all("SPEC.md" in ln for ln in lines)
 
 
 def test_an_unknown_arm_fails_before_a_container_starts(monkeypatch, tmp_path):
@@ -109,7 +114,7 @@ def test_a_plain_run_records_the_full_spec_and_reads_no_config(monkeypatch,
     out = capsys.readouterr().out
 
     assert f"arm {run.FULL_SPEC}" in out
-    assert "policies/COOPS.md" in out and "removed" not in out
+    assert "SPEC.md" in out and "removed" not in out
 
 
 def fake_credentials(tmp_path, monkeypatch):
@@ -612,7 +617,8 @@ def test_the_prompt_rules_out_backgrounding_the_work():
     """One session parked an 8.4M-row join in a background task and ended its
     turn to wait for it; the container exited and killed the task. The prompt
     keeps the model in the foreground, in whatever words it uses to say so."""
-    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    import specdoc
+    task = specdoc.render(REPO_ROOT).lower()
     assert "foreground" in task
     assert "background" in task
 
@@ -700,8 +706,8 @@ def test_the_session_id_is_the_last_one_the_transcript_carries(tmp_path):
 def fake_repo(tmp_path, monkeypatch):
     """A repo root a session can be assembled from, outside the real one."""
     root = tmp_path / "repo"
-    for name in ("prompts", "policies", "fixtures"):
-        shutil.copytree(REPO_ROOT / name, root / name)
+    shutil.copytree(REPO_ROOT / "fixtures", root / "fixtures")
+    shutil.copy(REPO_ROOT / "SPEC.md", root / "SPEC.md")
     monkeypatch.setattr(run, "REPO_ROOT", root)
     return root
 

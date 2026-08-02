@@ -4,8 +4,8 @@ Each session is one `docker run` of the pinned image: a fresh container,
 a fresh workspace, no state shared with any other session or with the
 host. The model works through the full question set once per session.
 
-The container workspace receives only prompts/task.md and
-fixtures/questions.yaml — never the golden answers.
+The container workspace receives only the rendered agent view of SPEC.md
+and the input list — never the golden answers.
 
 A session that ends its turn with questions still unanswered is resumed
 into the same session id, with a prompt naming what is missing, up to
@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ablation
+import specdoc
 from pricing import PRICES, imputed_cost_usd
 
 IMAGE = "geodata-llm-eval"
@@ -66,7 +67,7 @@ POLL_SECONDS = 2
 # that stops for a reason other than waiting will stop again.
 MAX_ATTEMPTS = 3
 
-INITIAL_PROMPT = "Read task.md and complete it."
+INITIAL_PROMPT = "Read SPEC.md and complete it."
 
 # --follow truncates each tool call to one line of this width. A session
 # writes multi-line heredocs of SQL; the point of following is to see what it
@@ -81,7 +82,7 @@ TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
 PROBE_BYTES = 1_048_576
 PROBE_TIMEOUT = 30
 
-# The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
+# The input list, by encoding (see SPEC.md §4). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
 INPUT_FILES = {
     "csv": ["goias-sample.csv"],
@@ -343,7 +344,7 @@ def question_count() -> int:
 
 
 def answer_name(question_id: str) -> str:
-    """The answer file a question is written to, as task.md names it."""
+    """The answer file a question is written to, as SPEC.md names it."""
     return f"q{question_id}"
 
 
@@ -374,7 +375,7 @@ def resume_prompt(missing: list[str]) -> str:
         "when your turn ended, and its output is gone. Redo that work in the "
         "foreground, waiting for each query to return before you move on, "
         "and write each answer to answers/<question-id>.csv as soon as you "
-        "have it. Re-read task.md if you need the output contracts."
+        "have it. Re-read SPEC.md if you need the output contracts."
     )
 
 
@@ -567,14 +568,11 @@ def run_session(model: str, dry_run: bool, input_mode: str = "csv",
         session_home = Path(tmp) / "home"
         workspace.mkdir()
         session_home.mkdir()
-        shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
-        shutil.copy(
-            REPO_ROOT / "fixtures" / "questions.yaml",
-            workspace / "questions.yaml",
-        )
-        # The policy documents are the binding spec the agent implements; the
-        # golden fixtures never enter the workspace.
-        shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
+        # The rendered spec is the binding document the agent implements; the
+        # golden fixtures never enter the workspace, and neither do SPEC.md's
+        # provenance notes, grader equivalences, or open-questions list.
+        (workspace / "SPEC.md").write_text(
+            specdoc.render(REPO_ROOT), encoding="utf-8")
         lists_dir = workspace / "lists"
         lists_dir.mkdir()
         for src in list_files(input_mode):
@@ -831,7 +829,7 @@ def main() -> int:
     ap.add_argument("--follow", action="store_true",
                     help="print each tool call as the session makes it")
     ap.add_argument("--input-mode", choices=sorted(INPUT_FILES), default="csv",
-                    help="encoding of the input list; see policies/INPUTS.md")
+                    help="encoding of the input list; see SPEC.md §4")
     ap.add_argument("--max-attempts", type=int, default=MAX_ATTEMPTS,
                     help="how many times a session that stops with questions "
                          "unanswered is resumed (1 disables resuming)")

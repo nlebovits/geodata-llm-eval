@@ -194,27 +194,28 @@ def test_two_identical_workspaces_fingerprint_the_same(tmp_path):
 
 
 def test_the_fingerprint_moves_when_a_section_is_cut(tmp_path):
-    ws = workspace(tmp_path, **{"policies__p.md": DOC, "task.md": "t\n"})
+    ws = workspace(tmp_path, **{"SPEC.md": DOC})
     before, _ = ablation.spec_fingerprint(ws)
-    ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "Cut me"}}])
+    ablation.apply_arm(ws, [{"cut": {"file": "SPEC.md", "heading": "Cut me"}}])
     assert ablation.spec_fingerprint(ws)[0] != before
 
 
-def test_the_fingerprint_moves_when_a_file_is_dropped(tmp_path):
-    """Dropping changes no surviving file, so the path has to be inside the
-    digest or the deletion is invisible to it."""
-    ws = workspace(tmp_path, **{"policies__a.md": "a\n", "policies__b.md": "b\n"})
+def test_the_fingerprint_ignores_files_outside_the_spec(tmp_path):
+    """The input list is deliberately outside the digest: input_mode is its
+    own recorded axis, and folding it in would make every csv-versus-geometry
+    comparison read as two different specs."""
+    ws = workspace(tmp_path, **{"SPEC.md": DOC, "notes.txt": "a\n"})
     before, _ = ablation.spec_fingerprint(ws)
-    ablation.apply_arm(ws, [{"drop": "policies/a.md"}])
-    assert ablation.spec_fingerprint(ws)[0] != before
+    (ws / "notes.txt").write_text("b\n", encoding="utf-8")
+    assert ablation.spec_fingerprint(ws)[0] == before
 
 
 def test_the_manifest_names_every_spec_file(tmp_path):
-    """It turns "these two runs disagree" into "...because MATCHING.md
-    differs" without re-running either of them."""
-    ws = workspace(tmp_path, **{"policies__a.md": "a\n", "task.md": "t\n"})
+    """It turns "these two runs disagree" into "...because the spec differs"
+    without re-running either of them."""
+    ws = workspace(tmp_path, **{"SPEC.md": "# s\n", "notes.txt": "x\n"})
     _digest, manifest = ablation.spec_fingerprint(ws)
-    assert sorted(manifest) == ["policies/a.md", "task.md"]
+    assert sorted(manifest) == ["SPEC.md"]
 
 
 def test_the_input_lists_are_outside_the_fingerprint():
@@ -250,8 +251,8 @@ def test_a_baseline_naming_no_arm_is_rejected(tmp_path):
         ablation.load_arms(path)
 
 
-def test_the_shipped_config_validates_against_the_real_policy_files(tmp_path):
-    """The highest-value test here. Reword a heading in COOPS.md and this
+def test_the_shipped_config_validates_against_the_real_spec(tmp_path):
+    """The highest-value test here. Reword a heading in SPEC.md and this
     fails in CI, rather than four hours into a sweep whose arms all quietly
     scored like the baseline."""
     cfg = ablation.load_arms(REPO_ROOT / "fixtures" / "ablations.yaml")
@@ -276,7 +277,7 @@ arms:
   broken:
     why: names a heading that is not there
     ops:
-      - cut: {file: policies/COOPS.md, heading: No Such Heading}
+      - cut: {file: SPEC.md, heading: No Such Heading}
 """)
     cfg = ablation.load_arms(path)
     with pytest.raises(ablation.AblationError, match="broken"):
