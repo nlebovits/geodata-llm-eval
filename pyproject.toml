@@ -1,0 +1,126 @@
+[project]
+name = "geodata-llm-eval"
+version = "0.1.0"
+description = "Benchmark: LLM geospatial workflows against a Portolan catalog, accuracy vs imputed cost"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.1",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit[toml]>=1.8",
+    "deptry>=0.20",
+    "diff-cover>=9.2",
+    "import-linter>=2.1",
+    "mypy>=1.13",
+    "pip-audit>=2.7",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",
+    "ruff>=0.6",
+    "types-pyyaml>=6.0",
+    "vulture>=2.13",
+    "xenon>=0.9",
+]
+
+# Nothing to build or install. The harness is a set of scripts run in
+# place, and the tests reach them by appending harness/ to sys.path.
+[tool.uv]
+package = false
+
+[tool.ruff]
+# Rule set is ruff's default, matching the ops template. Widening it is
+# a separate change: every extra family here rewrites working code, and
+# that diff does not belong in the commit that sets up CI.
+line-length = 88
+extend-exclude = ["results", "fixtures/golden"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+
+[tool.coverage.run]
+branch = true
+source = ["harness", "oracle", "fixtures/lists"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.mypy]
+python_version = "3.12"
+# Source only. The suite leans on test doubles that stand in for Popen and
+# DuckDBPyConnection, and annotating those into agreement would buy nothing
+# a passing test does not already prove.
+files = ["harness", "oracle", "scripts", "fixtures/lists"]
+# The harness modules are imported bare off sys.path rather than as a
+# package, so mypy sees eleven top-level modules in one directory.
+explicit_package_bases = true
+mypy_path = "harness:oracle:fixtures/lists"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# duckdb ships no stubs and matplotlib's are partial.
+module = ["duckdb.*", "matplotlib.*"]
+ignore_missing_imports = true
+
+[tool.vulture]
+paths = ["harness", "oracle", "scripts", "fixtures/lists"]
+# Below 80, argparse handlers and dataclass fields read as dead.
+min_confidence = 80
+
+[tool.bandit]
+exclude_dirs = ["results", "tests"]
+# Driving other programs is what the harness is for: it runs docker, git,
+# and the Claude CLI, always as an argument list and never through a
+# shell. Flagging every such call would bury the findings that matter, so
+# these three are off here rather than annotated at forty call sites.
+# Anything narrower — B310, B608 — stays on and is annotated in place.
+skips = [
+    "B404",  # import subprocess
+    "B603",  # subprocess call without shell=True (the safe form)
+    "B607",  # partial executable path (docker, git — resolved via PATH)
+]
+
+[tool.deptry]
+# Harness modules import each other by bare name off sys.path, so they
+# read as third-party packages without this.
+known_first_party = [
+    "ablation",
+    "consistency",
+    "grade",
+    "layout",
+    "make_lists",
+    "pricing",
+    "probe",
+    "render",
+    "report",
+    "run",
+    "sweep",
+]
+extend_exclude = ["results", "fixtures/golden"]
+
+[tool.codespell]
+skip = "./results,./fixtures/golden,./uv.lock,./.git"
+# unparseable is a grade status written into grades.json, so codespell's
+# preferred spelling would change recorded data. regraded is what this
+# harness does to a committed transcript.
+ignore-words-list = "unparseable,regraded"
+
+[tool.commitizen]
+name = "cz_customize"
+
+[tool.commitizen.customize]
+# Conventional Commits plus `results`, which this history already uses
+# for commits that add or archive benchmark runs and touch no code.
+schema_pattern = "^(build|chore|ci|docs|feat|fix|perf|refactor|results|revert|style|test)(\\(\\S+\\))?!?: .+"
