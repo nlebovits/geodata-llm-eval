@@ -18,6 +18,16 @@
 -- geometries that need resolving. cad_extract reads the resulting
 -- CAR_STATE_PARQUET locally instead of going back to source.coop.
 --
+-- What that scan can skip, as of the 2026-08-02 republication: the file now
+-- carries a bbox covering column, so a predicate expressed against bbox prunes
+-- row groups before any geometry is decoded. The predicates below are not
+-- expressed that way and do not prune. cod_estado, cod_imovel and every other
+-- string column ship with no min/max statistics, so the state pre-filter reads
+-- all 212 row groups and discards rows afterwards; it cuts what the later
+-- spatial work touches, not what comes over the wire. Turning this into a
+-- pruned read is issue #10, and doing it here would make the golden diff for
+-- the repin unattributable.
+--
 -- Scope note: the state pre-filter derives the UFs from the ids on the list, so
 -- an id-less geometry is resolved against the states the list's ids name rather
 -- than against all of Brazil. For this list every id is GO and every resolvable
@@ -87,26 +97,24 @@ WHERE dup_rank = 1 AND raw_id IS NULL AND geom IS NOT NULL;
 CREATE OR REPLACE TABLE resolve_envelope AS
 SELECT ST_Union_Agg(geom) AS geom FROM to_resolve;
 
+-- No CRS relabel. The file this reads declared EPSG:4674 (SIRGAS 2000) until
+-- 2026-08-02 and was relabelled here with ST_SetCRS so DuckDB's CRS-strict
+-- spatial functions would accept CAR against the EPSG:4326 Trazo fields. The
+-- republished file is reprojected to EPSG:4326 on disk, DuckDB reads the
+-- geometry column as GEOMETRY('EPSG:4326'), and the relabel is now a no-op
+-- that claims a conversion nobody performs. The two datums differ by well
+-- under a metre in Brazil: regenerating the goldens against the reprojected
+-- file changed q03's national counts, by the two parcels the publisher
+-- quarantined, and left every other answer byte-identical.
 CREATE OR REPLACE TABLE car_state AS
 SELECT cod_imovel, municipio, cod_estado, num_area, mod_fiscal,
-       ind_status, ind_tipo, des_condic, dat_criaca, dat_atuali,
-       -- CAR is EPSG:4674 (SIRGAS 2000), Trazo fields are EPSG:4326 (WGS84).
-       -- The two datums differ <1 m in Brazil, immaterial for the containment
-       -- ratios and envelope clips downstream, so relabel with ST_SetCRS (a
-       -- metadata-only override, no coordinate transform) rather than
-       -- reproject. This also lets DuckDB's CRS-strict spatial functions
-       -- accept CAR ∩ Trazo directly.
-       ST_SetCRS(geometry, 'EPSG:4326') AS geometry
+       ind_status, ind_tipo, des_condic, dat_criaca, dat_atuali, geometry
 FROM read_parquet('${CAR_URL}')
 WHERE cod_estado IN (
         SELECT DISTINCT split_part(raw_id, '-', 1)
         FROM list_raw WHERE raw_id IS NOT NULL)
-  -- CAR declares EPSG:4674 on disk, so the relabel has to happen inside the
-  -- predicate as well as in the projection above; DuckDB's spatial functions
-  -- refuse a mixed-CRS comparison rather than silently picking one.
   AND (cod_imovel IN (SELECT raw_id FROM list_raw WHERE raw_id IS NOT NULL)
-       OR ST_Intersects(ST_SetCRS(geometry, 'EPSG:4326'),
-                        (SELECT geom FROM resolve_envelope)));
+       OR ST_Intersects(geometry, (SELECT geom FROM resolve_envelope)));
 
 COPY car_state TO '${CAR_STATE_PARQUET}' (FORMAT PARQUET);
 

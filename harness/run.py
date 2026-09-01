@@ -42,6 +42,7 @@ from typing import Any, Protocol
 
 import ablation
 from pricing import PRICES, imputed_cost_usd
+from probe import USER_AGENT
 
 # A record from the session's stream-json transcript, or a content block
 # inside one. The CLI's schema varies by record type, so this stays open.
@@ -887,7 +888,13 @@ def source_coop_sample() -> dict[str, Any]:
         (REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8")
     )["catalogs"]["cadastral"]["car_parquet"]
     request = urllib.request.Request(
-        url, headers={"Range": f"bytes=0-{PROBE_BYTES - 1}"}
+        url,
+        headers={
+            "Range": f"bytes=0-{PROBE_BYTES - 1}",
+            # Without an agent of our own the edge answers 403 and every
+            # sample records the catalogs as down. See probe.USER_AGENT.
+            "User-Agent": USER_AGENT,
+        },
     )
     started = time.monotonic()
     try:

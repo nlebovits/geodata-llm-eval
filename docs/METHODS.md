@@ -17,7 +17,7 @@ Sessions run as a non-root user with an empty HOME so no host `CLAUDE.md`, hook,
 | Layer | Source | Version |
 |---|---|---|
 | Field boundaries | `wri-data-lab/trazofields`, Trazo3 Goiás 2024 | collection `trazo3-fields` |
-| Cadastral parcels | `tristangruppwri/cadastral`, Brazil CAR, 8.45M rows | snapshot 2026-07-16 |
+| Cadastral parcels | `tristangruppwri/cadastral`, Brazil CAR, 8,453,552 rows | snapshot 2026-07-16, republished 2026-08-02 |
 | Commodity infrastructure | `tristangruppwri/soft-commodity-infrastructure`, `BR_facilities` | release 2026-07-23 |
 
 Every session commits its full `transcript.jsonl`, its `answers/`, and a `meta.json` carrying token counts and exit code. Anyone can re-grade the transcripts without model calls.
@@ -30,7 +30,7 @@ The 31 questions form six stages. Each stage builds on the previous one and trac
 
 **Stage 1: catalog discovery (q01-q04).** Navigate three catalogs from metadata alone. Count STAC collections, read the recommended collection from the catalog description, report row counts and geometry EPSG.
 
-**Stage 2: cadastre resolution (q05-q07, q31).** Resolve the listed `cod_imovel` values against the 8.45M-row CAR file. Report what resolves, what goes missing, what appears twice, and how many parcels fall under one hectare. The list arrives damaged: it carries a duplicated row, a parcel reduced to its centroid, a polygon with no id, a polygon with its coordinate axes swapped, and a point that lands on no parcel at all. `INPUTS.md` states the handling for each, and q31 grades the reconciliation identity that ties the buckets back to the arrival count. Handled correctly every defect resolves to a parcel that was already on the list, so the portfolio downstream is unchanged and a mishandled defect cascades visibly.
+**Stage 2: cadastre resolution (q05-q07, q31).** Resolve the listed `cod_imovel` values against the 8,453,552-row CAR file. Report what resolves, what goes missing, what appears twice, and how many parcels fall under one hectare. The list arrives damaged: it carries a duplicated row, a parcel reduced to its centroid, a polygon with no id, a polygon with its coordinate axes swapped, and a point that lands on no parcel at all. `INPUTS.md` states the handling for each, and q31 grades the reconciliation identity that ties the buckets back to the arrival count. Handled correctly every defect resolves to a parcel that was already on the list, so the portfolio downstream is unchanged and a mishandled defect cascades visibly.
 
 **Stage 3: field to cadastre matching (q08-q14).** Implement the matching rule from `MATCHING.md`. A field enters the analysis when two-thirds of its area falls inside a single listed parcel, or when two-thirds falls inside the buffered union of all listed parcels. The 25 m buffer closes sliver gaps between neighbouring CAR parcels. Report how many fields each rule admitted, the containment-fraction bounds, and the fields that intersect a parcel but fail both tests.
 
@@ -64,6 +64,19 @@ eudr_crops → cad_extract → fields_extract → match → coop_match
 ```
 
 Thirty query templates render against those extracts and emit `fixtures/golden/qNN.csv` with a `SHA256SUMS` manifest. Each expert answer comes from a committed, re-runnable query with a stated derivation. Anyone can regenerate the key and diff the checksums.
+
+### Pinned asset identity
+
+A URL is not a stable reference to a file. On 2026-08-02 the publisher deleted the CAR object the pins named and republished it under a new path, reprojected from SIRGAS 2000 to WGS 84 and rewritten with a bbox covering column and 212 row groups. Four places in this repository went on naming an address that answered 404.
+
+`fixtures/pins.json` therefore records what each remote object is as well as where it lives: byte size, entity tag, row count, row-group count, declared EPSG, GeoParquet version, whether the geometry column carries a bbox covering, and the column list. A twelve-character fingerprint over those fields turns any change into one line of diff.
+
+```bash
+python harness/pin_check.py           # reachability, size, entity tag
+python harness/pin_check.py --deep    # also read the parquet footers
+```
+
+The check exits non-zero when a pin is missing, unreachable, or changed. The three report differently because the fixes differ: a missing object needs a new URL everywhere the repository names it; an unreachable object should be retried without changing its pin; and a changed object needs regenerated goldens plus a note recording which committed results predate the change.
 
 ## Cost and grading
 

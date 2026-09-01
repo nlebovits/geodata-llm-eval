@@ -40,7 +40,15 @@ extend-exclude = ["results", "fixtures/golden"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers --strict-config"
+# The network tests each render the whole oracle against the live catalogs,
+# which is a multi-GB scan of the CAR file and minutes of transfer per test.
+# They are the acceptance gate and they are too slow to sit in the default
+# suite, so they are opt-in: the nightly `pins` job in CI selects them with
+# `-m network`, and a developer can do the same on demand.
+addopts = "--strict-markers --strict-config -m 'not network'"
+markers = [
+    "network: reads the pinned catalogs on source.coop; deselected by default",
+]
 
 [tool.coverage.run]
 branch = true
@@ -105,6 +113,7 @@ known_first_party = [
     "layout",
     "make_lists",
     "pricing",
+    "pin_check",
     "probe",
     "render",
     "report",

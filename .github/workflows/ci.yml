@@ -141,6 +141,44 @@ jobs:
           --compare-branch "origin/$BASE_REF"
           --fail-under=80
 
+  pins:
+    # The goldens are only meaningful against the remote objects they were
+    # computed from, and those objects are not immutable: the CAR file was
+    # deleted and republished under a new path in August 2026, which nothing
+    # here noticed until a session failed. This job asks source.coop whether
+    # every pin still resolves to the file it claims, then runs the oracle
+    # acceptance tests that read those files.
+    #
+    # Nightly and on demand, not per pull request. Each network test rescans a
+    # 3.3 GB file, and source.coop throttles: a check that goes red for a busy
+    # host teaches everyone to ignore it. The offline half — that each
+    # committed fingerprint matches the fields beside it — runs in the test job
+    # on every push.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Four full renders of the oracle, each a multi-GB scan over HTTP range
+    # requests. The wall clock is transfer, not compute.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv python install 3.13
+          uv sync --locked --python 3.13
+
+      - name: Check pinned remote assets
+        run: uv run python harness/pin_check.py --deep
+
+      - name: Oracle acceptance tests against the live catalogs
+        run: uv run pytest -m network -q
+
   complexity-trend:
     # Non-blocking trend report; xenon (pre-push hook) is the hard gate.
     if: github.event_name == 'pull_request'

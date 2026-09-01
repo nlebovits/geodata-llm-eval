@@ -171,21 +171,77 @@ def test_the_three_encodings_describe_the_same_list() -> None:
     assert split_rows == geometry_ids
 
 
-@pytest.mark.skipif(
+ENCODINGS = (
+    "goias-sample.csv",
+    "goias-sample.parquet",
+    "goias-sample-geom.parquet",
+)
+
+needs_extract = pytest.mark.skipif(
     not (GOLDEN / "_work" / "cad.parquet").exists(),
     reason="the cached CAR extract is regenerable and gitignored",
 )
+
+
+def parquet_content(path: Path) -> tuple[list[tuple[Any, ...]], str]:
+    """Everything a list parquet says, minus who wrote it.
+
+    DuckDB stamps its own version into the parquet footer, so two byte-identical
+    row sets written by 1.5.4 and 1.5.5 differ in twenty-three bytes of writer
+    signature. That is not the generator being non-deterministic, and a test
+    that cannot tell the two apart fails on a version bump while missing a real
+    change of content.
+    """
+    con = duckdb.connect()
+    con.execute("INSTALL spatial; LOAD spatial;")
+    url = path.as_posix()
+    columns = [
+        row[0] for row in con.execute(f"DESCRIBE SELECT * FROM '{url}'").fetchall()
+    ]
+    select = ", ".join(
+        f"hex(ST_AsWKB({name}))" if name == "geometry" else f'"{name}"'
+        for name in columns
+    )
+    rows = con.execute(f"SELECT {select} FROM '{url}'").fetchall()
+    geo = con.execute(
+        f"SELECT decode(value) FROM parquet_kv_metadata('{url}') "
+        "WHERE decode(key) = 'geo'"
+    ).fetchone()
+    con.close()
+    return rows, (geo[0] if geo else "")
+
+
+@needs_extract
 def test_the_generator_is_deterministic(tmp_path: Path) -> None:
-    """No RNG and no network, so the same extract must give the same bytes.
+    """No RNG and no network, so two runs over one extract agree byte for byte.
     Otherwise a regeneration moves the golden fingerprint for no reason and
     every stored run silently stops being comparable."""
+    for run_name in ("first", "second"):
+        (tmp_path / run_name).mkdir()
+        make_lists.generate(GOLDEN / "_work", tmp_path / run_name)
+    for name in ENCODINGS:
+        first = (tmp_path / "first" / name).read_bytes()
+        assert first == (tmp_path / "second" / name).read_bytes(), name
+
+
+@needs_extract
+def test_the_shipped_lists_are_what_the_current_extract_produces(
+    tmp_path: Path,
+) -> None:
+    """The committed inputs must still describe the parcels the oracle reads.
+
+    Compared by content, not by file bytes. The shipped parquets were written
+    by DuckDB 1.5.4 and are deliberately frozen: regenerating them would move
+    the input artifact and cost every stored run its comparability, for a
+    difference of one version string in a footer. A change in the rows is a
+    different matter, and this is what would catch it.
+    """
     make_lists.generate(GOLDEN / "_work", tmp_path)
-    for name in (
-        "goias-sample.csv",
-        "goias-sample.parquet",
-        "goias-sample-geom.parquet",
-    ):
-        assert (tmp_path / name).read_bytes() == (LISTS / name).read_bytes(), name
+    assert (tmp_path / "goias-sample.csv").read_bytes() == (
+        LISTS / "goias-sample.csv"
+    ).read_bytes()
+    for name in ("goias-sample.parquet", "goias-sample-geom.parquet"):
+        assert parquet_content(tmp_path / name) == parquet_content(LISTS / name), name
 
 
 def test_the_generator_never_reaches_the_network() -> None:
