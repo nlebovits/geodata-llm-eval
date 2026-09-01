@@ -5,8 +5,10 @@ skipped until the oracle has run). They guard the invariants the grader relies
 on: 31 questions, six stages, a dependency graph that points strictly backward,
 and a prompt that does not leak the EUDR scope answer.
 """
+
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -14,18 +16,19 @@ REPO = Path(__file__).resolve().parent.parent
 QUESTIONS = REPO / "fixtures" / "questions.yaml"
 
 
-def load():
-    return yaml.safe_load(QUESTIONS.read_text(encoding="utf-8"))
+def load() -> dict[str, Any]:
+    spec: dict[str, Any] = yaml.safe_load(QUESTIONS.read_text(encoding="utf-8"))
+    return spec
 
 
-def test_thirty_one_questions_six_stages_in_order():
+def test_thirty_one_questions_six_stages_in_order() -> None:
     qs = load()["questions"]
     assert len(qs) == 31
     assert [q["id"] for q in qs] == [f"{n:02d}" for n in range(1, 32)]
     assert {q["stage"] for q in qs} == {1, 2, 3, 4, 5, 6}
 
 
-def test_dependencies_point_backwards_and_resolve():
+def test_dependencies_point_backwards_and_resolve() -> None:
     qs = load()["questions"]
     ids = {q["id"] for q in qs}
     for q in qs:
@@ -34,23 +37,24 @@ def test_dependencies_point_backwards_and_resolve():
             assert dep < q["id"], f"q{q['id']} depends forward on {dep}"
 
 
-def test_every_column_is_fully_specified():
+def test_every_column_is_fully_specified() -> None:
     for q in load()["questions"]:
         for col in q["output"]["columns"]:
             assert {"name", "type", "description"} <= set(col), (q["id"], col)
             assert col["type"] in {"integer", "float", "string", "boolean"}
 
 
-def test_no_question_mentions_the_banned_column():
+def test_no_question_mentions_the_banned_column() -> None:
     """No question may ask about hansen_covered_area. The header comment that
     documents its exclusion is fine; the question text is not."""
     for q in load()["questions"]:
         blob = q["question"] + " ".join(
-            c["description"] for c in q["output"]["columns"])
+            c["description"] for c in q["output"]["columns"]
+        )
         assert "hansen_covered_area" not in blob, q["id"]
 
 
-def test_prompt_does_not_leak_the_eudr_scope_answer():
+def test_prompt_does_not_leak_the_eudr_scope_answer() -> None:
     """The scope mapping lives in policies/EUDR_CROPS.md, which the agent must
     read and apply. The prompt and question text must not hand over the answer
     by naming the in-scope commodity list inline."""
@@ -60,7 +64,7 @@ def test_prompt_does_not_leak_the_eudr_scope_answer():
         assert leak not in text, f"scope answer leaked: {leak!r}"
 
 
-def test_geometry_questions_are_marked():
+def test_geometry_questions_are_marked() -> None:
     """Questions whose numbers move under projection/distance choice must carry
     grading: geometry so the grader loosens tolerance for them."""
     by_id = {q["id"]: q for q in load()["questions"]}
@@ -68,7 +72,7 @@ def test_geometry_questions_are_marked():
         assert by_id[qid].get("grading") == "geometry", qid
 
 
-def test_prompt_names_the_files_the_oracle_reads():
+def test_prompt_names_the_files_the_oracle_reads() -> None:
     """The session and the grader must query the same bytes.
 
     Catalog metadata alone does not get an agent to those files: the cadastral
@@ -77,9 +81,9 @@ def test_prompt_names_the_files_the_oracle_reads():
     oracle reads is not listed as an asset. So the prompt names the files, and
     this pins the prompt to the oracle's pins.
     """
-    pins = json.loads(
-        (REPO / "fixtures" / "pins.json").read_text(encoding="utf-8")
-    )["catalogs"]
+    pins = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))[
+        "catalogs"
+    ]
     prompt = (REPO / "prompts" / "task.md").read_text(encoding="utf-8")
 
     reads = [

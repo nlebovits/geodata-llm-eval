@@ -1,12 +1,17 @@
-# pixi environments
-.pixi/
+# uv environment
+.venv/
+
+# coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
 *.egg-info/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
 
 # Credentials. Sessions mount a copy of the host login (see harness/run.py);
-# nothing token-shaped belongs in this history. The pre-commit hook in hooks/
+# nothing token-shaped belongs in this history. scripts/check_credentials.py
 # enforces this on content too, since results/ transcripts are committed.
 .credentials.json
 **/.credentials.json

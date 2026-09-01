@@ -17,16 +17,20 @@ import json
 import statistics
 import sys
 from pathlib import Path
-
-from layout import is_scored, run_dirs
+from typing import Any
 
 import matplotlib
+from layout import is_scored, run_dirs
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from grade import load_questions, stage_summary  # noqa: E402
+from grade import load_questions, stage_summary
+
+# One graded session, flattened for the tables and the plot: identity,
+# scores, cost, and runtime in one row.
+Session = dict[str, Any]
 
 MODEL_ORDER = ["haiku", "sonnet", "opus"]
 MODEL_LABELS = {
@@ -36,8 +40,8 @@ MODEL_LABELS = {
 }
 
 
-def load_sessions(results_dir: Path) -> list[dict]:
-    sessions = []
+def load_sessions(results_dir: Path) -> list[Session]:
+    sessions: list[Session] = []
     for session_dir in run_dirs(results_dir):
         grades_path = session_dir / "grades.json"
         meta_path = session_dir / "meta.json"
@@ -52,31 +56,35 @@ def load_sessions(results_dir: Path) -> list[dict]:
         near_miss = sum(1 for v in grades.values() if v == "near_miss")
         duration = meta.get("duration_seconds", 0.0) or 0.0
         slow = meta.get("slow_tool_seconds", 0.0) or 0.0
-        sessions.append({
-            "model": meta["model"],
-            "run_id": meta.get("run_id", session_dir.name),
-            "label": meta.get("label", ""),
-            "accuracy": correct / total if total else 0.0,
-            "correct": correct,
-            "near_miss": near_miss,
-            "total": total,
-            "cost_usd": meta.get("imputed_cost_usd", 0.0),
-            "turns": meta.get("turns", 0),
-            "duration_seconds": duration,
-            "slow_tool_seconds": slow,
-            "slow_tool_share": slow / duration if duration else 0.0,
-            "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
-            "grades": grades,
-        })
+        sessions.append(
+            {
+                "model": meta["model"],
+                "run_id": meta.get("run_id", session_dir.name),
+                "label": meta.get("label", ""),
+                "accuracy": correct / total if total else 0.0,
+                "correct": correct,
+                "near_miss": near_miss,
+                "total": total,
+                "cost_usd": meta.get("imputed_cost_usd", 0.0),
+                "turns": meta.get("turns", 0),
+                "duration_seconds": duration,
+                "slow_tool_seconds": slow,
+                "slow_tool_share": slow / duration if duration else 0.0,
+                "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
+                "grades": grades,
+            }
+        )
     return sessions
 
 
-def _mean_or_none(values: list) -> float | None:
+def _mean_or_none(values: list[float | None]) -> float | None:
     vals = [v for v in values if v is not None]
     return statistics.mean(vals) if vals else None
 
 
-def stage_grid_lines(sessions: list[dict], questions: list) -> list[str]:
+def stage_grid_lines(
+    sessions: list[Session], questions: list[dict[str, Any]]
+) -> list[str]:
     """Per-model, per-stage mean raw and conditional accuracy across sessions.
 
     Conditional accuracy is 'correct given every upstream dependency was
@@ -86,10 +94,13 @@ def stage_grid_lines(sessions: list[dict], questions: list) -> list[str]:
     if not questions:
         return []
     stages = sorted({q["stage"] for q in questions})
-    lines = ["## Accuracy by workflow stage", "",
-             "Raw = correct / all in stage. Cond. = correct / questions whose",
-             "dependencies all passed (the error-propagation-adjusted score).",
-             ""]
+    lines = [
+        "## Accuracy by workflow stage",
+        "",
+        "Raw = correct / all in stage. Cond. = correct / questions whose",
+        "dependencies all passed (the error-propagation-adjusted score).",
+        "",
+    ]
     header = "| Model | " + " | ".join(f"S{s}" for s in stages) + " |"
     sep = "|-------|" + "|".join(["-----"] * len(stages)) + "|"
     lines += [header, sep]
@@ -118,27 +129,37 @@ def consistency_lines(results_dir: Path) -> list[str]:
         return []
     c = json.loads(path.read_text())
     n = c.get("n_runs", "?")
-    lines = ["## Cross-run consistency", "",
-             f"Agreement across {n} runs of the workflow artifact. Consistency is",
-             "not correctness: the oracle column is the reality check.", "",
-             "| Metric | Across runs | vs oracle |",
-             "|--------|-------------|-----------|"]
+    lines = [
+        "## Cross-run consistency",
+        "",
+        f"Agreement across {n} runs of the workflow artifact. Consistency is",
+        "not correctness: the oracle column is the reality check.",
+        "",
+        "| Metric | Across runs | vs oracle |",
+        "|--------|-------------|-----------|",
+    ]
 
-    def fmt(x):
+    def fmt(x: object) -> str:
         return f"{x:.3f}" if isinstance(x, (int, float)) else "–"
 
     oracle = c.get("oracle") or {}
-    lines.append(f"| Flagged-set Jaccard | {fmt(c.get('flag_jaccard'))}"
-                 f" | {fmt(oracle.get('flag_jaccard'))} |")
-    lines.append(f"| Contact agreement | {fmt(c.get('contact_agreement'))}"
-                 f" | {fmt(oracle.get('contact_agreement'))} |")
+    lines.append(
+        f"| Flagged-set Jaccard | {fmt(c.get('flag_jaccard'))}"
+        f" | {fmt(oracle.get('flag_jaccard'))} |"
+    )
+    lines.append(
+        f"| Contact agreement | {fmt(c.get('contact_agreement'))}"
+        f" | {fmt(oracle.get('contact_agreement'))} |"
+    )
     lines.append(f"| Ranking tau-b | {fmt(c.get('ranking_tau'))} | – |")
     lines.append(f"| Contact kappa | {fmt(c.get('contact_kappa'))} | – |")
     lines.append("")
     unstable = c.get("unstable_cadasters") or []
     if unstable:
-        lines.append(f"**Unstable cadasters** (flagged by some runs but not "
-                     f"all): {len(unstable)}")
+        lines.append(
+            f"**Unstable cadasters** (flagged by some runs but not "
+            f"all): {len(unstable)}"
+        )
         lines.append("")
         for cid in unstable[:20]:
             lines.append(f"- `{cid}`")
@@ -148,7 +169,7 @@ def consistency_lines(results_dir: Path) -> list[str]:
     return lines
 
 
-def runtime_lines(sessions: list[dict]) -> list[str]:
+def runtime_lines(sessions: list[Session]) -> list[str]:
     """Wall clock, and how much of it went to waiting on remote reads.
 
     A session that loses a third of its turns to source.coop timeouts scores
@@ -157,12 +178,16 @@ def runtime_lines(sessions: list[dict]) -> list[str]:
     """
     if not sessions:
         return []
-    lines = ["## Runtime", "",
-             "Slow-call share is time inside tool calls slow enough to emit a",
-             "heartbeat, over wall clock. A high share with timeouts means the",
-             "run was degraded by the network, not by the model.", "",
-             "| Model | Mean wall clock | In slow tool calls | Timed-out calls |",
-             "|-------|-----------------|--------------------|-----------------|"]
+    lines = [
+        "## Runtime",
+        "",
+        "Slow-call share is time inside tool calls slow enough to emit a",
+        "heartbeat, over wall clock. A high share with timeouts means the",
+        "run was degraded by the network, not by the model.",
+        "",
+        "| Model | Mean wall clock | In slow tool calls | Timed-out calls |",
+        "|-------|-----------------|--------------------|-----------------|",
+    ]
     for model in MODEL_ORDER:
         rows = [s for s in sessions if s["model"] == model]
         if not rows:
@@ -171,26 +196,39 @@ def runtime_lines(sessions: list[dict]) -> list[str]:
         share = statistics.mean([s["slow_tool_share"] for s in rows])
         timeouts = sum(s["timed_out_tool_calls"] for s in rows)
         lines.append(
-            f"| {MODEL_LABELS[model]} | {wall / 60:.0f}m"
-            f" | {share:.0%} | {timeouts} |"
+            f"| {MODEL_LABELS[model]} | {wall / 60:.0f}m | {share:.0%} | {timeouts} |"
         )
     lines.append("")
     return lines
 
 
-def write_summary_csv(sessions: list[dict], path: Path) -> None:
-    fields = ["model", "run_id", "label", "accuracy", "correct", "near_miss",
-              "total", "cost_usd", "turns", "duration_seconds",
-              "slow_tool_seconds", "timed_out_tool_calls"]
+def write_summary_csv(sessions: list[Session], path: Path) -> None:
+    fields = [
+        "model",
+        "run_id",
+        "label",
+        "accuracy",
+        "correct",
+        "near_miss",
+        "total",
+        "cost_usd",
+        "turns",
+        "duration_seconds",
+        "slow_tool_seconds",
+        "timed_out_tool_calls",
+    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows({k: s[k] for k in fields} for s in sessions)
 
 
-def write_report_md(sessions: list[dict], path: Path,
-                    questions: list | None = None,
-                    results_dir: Path | None = None) -> None:
+def write_report_md(
+    sessions: list[Session],
+    path: Path,
+    questions: list[dict[str, Any]] | None = None,
+    results_dir: Path | None = None,
+) -> None:
     lines = [
         "# EUDR workflow benchmark results",
         "",
@@ -201,10 +239,14 @@ def write_report_md(sessions: list[dict], path: Path,
         "Near misses clear ten times the grading tolerance but not the",
         "tolerance itself: computed right, formatted or rounded differently.",
         "",
-        "| Model | Passes | Mean accuracy | Accuracy range | Mean near misses"
-        " | Mean cost (USD) |",
-        "|-------|--------|---------------|----------------|------------------"
-        "|-----------------|",
+        (
+            "| Model | Passes | Mean accuracy | Accuracy range |"
+            " Mean near misses | Mean cost (USD) |"
+        ),
+        (
+            "|-------|--------|---------------|----------------|"
+            "------------------|-----------------|"
+        ),
     ]
     for model in MODEL_ORDER:
         rows = [s for s in sessions if s["model"] == model]
@@ -228,7 +270,7 @@ def write_report_md(sessions: list[dict], path: Path,
     path.write_text("\n".join(lines))
 
 
-def write_pareto_png(sessions: list[dict], path: Path) -> None:
+def write_pareto_png(sessions: list[Session], path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
     colors = {"haiku": "tab:green", "sonnet": "tab:blue", "opus": "tab:purple"}
     for model in MODEL_ORDER:
@@ -255,14 +297,15 @@ def write_pareto_png(sessions: list[dict], path: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path, default=Path("results"))
-    ap.add_argument("--questions", type=Path,
-                    default=Path("fixtures/questions.yaml"))
+    ap.add_argument("--questions", type=Path, default=Path("fixtures/questions.yaml"))
     args = ap.parse_args()
 
     sessions = load_sessions(args.results)
     if not sessions:
-        print(f"no graded sessions under {args.results} "
-              "(run grade.py first)", file=sys.stderr)
+        print(
+            f"no graded sessions under {args.results} (run grade.py first)",
+            file=sys.stderr,
+        )
         return 1
 
     questions = load_questions(args.questions)

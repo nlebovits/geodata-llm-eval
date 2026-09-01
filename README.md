@@ -88,30 +88,31 @@ The headline is a Pareto plot: accuracy on the y-axis, imputed dollars on the x-
 ## Running
 
 ```bash
-pixi install
-pixi run install-hooks
-pixi run test
+uv sync
+uvx prek@0.4.11 install --hook-type pre-commit \
+  --hook-type commit-msg --hook-type pre-push
+uv run pytest
 claude login                              # or export ANTHROPIC_API_KEY
 docker build -t geodata-llm-eval .
-pixi run python harness/run.py --model sonnet --passes 10 --follow
-pixi run python harness/grade.py
-pixi run python harness/consistency.py --model sonnet
-pixi run python harness/report.py
+uv run python harness/run.py --model sonnet --passes 10 --follow
+uv run python harness/grade.py
+uv run python harness/consistency.py --model sonnet
+uv run python harness/report.py
 ```
 
-Run everything through `pixi run`. The oracle needs `duckdb` and the report needs `matplotlib`.
+Run everything through `uv run`. The oracle needs `duckdb` and the report needs `matplotlib`.
 
 `--follow` prints each tool call as the session makes it. Without it a run reports a heartbeat once a minute. Every session cleans up after itself. The container is named and force-removed on exit, so interrupting with Ctrl-C leaves nothing behind. A pass directory is emptied before rewrite.
 
 The golden fixtures are committed. To rebuild them:
 
 ```bash
-pixi run python oracle/render.py
+uv run python oracle/render.py
 ```
 
 That takes a while and hits the live catalogs.
 
-`pixi run install-hooks` points git at `hooks/`, which holds a pre-commit guard that rejects Anthropic tokens. It checks staged content, not just paths. A session with `--dangerously-skip-permissions` can read its mounted credential and echo the token into stdout, which becomes a transcript. The content scan catches that. Run it once per clone.
+`scripts/check_credentials.py` rejects Anthropic tokens. It checks content, not just paths: a session with `--dangerously-skip-permissions` can read its mounted credential and echo the token into stdout, which becomes a committed transcript. `prek install` wires it into every commit here, and CI runs it over the whole tree, so a clone that skipped that step still cannot merge a token.
 
 If a token reaches a transcript, treat it as leaked and run `claude login` to rotate it.
 
