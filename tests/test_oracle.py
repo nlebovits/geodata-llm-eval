@@ -2,16 +2,21 @@
 
 The offline ones run always: every question maps to a template that exists, the
 templates have no unfilled placeholders after substitution, the QUESTION_MAP
-covers exactly the 31 questions, and the local scope tables build. The
-generation, determinism, and partition checks need the live catalogs on
-source.coop; they skip when it is unreachable (it throttles and occasionally
-goes down), and are the real acceptance gate when it is up.
+covers exactly the 31 questions, and the local scope tables build.
+
+The generation, determinism, and partition checks need the live catalogs on
+source.coop and are the real acceptance gate. Each renders the whole oracle,
+which rescans a 3.3 GB CAR file, so they carry the `network` marker and sit out
+of the default suite. Run them with `pytest -m network`; CI does so nightly.
+They still skip when the host is unreachable, because a throttled route turns a
+multi-GB scan into a hang rather than a result.
 """
 
 import csv
 import json
 import sys
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +26,10 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "oracle"))
+sys.path.insert(0, str(REPO / "harness"))
 
 import render
+from probe import USER_AGENT
 
 PINS = json.loads((REPO / "fixtures" / "pins.json").read_text(encoding="utf-8"))
 
@@ -44,7 +51,9 @@ def _source_coop_reachable() -> bool:
     hard at times; if a 64 KB range read does not return in 15 s, the full
     pipeline (a multi-GB scan) is hopeless, so skip."""
     url = PINS["catalogs"]["facilities"]["facilities_parquet"]
-    req = urllib.request.Request(url, headers={"Range": "bytes=0-65535"})
+    req = urllib.request.Request(
+        url, headers={"Range": "bytes=0-65535", "User-Agent": USER_AGENT}
+    )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return len(resp.read()) > 0
@@ -52,10 +61,14 @@ def _source_coop_reachable() -> bool:
         return False
 
 
-needs_network = pytest.mark.skipif(
-    not _source_coop_reachable(),
-    reason="source.coop unreachable or throttled; golden generation skipped",
-)
+def needs_network(test: Callable[..., None]) -> Callable[..., None]:
+    """Opt-in by marker, and skipped anyway when the host is not answering."""
+    skip_if_down = pytest.mark.skipif(
+        not _source_coop_reachable(),
+        reason="source.coop unreachable or throttled; golden generation skipped",
+    )
+    marked: Callable[..., None] = pytest.mark.network(skip_if_down(test))
+    return marked
 
 
 # --- offline -----------------------------------------------------------------

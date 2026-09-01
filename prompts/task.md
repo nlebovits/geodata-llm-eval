@@ -6,7 +6,7 @@ portfolio of Brazilian rural properties.
 Your job is to analyze the following three datasets:
 
 - **Field boundaries** — https://data.source.coop/wri-data-lab/trazofields/trazo3-fields/trazo3_brazil_goias_2024.parquet
-- **Cadastral parcels** — https://data.source.coop/tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet
+- **Cadastral parcels** — https://data.source.coop/tristangruppwri/cadastral/brazil-car-area-imovel/brazil_car_area_imovel.parquet
 - **Commodity infrastructure** — https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/facilities/BR_facilities.parquet
 
 The data are stored as GeoParquet and can be queried remotely using DuckDB (`duckdb` is

@@ -47,20 +47,31 @@ REPEATS = 3
 PARALLEL_STREAMS = 8
 CONCURRENCY_STEPS = (1, 2, 4, 8, 16, 32)
 
+# The edge in front of source.coop answers 403 to the default
+# `Python-urllib/3.x` User-Agent, so every reading taken without this header
+# measures a bot rule rather than the host. DuckDB is unaffected — it sends its
+# own agent — which is how the block stayed invisible: the pipeline worked while
+# the probe, the throughput sample in run.py, and the network test gate all read
+# the catalogs as unreachable.
+USER_AGENT = "geodata-llm-eval/1.0 (+https://github.com/nlebovits/geodata-llm-eval)"
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PINS = json.loads((REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8"))[
+    "catalogs"
+]
+
 # A second object in a different bucket. One misbehaving file explains a lot
 # less than a pattern that follows the host.
-SECOND_URL = (
-    "https://data.source.coop/wri-data-lab/trazofields/trazo3-fields/"
-    "trazo3_brazil_goias_2024.parquet"
-)
+SECOND_URL = PINS["trazo"]["goias_parquet"]
 
 # Any host that is not the one under test. A slow reading here means the
 # local link is the constraint and nothing else in the report means much.
 CONTROL_URL = "https://speed.cloudflare.com/__down?bytes=20000000"
 
-DEFAULT_URL = (
-    "https://data.source.coop/tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet"
-)
+# Read from the pins rather than repeated here. The object this named was
+# deleted and republished under a new path in August 2026, and a literal copy
+# is one more place that has to be found and changed when that happens again.
+DEFAULT_URL = PINS["cadastral"]["car_parquet"]
 
 
 def fetch_range(
@@ -77,7 +88,7 @@ def fetch_range(
     rather than to the transfer.
     """
     header = f"bytes={start}-" if open_ended else f"bytes={start}-{start + length - 1}"
-    request = urllib.request.Request(url)
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     request.add_header("Range", header)
     began = time.monotonic()
     try:

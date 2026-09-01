@@ -5,7 +5,8 @@
 -- those ids live in, so this stage is a local selection; we keep the parcels'
 -- legal-status columns (ind_status/des_condic) for the EUDR legality panel.
 --
--- Source : tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet (8.45M rows)
+-- Source : tristangruppwri/cadastral/brazil-car-area-imovel/
+--          brazil_car_area_imovel.parquet (8,453,552 rows)
 -- Placeholders: ${RESOLVED_PARQUET} ${CAR_STATE_PARQUET} ${CAD_PARQUET}
 --
 -- The list is no longer read here, and no longer read with SELECT DISTINCT.
@@ -15,12 +16,12 @@
 -- extract. RESOLVED_PARQUET carries one row per input row with the rule it
 -- landed on, and this stage takes the parcels behind them.
 --
--- NOTE: as of 2026-07, this CAR parquet ships WITHOUT a bbox covering column
--- (unlike trazofields), so a spatial ST_Intersects(envelope) filter cannot skip
--- row groups — it degrades to a full geometry scan. Republishing the file with
--- bbox covering + Hilbert clustering is what turns the upstream extract from a
--- multi-GB scan into reading a handful of row groups; the state pre-filter in
--- list_resolve is the best available lever until then.
+-- NOTE: the CAR parquet was republished on 2026-08-02 with the bbox covering
+-- column it previously lacked, so a predicate written against bbox now prunes
+-- row groups. Its string columns still carry no min/max statistics, so the
+-- state pre-filter in list_resolve narrows rows without narrowing the read.
+-- Rewriting that pre-filter to prune is issue #10; nothing in this stage is
+-- affected either way, because it selects from the cached local slice.
 -- ---------------------------------------------------------------------------
 INSTALL httpfs; LOAD httpfs;
 INSTALL spatial; LOAD spatial;
@@ -35,7 +36,8 @@ SELECT DISTINCT cod_imovel
 FROM read_parquet('${RESOLVED_PARQUET}')
 WHERE cod_imovel IS NOT NULL;
 
--- CRS was relabelled to 4326 upstream in list_resolve; see the note there.
+-- Geometry arrives as EPSG:4326: the republished CAR file is reprojected on
+-- disk, so no relabel happens upstream any more. See list_resolve.
 CREATE OR REPLACE TABLE cad AS
 SELECT cod_imovel, municipio, cod_estado, num_area, mod_fiscal,
        ind_status, ind_tipo, des_condic, dat_criaca, dat_atuali, geometry

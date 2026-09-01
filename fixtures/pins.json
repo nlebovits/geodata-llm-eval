@@ -11,23 +11,161 @@
       "mato_grosso_parquet": "https://data.source.coop/wri-data-lab/trazofields/trazo3-fields/trazo3_brazil_mato_grosso_2024.parquet",
       "n_collections": 3,
       "recommended_collection": "trazo3-fields",
-      "geometry_epsg": 4326
+      "geometry_epsg": 4326,
+      "identity": {
+        "goias_parquet": {
+          "bytes": 706915221,
+          "etag": "\"1acfe62f08449ae34c35f5bb4b1dd9de-85\"",
+          "rows": 772404,
+          "row_groups": 7,
+          "epsg": 4326,
+          "geoparquet_version": "1.1.0",
+          "bbox_covering": true,
+          "columns": [
+            "Id:INTEGER",
+            "hansen_covered_area:DOUBLE",
+            "hansen_loss_area:DOUBLE",
+            "mode_year:DOUBLE",
+            "firstyear:DOUBLE",
+            "firstyearmajority:DOUBLE",
+            "deforestarea0104:DOUBLE",
+            "deforestarea0509:DOUBLE",
+            "deforestarea1014:DOUBLE",
+            "deforestarea1520:DOUBLE",
+            "deforestarea2124:DOUBLE",
+            "mbmode24:DOUBLE",
+            "mbcov_area_2024:DOUBLE",
+            "mbvalid_area_2024:DOUBLE",
+            "geometry:GEOMETRY('EPSG:4326')",
+            "bbox:STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)"
+          ],
+          "fingerprint": "6f327d26af0f"
+        },
+        "mato_grosso_parquet": {
+          "bytes": 916097780,
+          "etag": "\"bfa22d04890ffe1b7fa11996c0ce54bc-110\"",
+          "rows": 795125,
+          "row_groups": 7,
+          "epsg": 4326,
+          "geoparquet_version": "1.1.0",
+          "bbox_covering": true,
+          "columns": [
+            "Id:INTEGER",
+            "hansen_covered_area:DOUBLE",
+            "hansen_loss_area:DOUBLE",
+            "mode_year:DOUBLE",
+            "firstyear:DOUBLE",
+            "firstyearmajority:DOUBLE",
+            "deforestarea0104:DOUBLE",
+            "deforestarea0509:DOUBLE",
+            "deforestarea1014:DOUBLE",
+            "deforestarea1520:DOUBLE",
+            "deforestarea2124:DOUBLE",
+            "mbmode24:DOUBLE",
+            "mbcov_area_2024:DOUBLE",
+            "mbvalid_area_2024:DOUBLE",
+            "geometry:GEOMETRY('EPSG:4326')",
+            "bbox:STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)"
+          ],
+          "fingerprint": "f55bddc9d08a"
+        }
+      }
     },
     "cadastral": {
       "catalog": "https://data.source.coop/tristangruppwri/cadastral/catalog.json",
-      "car_parquet": "https://data.source.coop/tristangruppwri/cadastral/Brazil_CAR_AREA_IMOVEL.parquet",
-      "snapshot": "2026-07-16"
+      "collection": "https://data.source.coop/tristangruppwri/cadastral/brazil-car-area-imovel/collection.json",
+      "car_parquet": "https://data.source.coop/tristangruppwri/cadastral/brazil-car-area-imovel/brazil_car_area_imovel.parquet",
+      "car_suspect_parquet": "https://data.source.coop/tristangruppwri/cadastral/brazil-car-area-imovel/brazil_car_area_imovel_suspect.parquet",
+      "snapshot": "2026-07-16",
+      "republished": "2026-08-02",
+      "identity": {
+        "car_parquet": {
+          "bytes": 3258574258,
+          "etag": "\"3bdb44b8f04026d937506db0b1a718e4-389\"",
+          "rows": 8453552,
+          "row_groups": 212,
+          "epsg": 4326,
+          "geoparquet_version": "1.1.0",
+          "bbox_covering": true,
+          "columns": [
+            "cod_tema:VARCHAR",
+            "nom_tema:VARCHAR",
+            "cod_imovel:VARCHAR",
+            "mod_fiscal:DOUBLE",
+            "num_area:DOUBLE",
+            "ind_status:VARCHAR",
+            "ind_tipo:VARCHAR",
+            "des_condic:VARCHAR",
+            "municipio:VARCHAR",
+            "cod_estado:VARCHAR",
+            "dat_criaca:VARCHAR",
+            "dat_atuali:VARCHAR",
+            "bbox:STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)",
+            "geometry:GEOMETRY('EPSG:4326')"
+          ],
+          "fingerprint": "3024bfcf48c0"
+        },
+        "car_suspect_parquet": {
+          "bytes": 4834,
+          "etag": "\"bdfc42227f206d5b36d9b0101e1ec15d\"",
+          "rows": 2,
+          "row_groups": 1,
+          "epsg": 4674,
+          "geoparquet_version": "1.1.0",
+          "bbox_covering": true,
+          "columns": [
+            "cod_tema:VARCHAR",
+            "nom_tema:VARCHAR",
+            "cod_imovel:VARCHAR",
+            "mod_fiscal:DOUBLE",
+            "num_area:DOUBLE",
+            "ind_status:VARCHAR",
+            "ind_tipo:VARCHAR",
+            "des_condic:VARCHAR",
+            "municipio:VARCHAR",
+            "cod_estado:VARCHAR",
+            "dat_criaca:VARCHAR",
+            "dat_atuali:VARCHAR",
+            "geometry:GEOMETRY('EPSG:4674')",
+            "bbox:STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)"
+          ],
+          "fingerprint": "5121c45ec843"
+        }
+      }
     },
     "facilities": {
       "catalog": "https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/catalog.json",
       "facilities_parquet": "https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/facilities/BR_facilities.parquet",
-      "release": "2026-07-23"
+      "release": "2026-07-23",
+      "identity": {
+        "facilities_parquet": {
+          "bytes": 5176617,
+          "etag": "\"cdb753590a0b24f2176b8579f8af7553\"",
+          "rows": 40669,
+          "row_groups": 1,
+          "epsg": 4326,
+          "geoparquet_version": "1.1.0",
+          "bbox_covering": true,
+          "columns": [
+            "entity_id:VARCHAR",
+            "entity_kind:VARCHAR",
+            "tier:VARCHAR",
+            "weight:DOUBLE",
+            "basis:VARCHAR",
+            "geom_method:VARCHAR",
+            "source:VARCHAR",
+            "geometry:GEOMETRY('OGC:CRS84')",
+            "bbox:STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)"
+          ],
+          "fingerprint": "7c3beecaf583"
+        }
+      }
     }
   },
   "matching": {
     "contain_threshold": 0.667,
     "neighbor_gap_tolerance_m": 25,
-    "primary_tie_tolerance": 1e-9
+    "primary_tie_tolerance": 1e-09
   },
   "coops": {
     "max_candidates": 5,
