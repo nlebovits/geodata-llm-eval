@@ -137,7 +137,9 @@ repos:
         # guard keeps the hook quiet until this repo writes its first
         # [tool.importlinter] block. Adding contracts turns the gate on
         # with no edit here.
-        entry: bash -c 'grep -q "^\[tool\.importlinter\]" pyproject.toml && uv run lint-imports || true'
+        entry: >-
+          bash -c 'if grep -q "^\[tool\.importlinter\]" pyproject.toml;
+          then uv run lint-imports; fi'
         language: system
         pass_filenames: false
         stages: [pre-push]

@@ -9,6 +9,9 @@ since a scanner nothing invokes is no guard at all.
 
 from __future__ import annotations
 
+import os
+import shlex
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -139,3 +142,36 @@ def test_guard_is_wired_into_prek() -> None:
     )
     # No stages key means every stage, which includes the pre-commit run.
     assert "stages" not in guard
+
+
+def test_import_linter_hook_propagates_failure(tmp_path: Path) -> None:
+    """A configured, failing architecture check must fail the hook."""
+    config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    hooks = [
+        hook
+        for repo in config["repos"]
+        if repo["repo"] == "local"
+        for hook in repo["hooks"]
+    ]
+    entry = next(hook for hook in hooks if hook["id"] == "import-linter")["entry"]
+
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.importlinter]\nroot_package = 'harness'\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_uv = bin_dir / "uv"
+    fake_uv.write_text("#!/bin/sh\nexit 23\n", encoding="utf-8")
+    fake_uv.chmod(0o755)
+    environment = os.environ.copy()
+    environment["PATH"] = f"{bin_dir}{os.pathsep}{environment['PATH']}"
+
+    completed = subprocess.run(
+        shlex.split(entry),
+        cwd=tmp_path,
+        env=environment,
+        check=False,
+    )
+
+    assert completed.returncode == 23

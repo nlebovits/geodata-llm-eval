@@ -89,7 +89,7 @@ The headline is a Pareto plot: accuracy on the y-axis, imputed dollars on the x-
 
 ```bash
 uv sync
-uvx prek install --hook-type pre-commit \
+uvx prek@0.4.11 install --hook-type pre-commit \
   --hook-type commit-msg --hook-type pre-push
 uv run pytest
 claude login                              # or export ANTHROPIC_API_KEY

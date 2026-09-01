@@ -70,8 +70,8 @@ jobs:
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # A scheduled failure is a new upstream CVE, not a repo regression.
-    continue-on-error: ${{ github.event_name == 'schedule' }}
+    # Scheduled findings fail visibly so maintainers receive the normal
+    # failed-workflow signal for newly disclosed vulnerabilities.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
