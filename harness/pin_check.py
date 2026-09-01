@@ -16,9 +16,10 @@ EPSG, GeoParquet version, whether the geometry column carries a bbox covering,
 and the column list. A short fingerprint over those fields turns any change into
 one line of diff.
 
-The two failures report differently because the fixes differ. A missing object
-needs a new URL. A changed object needs regenerated goldens and a note saying
-which results predate the change.
+The failure classes report differently because the fixes differ. A missing object
+needs a new URL. An unreachable object should be retried without changing its pin.
+A changed object needs regenerated goldens and a note saying which results
+predate the change.
 
 Usage:
     python harness/pin_check.py                  # reachability, size, etag
@@ -26,7 +27,8 @@ Usage:
     python harness/pin_check.py --deep --update  # repin to what is live now
     python harness/pin_check.py --json           # machine-readable findings
 
-Exit status is 0 when every pin matches, 1 when any pin is missing or changed.
+Exit status is 0 when every pin matches, 1 when any pin is missing,
+unreachable, changed, or unpinned.
 """
 
 from __future__ import annotations
@@ -74,6 +76,7 @@ HEAD_FIELDS = ("bytes", "etag")
 
 OK = "ok"
 MISSING = "missing"
+UNREACHABLE = "unreachable"
 CHANGED = "changed"
 UNPINNED = "unpinned"
 
@@ -105,6 +108,11 @@ class Finding:
             return (
                 f"MISSING  {where}\n           {self.asset.url}"
                 f"\n           {self.detail}"
+            )
+        if self.status == UNREACHABLE:
+            return (
+                f"ERROR    {where}\n           {self.asset.url}"
+                f"\n           unreachable: {self.detail}"
             )
         if self.status == UNPINNED:
             return f"unpinned {where} — no identity recorded; run --update to pin it"
@@ -181,10 +189,12 @@ def live_head(url: str, timeout: int = 30) -> dict[str, Any]:
             }
     except urllib.error.HTTPError as exc:
         marker = exc.headers.get("x-amz-delete-marker") if exc.headers else None
-        deleted = " (delete marker set)" if marker else ""
-        return {"ok": False, "detail": f"HTTP {exc.code}{deleted}"}
+        deleted = marker == "true"
+        detail = f"HTTP {exc.code}{' (delete marker set)' if deleted else ''}"
+        status = MISSING if exc.code in (404, 410) or deleted else UNREACHABLE
+        return {"ok": False, "status": status, "detail": detail}
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return {"ok": False, "detail": str(exc)}
+        return {"ok": False, "status": UNREACHABLE, "detail": str(exc)}
 
 
 def geo_metadata(con: Executes, url: str) -> dict[str, Any]:
@@ -258,15 +268,15 @@ def live_footer(con: Executes, url: str) -> dict[str, Any]:
 
 def observe(
     asset: Asset, con: Executes | None, timeout: int = 30
-) -> tuple[bool, dict[str, Any], str]:
-    """What the live object is right now: (reachable, identity, detail)."""
+) -> tuple[str, dict[str, Any], str]:
+    """What the live object is right now: (status, identity, detail)."""
     head = live_head(asset.url, timeout=timeout)
     if not head["ok"]:
-        return False, {}, str(head["detail"])
+        return str(head.get("status", UNREACHABLE)), {}, str(head["detail"])
     identity = {field: head[field] for field in HEAD_FIELDS}
     if con is not None:
         identity.update(live_footer(con, asset.url))
-    return True, identity, ""
+    return OK, identity, ""
 
 
 def differing(pinned: dict[str, Any], live: dict[str, Any]) -> tuple[str, ...]:
@@ -289,10 +299,10 @@ def check(
     """One finding per pinned asset, in pins order."""
     findings = []
     for asset in assets(pins):
-        reachable, identity, detail = observe(asset, con, timeout=timeout)
-        if not reachable:
+        observed_status, identity, detail = observe(asset, con, timeout=timeout)
+        if observed_status != OK:
             findings.append(
-                Finding(asset=asset, status=MISSING, detail=detail, live=None)
+                Finding(asset=asset, status=observed_status, detail=detail, live=None)
             )
             continue
         pinned = recorded(pins, asset)
@@ -391,17 +401,27 @@ def main() -> int:
         if not args.deep:
             print("\n--update without --deep would pin size and etag only; use both.")
             return 1
+        unavailable = [f for f in findings if f.status in (MISSING, UNREACHABLE)]
+        if unavailable:
+            print(
+                "\nnot updating: every asset must be observed successfully; "
+                f"{len(unavailable)} could not be read."
+            )
+            return 1
         updated = repin(pins, findings)
         write_pins(pins, args.pins)
         print(f"\nrepinned {updated} asset(s) in {args.pins}")
         return 0
 
-    broken = [f for f in findings if f.status in (MISSING, CHANGED, UNPINNED)]
+    broken = [
+        f for f in findings if f.status in (MISSING, UNREACHABLE, CHANGED, UNPINNED)
+    ]
     if broken and not args.json:
         print(
             f"\n{len(broken)} pin(s) need attention. A MISSING object needs a new "
             "URL in pins.json and everywhere else it is named; a CHANGED object "
-            "needs regenerated goldens and a note on which results predate it."
+            "needs regenerated goldens and a note on which results predate it; "
+            "an ERROR should be retried before changing a pin."
         )
     return 1 if broken else 0
 

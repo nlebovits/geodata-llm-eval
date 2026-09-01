@@ -76,7 +76,7 @@ python harness/pin_check.py           # reachability, size, entity tag
 python harness/pin_check.py --deep    # also read the parquet footers
 ```
 
-The check exits non-zero when a pin is missing or changed, and the two report differently because the fixes differ. A missing object needs a new URL everywhere the repository names it. A changed object needs regenerated goldens and a note recording which committed results predate the change.
+The check exits non-zero when a pin is missing, unreachable, or changed. The three report differently because the fixes differ: a missing object needs a new URL everywhere the repository names it; an unreachable object should be retried without changing its pin; and a changed object needs regenerated goldens plus a note recording which committed results predate the change.
 
 ## Cost and grading
 

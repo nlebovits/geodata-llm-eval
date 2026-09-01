@@ -25,6 +25,7 @@ from pin_check import (
     MISSING,
     OK,
     UNPINNED,
+    UNREACHABLE,
     Asset,
     assets,
     check,
@@ -274,12 +275,32 @@ def test_a_deleted_object_reports_missing_and_quotes_the_status(
 ) -> None:
     monkeypatch.setattr(
         "pin_check.live_head",
-        lambda url, timeout=30: {"ok": False, "detail": "HTTP 404 (delete marker set)"},
+        lambda url, timeout=30: {
+            "ok": False,
+            "status": MISSING,
+            "detail": "HTTP 404 (delete marker set)",
+        },
     )
     finding = check(sample_pins(), con=None)[0]
     assert finding.status == MISSING
     assert "delete marker" in finding.line()
     assert finding.live is None
+
+
+def test_a_transport_failure_is_not_reported_as_a_missing_object(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pin_check.live_head",
+        lambda url, timeout=30: {
+            "ok": False,
+            "status": UNREACHABLE,
+            "detail": "HTTP 503",
+        },
+    )
+    finding = check(sample_pins(), con=None)[0]
+    assert finding.status == UNREACHABLE
+    assert "unreachable" in finding.line()
 
 
 def test_a_rewritten_object_names_the_fields_that_moved(
@@ -383,6 +404,7 @@ def test_live_head_surfaces_the_delete_marker(
     monkeypatch.setattr("urllib.request.urlopen", raise_gone)
     reading = live_head(CAR)
     assert reading["ok"] is False
+    assert reading["status"] == MISSING
     assert reading["detail"] == "HTTP 404 (delete marker set)"
 
 
@@ -393,7 +415,20 @@ def test_live_head_reports_a_network_failure_as_itself(
         raise urllib.error.URLError("Name or service not known")
 
     monkeypatch.setattr("urllib.request.urlopen", raise_dns)
-    assert live_head(CAR)["ok"] is False
+    reading = live_head(CAR)
+    assert reading["ok"] is False
+    assert reading["status"] == UNREACHABLE
+
+
+def test_live_head_treats_a_server_error_as_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_busy(request: Any, timeout: int = 0) -> None:
+        raise urllib.error.HTTPError(CAR, 503, "Unavailable", Message(), None)
+
+    monkeypatch.setattr("urllib.request.urlopen", raise_busy)
+    reading = live_head(CAR)
+    assert reading["status"] == UNREACHABLE
 
 
 def test_live_head_sends_an_agent_the_edge_accepts(
@@ -444,13 +479,57 @@ def test_a_broken_pin_exits_nonzero_and_says_what_each_status_needs(
     write_pins(sample_pins(), path)
     monkeypatch.setattr(
         "pin_check.live_head",
-        lambda url, timeout=30: {"ok": False, "detail": "HTTP 404"},
+        lambda url, timeout=30: {
+            "ok": False,
+            "status": MISSING,
+            "detail": "HTTP 404",
+        },
     )
     monkeypatch.setattr(sys, "argv", ["pin_check.py", "--pins", str(path)])
     assert main() == 1
     out = capsys.readouterr().out
     assert "MISSING" in out
     assert "regenerated goldens" in out
+
+
+def test_update_is_atomic_when_any_asset_cannot_be_observed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "pins.json"
+    write_pins(sample_pins(), path)
+    before = path.read_bytes()
+
+    def reading(url: str, timeout: int = 30) -> dict[str, Any]:
+        if url == CAR:
+            return {
+                "ok": False,
+                "status": UNREACHABLE,
+                "detail": "timed out",
+            }
+        return head()
+
+    monkeypatch.setattr("pin_check.live_head", reading)
+    monkeypatch.setattr("pin_check.connect_for_footers", NullConnection)
+    monkeypatch.setattr(
+        "pin_check.live_footer",
+        lambda con, url: {
+            "rows": 8,
+            "row_groups": 2,
+            "epsg": 4326,
+            "geoparquet_version": "1.1.0",
+            "bbox_covering": True,
+            "columns": ["cod_imovel:VARCHAR"],
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pin_check.py", "--pins", str(path), "--deep", "--update"],
+    )
+
+    assert main() == 1
+    assert path.read_bytes() == before
+    assert "not updating" in capsys.readouterr().out
 
 
 def test_json_output_is_parseable(
