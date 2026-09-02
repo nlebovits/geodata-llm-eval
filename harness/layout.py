@@ -189,9 +189,12 @@ class Fingerprint(NamedTuple):
     was ever run. Naming the parts here rather than at each call site keeps the
     rule in one place and makes a new part one line to add.
 
-    `pins` is None for every run made before the field existed. That is not
-    evidence its data matched a later run's, so an absent digest groups apart
-    from a present one rather than being waved through.
+    Optional fields are None for runs made before they existed. That is not
+    evidence they match a later run, so an absent value groups apart from a
+    present one rather than being waved through. `golden` is what existed when
+    the agent ran; `graded_against` is the oracle that produced its stored
+    verdict. Both matter: the former identifies the experiment, and the latter
+    prevents scores from different grading passes being pooled.
     """
 
     model: str
@@ -199,22 +202,35 @@ class Fingerprint(NamedTuple):
     arm: str
     spec: str | None
     golden: str | None
+    graded_against: str | None
     pins: str | None
     harness_commit: str | None
     input_mode: str | None
+    max_attempts: int | None
+    max_wall_seconds: int | None
 
     def label(self) -> str:
         """One line naming the group, digests shortened to their first six."""
         parts = [self.model, self.arm]
         for name, digest in (
             ("spec", self.spec),
-            ("golden", self.golden),
+            ("golden-at-run", self.golden),
+            ("graded", self.graded_against),
             ("pins", self.pins),
             ("harness", self.harness_commit),
         ):
             parts.append(f"{name} {digest[:6]}" if digest else f"{name} –")
         if self.input_mode:
             parts.append(self.input_mode)
+        attempts = str(self.max_attempts) if self.max_attempts is not None else "–"
+        if self.max_wall_seconds is None:
+            wall = "–"
+        elif self.max_wall_seconds == 0:
+            wall = "unlimited"
+        else:
+            wall = f"{self.max_wall_seconds / 60:g}m"
+        parts.append(f"attempt limit {attempts}")
+        parts.append(f"wall limit {wall}")
         return " · ".join(parts)
 
 
@@ -226,9 +242,12 @@ def fingerprint_of(meta: Meta) -> Fingerprint:
         arm=arm_of(meta),
         spec=spec_of(meta),
         golden=meta.get("golden_fingerprint"),
+        graded_against=meta.get("graded_against"),
         pins=meta.get("pins_fingerprint"),
         harness_commit=meta.get("harness_commit"),
         input_mode=meta.get("input_mode"),
+        max_attempts=meta.get("max_attempts"),
+        max_wall_seconds=meta.get("max_wall_seconds"),
     )
 
 

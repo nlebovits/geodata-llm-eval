@@ -105,16 +105,18 @@ def pass_hat_k(successes: int, trials: int, k: int) -> PassHatK | None:
 
 @dataclass(frozen=True)
 class Budget:
-    """What the passing and failing trials in a group were allowed to spend.
+    """Configured limits and observed use for the trials in a group.
 
     Reported next to the reliability figure because the two only mean anything
     together: an agent that passes nine trials in ten is telling you something
     different at three resumes and forty minutes than at one resume and five.
     """
 
-    max_attempts: int
-    max_turns: int
-    max_wall_seconds: float
+    attempt_limit: int | None
+    max_attempts_used: int
+    max_turns_used: int
+    wall_limit_seconds: int | None
+    max_wall_seconds_used: float
     total_cost_usd: float
 
 
@@ -154,19 +156,22 @@ class Group:
 
 
 def _budget(metas: list[Meta]) -> Budget:
-    """The high-water mark of what these trials spent.
-
-    Maxima, not means: the budget is the ceiling a trial was run under, and a
-    mean over trials that stopped early would understate it.
-    """
+    """The group's configured limits and high-water observed consumption."""
 
     def top(key: str) -> float:
         return max((m.get(key) or 0 for m in metas), default=0)
 
+    # These values are fingerprint fields, so every run in a group has the
+    # same one. Reading the first keeps missing (legacy) distinct from zero
+    # (explicitly unlimited wall time).
+    first = metas[0] if metas else {}
+
     return Budget(
-        max_attempts=int(top("attempts")),
-        max_turns=int(top("turns")),
-        max_wall_seconds=float(top("duration_seconds")),
+        attempt_limit=first.get("max_attempts"),
+        max_attempts_used=int(top("attempts")),
+        max_turns_used=int(top("turns")),
+        wall_limit_seconds=first.get("max_wall_seconds"),
+        max_wall_seconds_used=float(top("duration_seconds")),
         total_cost_usd=round(sum(m.get("imputed_cost_usd") or 0.0 for m in metas), 4),
     )
 

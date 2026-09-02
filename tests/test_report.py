@@ -151,6 +151,17 @@ def test_a_run_that_wrote_nothing_stays_out_of_the_question_averages(
     assert sessions[0]["run_id"].startswith("20260721T")
 
 
+def test_a_grader_error_hides_stale_grades_from_diagnostics(tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    _session(results, "opus", 1, {"q01": "correct"}, 1.0)
+    run_dir = next((results / "opus").iterdir())
+    meta = json.loads((run_dir / "meta.json").read_text())
+    meta.update({"status": "grader_error", "execution_status": "done"})
+    (run_dir / "meta.json").write_text(json.dumps(meta))
+
+    assert report.load_sessions(results) == []
+
+
 def test_sessions_carry_their_run_id_and_label(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _session(results, "opus", 1, {"q01": "correct"}, 1.0)
@@ -218,6 +229,9 @@ def test_the_report_leads_with_reliability_and_labels_the_rest_diagnostic(
     assert text.index("## Diagnostics") < text.index("## Question accuracy")
     assert "pass^3" in text and "pass^10" in text
     assert "Completion budget" in text
+    assert "Resume limit" in text
+    assert "Max resumes used" in text
+    assert "Wall limit" in text
 
 
 def test_an_invalidated_trial_is_named_and_counted_separately(

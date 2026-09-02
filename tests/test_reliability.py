@@ -39,7 +39,10 @@ def _run(results: Path, n: int, meta: dict[str, object]) -> Path:
         "golden_fingerprint": "g1",
         "spec_fingerprint": "s1",
         "pins_fingerprint": "p1",
+        "graded_against": "g1",
         "input_mode": "csv",
+        "max_attempts": 3,
+        "max_wall_seconds": 1800,
         "attempts": 1,
         "turns": 100,
         "duration_seconds": 600.0,
@@ -269,10 +272,13 @@ def test_runs_are_not_pooled_across_a_changed_fingerprint(tmp_path: Path) -> Non
     _run(results, 3, {"strict_success": True, "golden_fingerprint": "g2"})
     _run(results, 4, {"strict_success": True, "harness_commit": "def5678"})
     _run(results, 5, {"strict_success": True, "spec_fingerprint": "s2"})
+    _run(results, 6, {"strict_success": True, "graded_against": "g2"})
+    _run(results, 7, {"strict_success": True, "max_attempts": 4})
+    _run(results, 8, {"strict_success": True, "max_wall_seconds": 3600})
 
     groups = reliability.summarise(layout.run_dirs(results))
 
-    assert len(groups) == 5
+    assert len(groups) == 8
     assert all(g.attempted == 1 for g in groups)
 
 
@@ -307,9 +313,11 @@ def test_the_budget_reports_the_ceiling_not_the_mean(tmp_path: Path) -> None:
 
     (group,) = reliability.summarise(layout.run_dirs(results))
 
-    assert group.budget.max_attempts == 3
-    assert group.budget.max_turns == 210
-    assert group.budget.max_wall_seconds == 1800.0
+    assert group.budget.attempt_limit == 3
+    assert group.budget.max_attempts_used == 3
+    assert group.budget.max_turns_used == 210
+    assert group.budget.wall_limit_seconds == 1800
+    assert group.budget.max_wall_seconds_used == 1800.0
     assert group.budget.total_cost_usd == 5.5
 
 

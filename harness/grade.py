@@ -30,7 +30,15 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from layout import GRADER_ERROR, is_scored, read_meta, regraded, run_dirs, run_name
+from layout import (
+    DONE,
+    GRADER_ERROR,
+    is_scored,
+    read_meta,
+    regraded,
+    run_dirs,
+    run_name,
+)
 
 REL_TOL = 1e-3
 ABS_TOL = 1e-9
@@ -618,6 +626,19 @@ def load_questions(questions_path: Path) -> list[Question]:
     return questions
 
 
+def _mark_grader_error(meta: dict[str, Any]) -> None:
+    """Invalidate the current grade without losing how execution ended."""
+    if meta.get("status") != GRADER_ERROR:
+        meta["execution_status"] = meta.get("status", "unknown")
+    meta["status"] = GRADER_ERROR
+
+
+def _restore_execution_status(meta: dict[str, Any]) -> None:
+    """Clear a recovered grader error and restore the runner's outcome."""
+    if meta.get("status") == GRADER_ERROR:
+        meta["status"] = meta.pop("execution_status", DONE)
+
+
 def _write_meta(
     session_dir: Path,
     meta: dict[str, Any],
@@ -672,7 +693,12 @@ def main() -> int:
             # that did not happen, and drags every average it appears in.
             # It did fail the task, though, so it is recorded as a trial that
             # did not pass and stays in the reliability denominator.
-            _write_meta(session_dir, meta, strict_success=False)
+            _write_meta(
+                session_dir,
+                meta,
+                strict_success=False,
+                graded_against=graded_against,
+            )
             print(
                 f"{run_name(session_dir):<34} "
                 f"{meta.get('status', 'unknown')} — not scored, trial failed"
@@ -687,9 +713,13 @@ def main() -> int:
             # trial leaves the denominator rather than counting as a failure.
             # The execution outcome is kept, because it is still the only
             # record of what the session itself did.
-            meta["execution_status"] = meta.get("status", "unknown")
-            meta["status"] = GRADER_ERROR
-            _write_meta(session_dir, meta, strict_success=False)
+            _mark_grader_error(meta)
+            _write_meta(
+                session_dir,
+                meta,
+                strict_success=False,
+                graded_against=graded_against,
+            )
             print(f"{run_name(session_dir):<34} grader error: {exc}", file=sys.stderr)
             continue
         (session_dir / "grades.json").write_text(
@@ -699,6 +729,7 @@ def main() -> int:
             json.dumps(diffs, indent=2, sort_keys=True) + "\n"
         )
         passed = strict_success(grades, questions)
+        _restore_execution_status(meta)
         _write_meta(
             session_dir,
             meta,

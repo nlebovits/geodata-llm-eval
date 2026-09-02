@@ -51,7 +51,9 @@ def load_sessions(results_dir: Path) -> list[Session]:
             continue
         grades = json.loads(grades_path.read_text())
         meta = json.loads(meta_path.read_text())
-        if not is_scored(meta):
+        # A grader failure can leave artifacts from an older successful pass.
+        # They are stale by definition and must not leak into diagnostics.
+        if not is_scored(meta) or layout.trial_status(meta) == layout.GRADER_ERROR:
             continue
         total = len(grades)
         correct = sum(1 for v in grades.values() if v == "correct")
@@ -244,18 +246,35 @@ def reliability_lines(results_dir: Path) -> list[str]:
     lines += [
         "### Completion budget",
         "",
-        "The ceiling each configuration was run under. A reliability figure",
+        "Configured limits and observed high-water use. A reliability figure",
         "means nothing without it: the same agent passing nine trials in ten",
         "says something different at three resumes than at one.",
         "",
-        "| Configuration | Max resumes | Max turns | Max wall clock | Total cost |",
-        "|---------------|-------------|-----------|----------------|------------|",
+        (
+            "| Configuration | Resume limit | Max resumes used | Max turns used |"
+            " Wall limit | Max wall used | Total cost |"
+        ),
+        (
+            "|---------------|--------------|------------------|----------------|"
+            "------------|---------------|------------|"
+        ),
     ]
     for group in groups:
         b = group.budget
+        resume_limit = (
+            str(max(0, b.attempt_limit - 1)) if b.attempt_limit is not None else "–"
+        )
+        resumes_used = max(0, b.max_attempts_used - 1)
+        if b.wall_limit_seconds is None:
+            wall_limit = "–"
+        elif b.wall_limit_seconds == 0:
+            wall_limit = "unlimited"
+        else:
+            wall_limit = f"{b.wall_limit_seconds / 60:g}m"
         lines.append(
-            f"| {group.fingerprint.label()} | {b.max_attempts}"
-            f" | {b.max_turns} | {b.max_wall_seconds / 60:.0f}m"
+            f"| {group.fingerprint.label()} | {resume_limit}"
+            f" | {resumes_used} | {b.max_turns_used} | {wall_limit}"
+            f" | {b.max_wall_seconds_used / 60:.0f}m"
             f" | ${b.total_cost_usd:.2f} |"
         )
     lines.append("")

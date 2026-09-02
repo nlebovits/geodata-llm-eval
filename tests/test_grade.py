@@ -402,6 +402,7 @@ def _graded_tree(
     golden = tmp_path / "golden"
     golden.mkdir()
     (golden / "q01.csv").write_text(GOLDEN, encoding="utf-8")
+    (golden / "SHA256SUMS").write_text("fixture  q01.csv\n", encoding="utf-8")
 
     results = tmp_path / "results"
     session = results / "sonnet" / "20260721T120000Z-abc1234"
@@ -491,6 +492,75 @@ def test_main_leaves_an_unscored_session_out(
     assert grade.main() == 0
     assert "not scored" in capsys.readouterr().out
     assert not (session / "grades.json").exists()
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["graded_against"] == grade.golden_fingerprint(golden)
+
+
+def test_a_successful_retry_restores_the_execution_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient grader failure must not invalidate a run forever."""
+    golden, results, questions, session = _graded_tree(tmp_path, answer=GOLDEN)
+    (session / "meta.json").write_text(
+        json.dumps(
+            {
+                "status": "grader_error",
+                "execution_status": "incomplete",
+                "strict_success": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "incomplete"
+    assert "execution_status" not in meta
+
+
+def test_a_repeated_grader_failure_preserves_the_execution_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    golden, results, questions, session = _graded_tree(tmp_path)
+    (session / "meta.json").write_text(
+        json.dumps({"status": "grader_error", "execution_status": "done"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(grade, "grade_session", lambda *args, **kwargs: 1 / 0)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "grader_error"
+    assert meta["execution_status"] == "done"
+    assert meta["graded_against"] == grade.golden_fingerprint(golden)
 
 
 def test_main_refuses_a_tree_with_no_sessions(
