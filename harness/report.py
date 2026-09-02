@@ -19,7 +19,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import layout
 import matplotlib
+import reliability
 from layout import is_scored, run_dirs
 
 matplotlib.use("Agg")
@@ -169,6 +171,104 @@ def consistency_lines(results_dir: Path) -> list[str]:
     return lines
 
 
+def reliability_lines(results_dir: Path) -> list[str]:
+    """Strict task success and pass^k, per fingerprint.
+
+    First section in the report because it answers the question the benchmark
+    exists to answer. Everything below it is diagnostic: mean accuracy says
+    how much of the workflow tends to come back right, and this says how often
+    all of it does.
+    """
+    groups = reliability.summarise(run_dirs(results_dir))
+    if not groups:
+        return []
+    lines = [
+        "## Strict task success and reliability",
+        "",
+        "A trial passes when every critical question graded correct. A near",
+        "miss does not pass. Agent timeouts, early stops, and empty runs are",
+        "failures and stay in the denominator; only a dead credential,",
+        "unavailable infrastructure, or a grader crash invalidates a trial.",
+        "",
+        "pass^k is the chance that k independent trials all pass, estimated",
+        "without replacement from the trials on disk, with a 95% interval. It",
+        "is blank where there are fewer than k valid trials.",
+        "",
+        "Runs are never pooled across a spec edit, a regenerated golden, a",
+        "repinned dataset, or a harness change. Each row is one fingerprint.",
+        "",
+        (
+            "| Configuration | Attempted | Invalid | Valid | Strict success |"
+            " pass^3 | pass^5 | pass^10 |"
+        ),
+        (
+            "|---------------|-----------|---------|-------|----------------|"
+            "--------|--------|---------|"
+        ),
+    ]
+
+    def cell(estimate: reliability.PassHatK | None, valid: int, k: int) -> str:
+        if estimate is None:
+            return f"– (n={valid}<{k})"
+        return f"{estimate.point:.0%} [{estimate.low:.0%}–{estimate.high:.0%}]"
+
+    for group in groups:
+        rate = group.strict_success_rate
+        rate_s = (
+            f"{rate:.0%} ({group.passed}/{group.valid})" if rate is not None else "–"
+        )
+        cells = " | ".join(
+            cell(group.pass_hat(k), group.valid, k) for k in reliability.REPORTED_K
+        )
+        lines.append(
+            f"| {group.fingerprint.label()} | {group.attempted}"
+            f" | {group.invalid} ({group.invalid_rate:.0%})"
+            f" | {group.valid} | {rate_s} | {cells} |"
+        )
+    lines.append("")
+
+    lines += [
+        "### Trial outcomes",
+        "",
+        "| Configuration | " + " | ".join(sorted(layout.TRIAL_STATUSES)) + " |",
+        "|---------------|" + "|".join(["---"] * len(layout.TRIAL_STATUSES)) + "|",
+    ]
+    for group in groups:
+        counts = " | ".join(
+            str(group.statuses.get(status, 0))
+            for status in sorted(layout.TRIAL_STATUSES)
+        )
+        lines.append(f"| {group.fingerprint.label()} | {counts} |")
+    lines.append("")
+
+    lines += [
+        "### Completion budget",
+        "",
+        "The ceiling each configuration was run under. A reliability figure",
+        "means nothing without it: the same agent passing nine trials in ten",
+        "says something different at three resumes than at one.",
+        "",
+        "| Configuration | Max resumes | Max turns | Max wall clock | Total cost |",
+        "|---------------|-------------|-----------|----------------|------------|",
+    ]
+    for group in groups:
+        b = group.budget
+        lines.append(
+            f"| {group.fingerprint.label()} | {b.max_attempts}"
+            f" | {b.max_turns} | {b.max_wall_seconds / 60:.0f}m"
+            f" | ${b.total_cost_usd:.2f} |"
+        )
+    lines.append("")
+
+    invalidated = [(g, run) for g in groups for run in g.invalid_runs]
+    if invalidated:
+        lines += ["**Invalidated trials**", ""]
+        for group, (name, status) in invalidated:
+            lines.append(f"- `{name}` — {status}")
+        lines.append("")
+    return lines
+
+
 def runtime_lines(sessions: list[Session]) -> list[str]:
     """Wall clock, and how much of it went to waiting on remote reads.
 
@@ -223,14 +323,15 @@ def write_summary_csv(sessions: list[Session], path: Path) -> None:
         writer.writerows({k: s[k] for k in fields} for s in sessions)
 
 
-def write_report_md(
-    sessions: list[Session],
-    path: Path,
-    questions: list[dict[str, Any]] | None = None,
-    results_dir: Path | None = None,
-) -> None:
+def accuracy_lines(sessions: list[Session]) -> list[str]:
+    """Mean question accuracy per model: partial credit, for triage.
+
+    A dependent workflow fails all at once, so the share of questions a run
+    got right says where it went wrong. It does not say whether the run
+    worked, which is what the reliability section is for.
+    """
     lines = [
-        "# EUDR workflow benchmark results",
+        "## Question accuracy",
         "",
         "Accuracy is the share of questions graded correct against the",
         "golden fixture. Cost is imputed from logged tokens at list API",
@@ -263,6 +364,40 @@ def write_report_md(
             f" | ${statistics.mean(costs):.4f} |"
         )
     lines.append("")
+    return lines
+
+
+def write_report_md(
+    sessions: list[Session],
+    path: Path,
+    questions: list[dict[str, Any]] | None = None,
+    results_dir: Path | None = None,
+) -> None:
+    """Reliability first, diagnostics second.
+
+    The order is the argument. A reader who stops after the first table
+    should leave knowing how often the whole workflow came back correct, not
+    a mean that can sit at 93% while every trial failed.
+    """
+    lines = [
+        "# EUDR workflow benchmark results",
+        "",
+        "Strict task success comes first. Everything under Diagnostics is",
+        "partial credit: useful for triage, not a claim about reliability.",
+        "",
+    ]
+    if results_dir is not None:
+        lines += reliability_lines(results_dir)
+    lines += [
+        "## Diagnostics",
+        "",
+        "Partial credit and where it was lost. None of what follows is a",
+        "reliability claim: a configuration can answer almost every question",
+        "correctly and still fail most trials, which is what the section",
+        "above is for.",
+        "",
+    ]
+    lines += accuracy_lines(sessions)
     lines += runtime_lines(sessions)
     lines += stage_grid_lines(sessions, questions or [])
     if results_dir is not None:

@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import ablation
+import layout
 from pricing import PRICES, imputed_cost_usd
 from probe import USER_AGENT
 
@@ -63,6 +64,14 @@ FULL_SPEC = "full"
 # without burying the two lines that matter.
 HEARTBEAT_SECONDS = 60
 POLL_SECONDS = 2
+
+# The completion budget, in seconds of wall clock across every attempt. Zero
+# means no budget, which is what every run before this flag had: the harness
+# waited on the container for as long as it took. A run that exhausts a
+# budget is killed and recorded as `agent_timeout` -- a failure, not an
+# excuse, because a task the agent cannot finish inside the budget it was
+# given is a task it did not finish.
+MAX_WALL_SECONDS = 0
 
 # A headless session ends its turn when the model stops calling tools, which
 # is not the same as finishing the work: a session that parks an expensive
@@ -403,6 +412,32 @@ def resume_prompt(missing: list[str]) -> str:
     )
 
 
+def execution_status(
+    answered: int, timed_out: bool = False, credential_dead: bool = False
+) -> str:
+    """The status this run records, before grading has an opinion.
+
+    Four outcomes the harness can see for itself. `done` and `incomplete`
+    both mean the session ran and wrote answers, and which of them becomes a
+    passed or failed trial is grading's call, not this function's.
+
+    A dead credential outranks an empty run because it explains it: the CLI
+    retried the token ten times and exited having never reached the task, so
+    the trial is invalid rather than a failure the agent owns. It only counts
+    when nothing was answered -- a session that recovered mid-run and wrote
+    answers was measured, whatever happened to its first token.
+    """
+    if credential_dead and answered == 0:
+        return layout.AUTHENTICATION_INVALID
+    if timed_out:
+        return layout.AGENT_TIMEOUT
+    if answered == 0:
+        return layout.AGENT_PRODUCED_NOTHING
+    if answered < question_count():
+        return layout.INCOMPLETE
+    return layout.DONE
+
+
 def session_verdict(answered: int) -> str:
     """How a finished session is announced.
 
@@ -642,6 +677,7 @@ def run_session(
     max_attempts: int = MAX_ATTEMPTS,
     arm: str = "",
     ablations: Path | None = None,
+    max_wall_seconds: int = MAX_WALL_SECONDS,
 ) -> None:
     arm_spec = resolve_arm(arm, ablations)
 
@@ -676,6 +712,10 @@ def run_session(
         transcript_path = out_dir / "transcript.jsonl"
         errors_path = Path(tmp) / "stderr.log"
         started_at = time.monotonic()
+        # Set by stream() when the budget runs out, read by the resume loop
+        # and by the status. One flag across every attempt, because the budget
+        # is the whole trial's, not each attempt's.
+        timed_out = False
         catalog_before = source_coop_sample()
         rate = catalog_before.get("bytes_per_second")
         speed = f"{rate / 1e6:.1f} MB/s" if rate else "unreachable"
@@ -696,6 +736,7 @@ def run_session(
             Both files are opened in the caller's mode so a resumed attempt
             adds to the record of the first rather than erasing it.
             """
+            nonlocal timed_out
             with (
                 open(transcript_path, mode, encoding="utf-8") as transcript,
                 open(errors_path, mode, encoding="utf-8") as errors,
@@ -709,6 +750,18 @@ def run_session(
                         time.sleep(POLL_SECONDS)
                         if follower:
                             follower.consume(transcript_path)
+                        spent = time.monotonic() - started_at
+                        if max_wall_seconds and spent >= max_wall_seconds:
+                            timed_out = True
+                            print(
+                                f"[{model}/{name}] budget spent:"
+                                f" {spent / 60:.0f}m of"
+                                f" {max_wall_seconds / 60:.0f}m."
+                                f" Stopping the session.",
+                                file=sys.stderr,
+                                flush=True,
+                            )
+                            break
                         if time.monotonic() < next_beat:
                             continue
                         next_beat = time.monotonic() + HEARTBEAT_SECONDS
@@ -752,7 +805,7 @@ def run_session(
         while True:
             attempts += 1
             missing = missing_answers(workspace)
-            if not missing or attempts >= max_attempts:
+            if not missing or attempts >= max_attempts or timed_out:
                 break
             # The session id survives in the mounted home, so the same session
             # can be handed back its own history. Without one there is nothing
@@ -820,6 +873,9 @@ def run_session(
             "harness_commit": harness_commit(),
             "input_mode": input_mode,
             "golden_fingerprint": golden_fingerprint(),
+            "pins_fingerprint": pins_fingerprint(),
+            "max_attempts": max_attempts,
+            "max_wall_seconds": max_wall_seconds,
             "spec_fingerprint": spec_digest,
             "spec_manifest": spec_manifest,
             "ablation": arm_spec,
@@ -842,7 +898,11 @@ def run_session(
         answered = len(list((out_dir / "answers").glob("q*.csv")))
         verdict = session_verdict(answered)
         meta["answers_written"] = answered
-        meta["status"] = verdict.lower().replace(" ", "_")
+        meta["status"] = execution_status(
+            answered,
+            timed_out=timed_out,
+            credential_dead=credential_rejected(transcript_path),
+        )
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         print(
             f"[{model}/{name}] {verdict}:"
@@ -924,6 +984,23 @@ def golden_fingerprint() -> str | None:
     return hashlib.sha256(manifest.read_bytes()).hexdigest()[:12]
 
 
+def pins_fingerprint() -> str | None:
+    """A digest of fixtures/pins.json, so a run records which data it saw.
+
+    Source Cooperative publishers delete and republish. When they do, the
+    pinned URLs and asset identities in pins.json change, the oracle is
+    regenerated, and a run from before the repin was measuring a different
+    task. Two runs either side of one must not be pooled, and the digest is
+    what lets a reader tell them apart -- the golden digest alone cannot,
+    because a repin that leaves every answer unchanged still changes the
+    inputs a session had to work from.
+    """
+    pins = REPO_ROOT / "fixtures" / "pins.json"
+    if not pins.exists():
+        return None
+    return hashlib.sha256(pins.read_bytes()).hexdigest()[:12]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", choices=sorted(PRICES), required=True)
@@ -958,6 +1035,14 @@ def main() -> int:
         "unanswered is resumed (1 disables resuming)",
     )
     ap.add_argument(
+        "--max-wall-seconds",
+        type=int,
+        default=MAX_WALL_SECONDS,
+        help="completion budget in seconds of wall clock across every "
+        "attempt; a session that spends it is stopped and recorded as "
+        "agent_timeout (0, the default, means no budget)",
+    )
+    ap.add_argument(
         "--arm",
         default="",
         help="withhold part of the spec, by arm name from the "
@@ -982,6 +1067,7 @@ def main() -> int:
                 max_attempts=args.max_attempts,
                 arm=args.arm,
                 ablations=args.ablations,
+                max_wall_seconds=args.max_wall_seconds,
             )
         except ablation.AblationError as exc:
             # A mistyped arm is a config problem, not a crash. Say so in one

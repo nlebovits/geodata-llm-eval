@@ -1267,3 +1267,37 @@ def test_a_rejected_credential_stops_the_resume_loop(
 
     assert len(starts) == 1, "a rejected credential must not be retried"
     assert "the credential was rejected" in capsys.readouterr().err
+
+
+def test_execution_status_separates_what_the_harness_saw() -> None:
+    """Four outcomes the harness can judge without the grader. `done` and
+    `incomplete` are execution outcomes, not verdicts: whether either becomes
+    a passed trial is grading's call."""
+    total = run.question_count()
+    assert run.execution_status(total) == "done"
+    assert run.execution_status(total - 1) == "incomplete"
+    assert run.execution_status(0) == "agent_produced_nothing"
+    assert run.execution_status(5, timed_out=True) == "agent_timeout"
+
+
+def test_a_dead_credential_only_invalidates_a_run_that_answered_nothing() -> None:
+    """A session that recovered mid-run and wrote answers was measured,
+    whatever happened to its first token. One that never got past the 401
+    never reached the task at all."""
+    assert run.execution_status(0, credential_dead=True) == "authentication_invalid"
+    assert run.execution_status(5, credential_dead=True) == "incomplete"
+
+
+def test_a_spent_budget_outranks_an_incomplete_answer_set() -> None:
+    """A run killed at its budget stopped early because it ran out of time,
+    which is a different failure from one that stopped on its own."""
+    assert run.execution_status(1, timed_out=True) == "agent_timeout"
+    assert run.execution_status(0, timed_out=True) == "agent_timeout"
+
+
+def test_the_pins_digest_changes_with_the_pinned_data(tmp_path: Path) -> None:
+    """Two runs either side of a repin measured different inputs. The golden
+    digest alone cannot tell them apart, because a repin that leaves every
+    answer unchanged still changes what the session had to work from."""
+    original = run.pins_fingerprint()
+    assert original is not None and len(original) == 12

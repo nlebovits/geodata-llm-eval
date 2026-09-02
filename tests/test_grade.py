@@ -519,3 +519,38 @@ def test_questions_are_optional(tmp_path: Path) -> None:
     """The grader still runs where questions.yaml is absent; only the
     per-stage breakdown needs it."""
     assert grade.load_questions(tmp_path / "absent.yaml") == []
+
+
+def test_a_declared_question_with_no_golden_grades_ungradeable(
+    tmp_path: Path,
+) -> None:
+    """A question absent from grades.json reads to every downstream count as
+    a question that was never asked, and strict success would then pass a
+    trial that answered thirty of thirty-one."""
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text("n\n1\n")
+    session = tmp_path / "run"
+    (session / "answers").mkdir(parents=True)
+    (session / "answers" / "q01.csv").write_text("n\n1\n")
+
+    questions = [{"id": "01", "stage": 1}, {"id": "02", "stage": 1}]
+    grades, _ = grade.grade_session(session, golden, questions=questions)
+
+    assert grades == {"q01": "correct", "q02": "ungradeable"}
+    assert grade.strict_success(grades, questions) is False
+
+
+def test_grading_without_a_question_list_keeps_the_golden_glob(
+    tmp_path: Path,
+) -> None:
+    """Callers that grade a golden directory alone are unaffected."""
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text("n\n1\n")
+    session = tmp_path / "run"
+    (session / "answers").mkdir(parents=True)
+
+    grades, _ = grade.grade_session(session, golden)
+
+    assert grades == {"q01": "missing"}

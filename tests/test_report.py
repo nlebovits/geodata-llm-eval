@@ -126,10 +126,15 @@ def test_report_without_consistency_file_still_renders(tmp_path: Path) -> None:
     assert "Cross-run consistency" not in text  # no consistency.json present
 
 
-def test_a_run_that_wrote_nothing_stays_out_of_the_averages(tmp_path: Path) -> None:
+def test_a_run_that_wrote_nothing_stays_out_of_the_question_averages(
+    tmp_path: Path,
+) -> None:
     """A session that ended without attempting the questions is not thirty
     wrong answers. Scoring it as one blamed the model for a run that never
-    happened and dragged every average it appeared in."""
+    happened and dragged every average it appeared in.
+
+    The averages are diagnostics. The same run still failed the task, and
+    test_reliability.py holds it in the strict-success denominator."""
     results = tmp_path / "results"
     _session(
         results, "opus", 1, {"q01": "correct", "q02": "correct", "q03": "correct"}, 1.0
@@ -187,3 +192,54 @@ def test_main_refuses_an_ungraded_tree(
 
     assert report.main() == 1
     assert "run grade.py first" in capsys.readouterr().err
+
+
+def test_the_report_leads_with_reliability_and_labels_the_rest_diagnostic(
+    tmp_path: Path,
+) -> None:
+    """A reader who stops after the first section must leave knowing how often
+    the whole workflow came back correct.
+
+    Mean accuracy is the number that reads as a score and is not one: a
+    configuration answering 93% of questions right can fail every trial. The
+    order of the document is the argument, so it is pinned here."""
+    results = tmp_path / "results"
+    _session(results, "opus", 1, {"q01": "correct", "q02": "correct"}, 1.0)
+    graded = next((results / "opus").iterdir())
+    meta = json.loads((graded / "meta.json").read_text())
+    meta["strict_success"] = True
+    (graded / "meta.json").write_text(json.dumps(meta))
+
+    out = tmp_path / "report.md"
+    report.write_report_md(report.load_sessions(results), out, QUESTIONS, results)
+    text = out.read_text()
+
+    assert text.index("## Strict task success") < text.index("## Diagnostics")
+    assert text.index("## Diagnostics") < text.index("## Question accuracy")
+    assert "pass^3" in text and "pass^10" in text
+    assert "Completion budget" in text
+
+
+def test_an_invalidated_trial_is_named_and_counted_separately(
+    tmp_path: Path,
+) -> None:
+    """An invalid trial has to be visible as one. A rate that quietly shrinks
+    its own denominator is the failure this section was written to remove, so
+    the count, the rate, and the run id all appear."""
+    results = tmp_path / "results"
+    _session(results, "opus", 1, {"q01": "correct"}, 1.0)
+    _session(results, "opus", 2, {}, 1.0)
+    dead = next(d for d in (results / "opus").iterdir() if "20260722" in d.name)
+    meta = json.loads((dead / "meta.json").read_text())
+    meta["status"] = "authentication_invalid"
+    (dead / "meta.json").write_text(json.dumps(meta))
+    alive = next(d for d in (results / "opus").iterdir() if "20260721" in d.name)
+    meta = json.loads((alive / "meta.json").read_text())
+    meta["strict_success"] = False
+    (alive / "meta.json").write_text(json.dumps(meta))
+
+    lines = "\n".join(report.reliability_lines(results))
+
+    assert "| 2 | 1 (50%) | 1 |" in lines
+    assert "authentication_invalid" in lines
+    assert "20260722T120000Z-abc1234" in lines
