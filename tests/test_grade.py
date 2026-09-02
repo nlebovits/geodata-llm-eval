@@ -402,6 +402,7 @@ def _graded_tree(
     golden = tmp_path / "golden"
     golden.mkdir()
     (golden / "q01.csv").write_text(GOLDEN, encoding="utf-8")
+    (golden / "SHA256SUMS").write_text("fixture  q01.csv\n", encoding="utf-8")
 
     results = tmp_path / "results"
     session = results / "sonnet" / "20260721T120000Z-abc1234"
@@ -491,6 +492,75 @@ def test_main_leaves_an_unscored_session_out(
     assert grade.main() == 0
     assert "not scored" in capsys.readouterr().out
     assert not (session / "grades.json").exists()
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["graded_against"] == grade.golden_fingerprint(golden)
+
+
+def test_a_successful_retry_restores_the_execution_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient grader failure must not invalidate a run forever."""
+    golden, results, questions, session = _graded_tree(tmp_path, answer=GOLDEN)
+    (session / "meta.json").write_text(
+        json.dumps(
+            {
+                "status": "grader_error",
+                "execution_status": "incomplete",
+                "strict_success": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "incomplete"
+    assert "execution_status" not in meta
+
+
+def test_a_repeated_grader_failure_preserves_the_execution_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    golden, results, questions, session = _graded_tree(tmp_path)
+    (session / "meta.json").write_text(
+        json.dumps({"status": "grader_error", "execution_status": "done"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(grade, "grade_session", lambda *args, **kwargs: 1 / 0)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grade.py",
+            "--results",
+            str(results),
+            "--golden",
+            str(golden),
+            "--questions",
+            str(questions),
+        ],
+    )
+
+    assert grade.main() == 0
+
+    meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "grader_error"
+    assert meta["execution_status"] == "done"
+    assert meta["graded_against"] == grade.golden_fingerprint(golden)
 
 
 def test_main_refuses_a_tree_with_no_sessions(
@@ -519,3 +589,38 @@ def test_questions_are_optional(tmp_path: Path) -> None:
     """The grader still runs where questions.yaml is absent; only the
     per-stage breakdown needs it."""
     assert grade.load_questions(tmp_path / "absent.yaml") == []
+
+
+def test_a_declared_question_with_no_golden_grades_ungradeable(
+    tmp_path: Path,
+) -> None:
+    """A question absent from grades.json reads to every downstream count as
+    a question that was never asked, and strict success would then pass a
+    trial that answered thirty of thirty-one."""
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text("n\n1\n")
+    session = tmp_path / "run"
+    (session / "answers").mkdir(parents=True)
+    (session / "answers" / "q01.csv").write_text("n\n1\n")
+
+    questions = [{"id": "01", "stage": 1}, {"id": "02", "stage": 1}]
+    grades, _ = grade.grade_session(session, golden, questions=questions)
+
+    assert grades == {"q01": "correct", "q02": "ungradeable"}
+    assert grade.strict_success(grades, questions) is False
+
+
+def test_grading_without_a_question_list_keeps_the_golden_glob(
+    tmp_path: Path,
+) -> None:
+    """Callers that grade a golden directory alone are unaffected."""
+    golden = tmp_path / "golden"
+    golden.mkdir()
+    (golden / "q01.csv").write_text("n\n1\n")
+    session = tmp_path / "run"
+    (session / "answers").mkdir(parents=True)
+
+    grades, _ = grade.grade_session(session, golden)
+
+    assert grades == {"q01": "missing"}

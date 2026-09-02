@@ -7,6 +7,7 @@
 # Each question declares:
 #   stage       1-6, the workflow stage it belongs to
 #   depends_on  question ids whose result it builds on (may be empty)
+#   critical    optional, defaults to true; see the ruling below
 # so the grader can separate a question wrong on its own merits from one wrong
 # because an upstream answer was wrong (harness/grade.py stage_summary).
 #
@@ -34,6 +35,21 @@
 # permutations and cannot tell an identifier from a quantity. Neighbouring
 # plots carry adjacent ids, so the slack would credit an answer naming the
 # wrong farm — a worse failure than rejecting a valid area method.
+#
+# The ruling on strict task success: all 31 questions are critical, so a trial
+# passes only when every one of them grades correct. The task is one workflow
+# whose stages feed each other, and a run that resolves the input list, matches
+# the fields, classifies scope, and then routes the wrong cadaster to the wrong
+# facility has not done it. Per-question accuracy stays as partial credit for
+# triage; it is not what the headline reports.
+#
+# A question may opt out with `critical: false`, which makes it a diagnostic
+# whose failure does not fail the trial. None does today. Six may never opt
+# out, because issue #29 names them as the minimum: 16 (compliance
+# classification), 24 (flagged-property completeness), 26 (routing outcome),
+# 28 (candidate reconciliation), 30 (the final workflow.csv), and 31 (input
+# reconciliation). harness/grade.py CRITICAL_MINIMUM holds that list and
+# tests/test_grade.py enforces it.
 #
 # Deforestation comes from the era-band columns only; hansen_covered_area is
 # never used. Which land-cover classes fall under the regulation is governed by

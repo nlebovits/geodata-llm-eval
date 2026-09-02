@@ -30,7 +30,15 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from layout import is_scored, read_meta, regraded, run_dirs, run_name
+from layout import (
+    DONE,
+    GRADER_ERROR,
+    is_scored,
+    read_meta,
+    regraded,
+    run_dirs,
+    run_name,
+)
 
 REL_TOL = 1e-3
 ABS_TOL = 1e-9
@@ -81,6 +89,9 @@ NEAR_MISS = "near_miss"
 WRONG = "wrong"
 MISSING = "missing"
 UNPARSEABLE = "unparseable"
+# A question questions.yaml declares and fixtures/golden has no file for.
+# Nothing about the session: the fixture set is short and needs regenerating.
+UNGRADEABLE = "ungradeable"
 
 
 def _parse_cell(cell: str) -> object:
@@ -474,18 +485,30 @@ def grade_session(
     session_dir: Path,
     golden_dir: Path,
     geometry_ids: set[str] | None = None,
+    questions: list[Question] | None = None,
 ) -> tuple[dict[str, str], dict[str, list[Diff]]]:
-    """Grade every golden question against a session's answers/ dir.
+    """Grade every question against a session's answers/ dir.
 
     Returns the outcome per question and the diffs behind each failure.
     geometry_ids (question ids like 'q08') grade with the looser geometry
     tolerance; pass the result of geometry_graded_ids().
+
+    The question set is the union of questions.yaml and the golden files. A
+    question the fixture declares but the golden set lacks grades UNGRADEABLE
+    rather than vanishing, because a question absent from grades.json reads to
+    every downstream count as a question that was never asked, and strict
+    success would then pass a trial that answered thirty of thirty-one.
     """
     geometry_ids = geometry_ids or set()
+    golden_paths = {p.stem: p for p in sorted(golden_dir.glob("q*.csv"))}
+    declared = {f"q{q['id']}" for q in (questions or [])}
     grades: dict[str, str] = {}
     diffs: dict[str, list[Diff]] = {}
-    for golden_path in sorted(golden_dir.glob("q*.csv")):
-        qid = golden_path.stem
+    for qid in sorted(declared | set(golden_paths)):
+        golden_path = golden_paths.get(qid)
+        if golden_path is None:
+            grades[qid] = UNGRADEABLE
+            continue
         answer_path = session_dir / "answers" / f"{qid}.csv"
         outcome, cells = evaluate_question(
             answer_path, golden_path, geometry=qid in geometry_ids
@@ -494,6 +517,48 @@ def grade_session(
         if cells:
             diffs[qid] = cells
     return grades, diffs
+
+
+# The questions the task fails without, named in issue #29 as the minimum any
+# ruling has to keep critical:
+#   16  compliance classification (which classes fall in EUDR scope)
+#   24  flagged-property completeness (every non-compliant cadaster accounted for)
+#   26  routing outcome (nearest delivery facility under the routing rule)
+#   28  candidate reconciliation across the flagged list
+#   30  the final workflow.csv, identical to fixtures/golden/workflow.csv
+#   31  input reconciliation (every row of the input list accounted for)
+# A ruling may promote a question to critical. It may not demote one of these
+# without amending the issue, and tests/test_grade.py holds that line.
+CRITICAL_MINIMUM = frozenset({"16", "24", "26", "28", "30", "31"})
+
+
+def critical_ids(questions: list[Question]) -> set[str]:
+    """Question ids a trial must get right, as bare ids ('16', not 'q16').
+
+    Every question is critical unless it says `critical: false`. The ruling
+    today is that all 31 must pass: no question in fixtures/questions.yaml
+    opts out, and the whole workflow is the deliverable. Marking a question
+    `critical: false` makes it a diagnostic whose failure does not fail the
+    trial, which is a spec change and belongs in a spec ruling rather than in
+    a grader default.
+    """
+    return {q["id"] for q in questions if q.get("critical", True)}
+
+
+def strict_success(grades: dict[str, str], questions: list[Question]) -> bool:
+    """Whether this trial completed the whole workflow correctly.
+
+    Every critical question graded CORRECT. NEAR_MISS does not pass: a near
+    miss is a number close enough to triage against and not close enough to
+    hand a compliance officer.
+
+    A critical question with no grade fails. That covers the question the
+    session never answered and the question the grader never reached, both of
+    which are absences of evidence that the workflow ran end to end.
+    """
+    if not questions:
+        return False
+    return all(grades.get(f"q{qid}") == CORRECT for qid in critical_ids(questions))
 
 
 def _deps_all_correct(
@@ -561,6 +626,40 @@ def load_questions(questions_path: Path) -> list[Question]:
     return questions
 
 
+def _mark_grader_error(meta: dict[str, Any]) -> None:
+    """Invalidate the current grade without losing how execution ended."""
+    if meta.get("status") != GRADER_ERROR:
+        meta["execution_status"] = meta.get("status", "unknown")
+    meta["status"] = GRADER_ERROR
+
+
+def _restore_execution_status(meta: dict[str, Any]) -> None:
+    """Clear a recovered grader error and restore the runner's outcome."""
+    if meta.get("status") == GRADER_ERROR:
+        meta["status"] = meta.pop("execution_status", DONE)
+
+
+def _write_meta(
+    session_dir: Path,
+    meta: dict[str, Any],
+    *,
+    strict_success: bool,
+    graded_against: str | None = None,
+) -> None:
+    """Record this grading pass in the run's meta, in one write.
+
+    The strict verdict and the golden digest it was produced against are the
+    same fact seen twice. Writing them separately leaves a window where a run
+    claims a pass with no record of what it passed against.
+    """
+    meta["strict_success"] = strict_success
+    if graded_against is not None:
+        meta["graded_against"] = graded_against
+    (session_dir / "meta.json").write_text(
+        json.dumps(meta, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path, default=Path("results"))
@@ -592,23 +691,51 @@ def main() -> int:
             # A session that wrote nothing never attempted the questions.
             # Scoring it as thirty wrong answers blames the model for a run
             # that did not happen, and drags every average it appears in.
+            # It did fail the task, though, so it is recorded as a trial that
+            # did not pass and stays in the reliability denominator.
+            _write_meta(
+                session_dir,
+                meta,
+                strict_success=False,
+                graded_against=graded_against,
+            )
             print(
                 f"{run_name(session_dir):<34} "
-                f"{meta.get('status', 'unknown')} — not scored"
+                f"{meta.get('status', 'unknown')} — not scored, trial failed"
             )
             continue
-        grades, diffs = grade_session(session_dir, args.golden, geometry_ids)
+        try:
+            grades, diffs = grade_session(
+                session_dir, args.golden, geometry_ids, questions
+            )
+        except Exception as exc:  # noqa: BLE001 - one bad run must not stop the rest
+            # A grader that crashes has proven nothing about the agent, so the
+            # trial leaves the denominator rather than counting as a failure.
+            # The execution outcome is kept, because it is still the only
+            # record of what the session itself did.
+            _mark_grader_error(meta)
+            _write_meta(
+                session_dir,
+                meta,
+                strict_success=False,
+                graded_against=graded_against,
+            )
+            print(f"{run_name(session_dir):<34} grader error: {exc}", file=sys.stderr)
+            continue
         (session_dir / "grades.json").write_text(
             json.dumps(grades, indent=2, sort_keys=True) + "\n"
         )
         (session_dir / "diffs.json").write_text(
             json.dumps(diffs, indent=2, sort_keys=True) + "\n"
         )
-        if graded_against is not None and meta.get("graded_against") != graded_against:
-            meta["graded_against"] = graded_against
-            (session_dir / "meta.json").write_text(
-                json.dumps(meta, indent=2) + "\n", encoding="utf-8"
-            )
+        passed = strict_success(grades, questions)
+        _restore_execution_status(meta)
+        _write_meta(
+            session_dir,
+            meta,
+            strict_success=passed,
+            graded_against=graded_against,
+        )
         if regraded(meta):
             print(
                 f"{run_name(session_dir):<34} "
@@ -625,6 +752,15 @@ def main() -> int:
             f" {counts[WRONG]:>6} {counts[MISSING]:>8}"
             f" {counts[UNPARSEABLE]:>7}"
         )
+        if questions:
+            failed = sorted(
+                qid
+                for qid in critical_ids(questions)
+                if grades.get(f"q{qid}") != CORRECT
+            )
+            verdict = "PASS" if passed else "FAIL"
+            detail = "" if passed else f" (critical: {', '.join(failed)})"
+            print(f"    strict task success: {verdict}{detail}")
         for qid in sorted(diffs):
             print(f"    {qid} {grades[qid]}: {diff_summary(diffs[qid])}")
         if questions:

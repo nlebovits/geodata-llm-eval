@@ -177,6 +177,8 @@ def test_a_regraded_run_is_excluded_and_named(tmp_path: Path) -> None:
 
 
 def test_an_unscored_run_is_excluded(tmp_path: Path) -> None:
+    """A run that wrote no answers has no per-arm mean to contribute. It is
+    still a failed trial, and harness/reliability.py counts it as one."""
     results = tmp_path / "results"
     make_run(
         results,
@@ -185,10 +187,28 @@ def test_an_unscored_run_is_excluded(tmp_path: Path) -> None:
         "full",
         "1111",
         {"q01": "correct"},
-        status="failed",
+        status="agent_produced_nothing",
     )
     rows, excluded = sweep.arm_rows(results, "opus", QUESTIONS)
     assert rows == [] and excluded
+
+
+def test_a_graded_failure_still_carries_its_arm_mean(tmp_path: Path) -> None:
+    """`failed` is a trial verdict, not a reason to drop a run from the
+    diagnostics: a run that answered every question and got some wrong is
+    exactly what a per-arm mean is measuring."""
+    results = tmp_path / "results"
+    make_run(
+        results,
+        "opus",
+        "20260101T000000Z-aaa",
+        "full",
+        "1111",
+        {"q01": "correct"},
+        status="incomplete",
+    )
+    rows, excluded = sweep.arm_rows(results, "opus", QUESTIONS)
+    assert [r["runs"] for r in rows] == [1] and not excluded
 
 
 def test_a_run_predating_the_harness_groups_as_the_full_spec(tmp_path: Path) -> None:
