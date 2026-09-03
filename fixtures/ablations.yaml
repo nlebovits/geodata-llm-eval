@@ -12,7 +12,7 @@
 # tests/test_run.py pins that.
 #
 # The cut unit is a SPEC.md heading. Sections (## 4., ## 5., ...) correspond
-# to the former policy documents; single rules (### rule: ...) are the
+# to the former policy documents; single rules (### Rule: ...) are the
 # narrow arms. Cutting a rule removes its grading equivalences with it,
 # because both live in the same block of the source document.
 #
@@ -80,7 +80,7 @@ arms:
     ops:
       - cut:
           file: SPEC.md
-          heading: "rule: widening"
+          heading: "Rule: widening"
 
   no-tie-rules:
     why: >
@@ -95,7 +95,7 @@ arms:
     ops:
       - cut:
           file: SPEC.md
-          heading: "rule: primary-cadaster"
+          heading: "Rule: primary-cadaster"
       - cut:
           file: SPEC.md
-          heading: "rule: ranking"
+          heading: "Rule: ranking"

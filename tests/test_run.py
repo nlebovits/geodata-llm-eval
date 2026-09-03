@@ -140,7 +140,7 @@ def test_dry_run_assembles_workspace_without_docker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     # dry_run prints the docker command and returns before invoking anything;
-    # it still copies policies + the list, so this exercises the mounting.
+    # it still renders the spec and copies the list, so this exercises mounting.
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -776,7 +776,7 @@ def test_question_ids_are_the_question_count() -> None:
     ids = run.question_ids()
     assert len(ids) == run.question_count()
     assert len(set(ids)) == len(ids)
-    assert run.answer_name(ids[0]) == "q01", "task.md asks for answers/q{id}.csv"
+    assert run.answer_name(ids[0]) == "q01", "SPEC.md asks for answers/q{id}.csv"
 
 
 def test_missing_answers_names_what_the_session_still_owes(tmp_path: Path) -> None:

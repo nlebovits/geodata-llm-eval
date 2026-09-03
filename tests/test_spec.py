@@ -13,7 +13,7 @@ REPO = Path(__file__).resolve().parent.parent
 SPEC = (REPO / "SPEC.md").read_text(encoding="utf-8")
 sys.path.insert(0, str(REPO / "harness"))
 
-import specdoc  # noqa: E402
+import specdoc
 
 QUESTIONS = yaml.safe_load(
     (REPO / "fixtures" / "questions.yaml").read_text(encoding="utf-8")
@@ -32,8 +32,7 @@ def spec_questions() -> dict[str, dict]:
     found: dict[str, dict] = {}
     stage = None
     pos = 0
-    stages = [(m.start(), int(m.group(1))) for m in
-              STAGE_HEADING.finditer(section)]
+    stages = [(m.start(), int(m.group(1))) for m in STAGE_HEADING.finditer(section)]
     for match in QUESTION_BLOCK.finditer(section):
         while pos < len(stages) and stages[pos][0] < match.start():
             stage = stages[pos][1]
@@ -45,7 +44,8 @@ def spec_questions() -> dict[str, dict]:
             "stage": stage,
             "rows": rows.group(1) if rows else None,
             "depends": sorted(re.findall(r"q(\d{2})", depends.group(1)))
-            if depends else [],
+            if depends
+            else [],
         }
     return found
 
@@ -63,8 +63,7 @@ def test_spec_row_counts_match_questions_yaml():
     spec = spec_questions()
     for q in QUESTIONS:
         declared = spec[q["id"]]["rows"]
-        expected = "data" if q["output"]["rows"] is None \
-            else str(q["output"]["rows"])
+        expected = "data" if q["output"]["rows"] is None else str(q["output"]["rows"])
         assert declared == expected, (
             f"q{q['id']}: SPEC.md says rows {declared!r}, "
             f"questions.yaml says {expected!r}"
@@ -93,8 +92,7 @@ def test_spec_names_the_geometry_graded_questions():
     """Section 2 lists the geometry-graded set in one line; it must be the
     set questions.yaml actually grades that way."""
     graded = {q["id"] for q in QUESTIONS if q.get("grading") == "geometry"}
-    line = next(ln for ln in SPEC.splitlines()
-                if "Geometry-graded questions:" in ln)
+    line = next(ln for ln in SPEC.splitlines() if "Geometry-graded questions:" in ln)
     named: set[str] = set()
     for start, end in re.findall(r"q(\d{2})–q(\d{2})", line):
         named.update(f"{n:02d}" for n in range(int(start), int(end) + 1))
@@ -113,14 +111,20 @@ def test_agent_view_strips_what_a_session_must_not_see():
     assert "Open questions" not in view, "the contested list reaches the session"
     assert "PR #" not in view, "repo history reaches the session"
     assert "Questions affected" not in view, (
-        "the per-rule impact map reaches the session")
+        "the per-rule impact map reaches the session"
+    )
 
 
 def test_agent_view_keeps_the_rules_and_tables():
     view = specdoc.agent_view(SPEC)
-    for kept in ("### rule: primary-cadaster", "### rule: widening",
-                 "## 4. Input list handling", "Forest Plantation",
-                 "contain_threshold` = 0.667", "**q31**"):
+    for kept in (
+        "### Rule: primary-cadaster",
+        "### Rule: widening",
+        "## 4. Input list handling",
+        "Forest Plantation",
+        "contain_threshold` = 0.667",
+        "**q31**",
+    ):
         assert kept in view, f"agent view lost {kept!r}"
 
 

@@ -26,13 +26,16 @@ SPEC_PATH = REPO_ROOT / "SPEC.md"
 # indented, so they are stripped with it.
 METADATA = re.compile(
     r"^(Questions affected:|Provenance:"
-    r"|- (provenance|questions|equivalence):)")
+    r"|- (provenance|questions|equivalence):)"
+)
 CONTINUATION = re.compile(r"^ {2,}\S")
 
 # The agent-facing preamble that replaces the Status paragraph and the
 # field-key explanation, which describe repo mechanics rather than the task.
-PREAMBLE = ("This document is the complete specification for the task. "
-            "Read all of it before starting work.")
+PREAMBLE = (
+    "This document is the complete specification for the task. "
+    "Read all of it before starting work."
+)
 
 
 def agent_view(text: str) -> str:
