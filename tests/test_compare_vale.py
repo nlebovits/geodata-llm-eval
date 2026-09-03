@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -70,9 +70,7 @@ def test_name_status_parser_skips_non_rename_records(tmp_path: Path) -> None:
     data.write_bytes(
         b"M\0policies/a.md\0R095\0prompts/old.md\0prompts/new.md\0D\0gone.md\0"
     )
-    assert compare_vale.read_renames(data) == {
-        "prompts/old.md": "prompts/new.md"
-    }
+    assert compare_vale.read_renames(data) == {"prompts/old.md": "prompts/new.md"}
 
 
 def test_main_reports_new_findings(

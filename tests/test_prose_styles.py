@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -40,7 +40,7 @@ CASES = {
         "Choose red, blue and green options.",
         "Choose red, blue, and green options.",
     ),
-    "Geodata-Mechanics.Quotes": ('“quoted”', '"quoted"'),
+    "Geodata-Mechanics.Quotes": ("“quoted”", '"quoted"'),
     "Geodata-Terms.Casing": ("Mapbiomas data.", "MapBiomas data."),
     "Geodata-Terms.Hype": ("A seamless tool.", "A direct tool."),
     "Geodata-Voice.ChatbotResidue": (
