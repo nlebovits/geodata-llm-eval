@@ -86,9 +86,9 @@ accuracy for questions whose upstream dependencies passed.
 ## Run the benchmark
 
 You need Python 3.12 or later, [uv](https://docs.astral.sh/uv/), Docker, and
-either a Claude login or an `ANTHROPIC_API_KEY`. Runs query live remote
-catalogs and can transfer several gigabytes. Because of that cost, check the
-setup with one pass or a dry run.
+a login or API key for the native agent you want to test. Runs query live
+remote catalogs and can transfer several gigabytes. Because of that cost, check
+the setup with one pass or a dry run.
 
 Install the dependencies and run the local tests:
 
@@ -97,19 +97,31 @@ uv sync
 uv run pytest
 ```
 
-Authenticate before building the session image. Then start one trial:
+Build the pinned session image, authenticate the selected CLI, and start one
+trial:
 
 ```bash
-claude login  # or: export ANTHROPIC_API_KEY=...
 docker build -t geodata-llm-eval .
-uv run python harness/run.py --model sonnet --passes 1 --follow
+
+claude login  # or: export ANTHROPIC_API_KEY=...
+uv run python harness/run.py --agent claude --model sonnet --passes 1 --follow
+
+codex login  # or: export CODEX_API_KEY=...
+uv run python harness/run.py --agent codex --model gpt-5.6-sol \
+  --auth login --reasoning-effort high --passes 1 --follow
 ```
 
-`--follow` prints tool calls as they happen. Without it, the harness prints a
-heartbeat once a minute. Add `--dry-run` to inspect the Docker command without
-starting a session. Use `--max-wall-seconds` to enforce a completion budget
-and `--max-attempts` to control how often the harness resumes an unfinished
-session.
+Claude remains the default adapter, so existing commands without `--agent` keep
+their previous behavior. Codex requires an explicit `--auth login` or
+`--auth api-key`; the harness never guesses which credential path to use.
+
+`--follow` prints native trajectory items as they happen. Without it, the
+harness prints a heartbeat once a minute. Add `--dry-run` to inspect the Docker
+command without starting a session. Use `--max-wall-seconds` to enforce a
+completion budget and `--max-attempts` to control how often the harness resumes
+an unfinished session. Before a paid invocation, the harness verifies the
+image, agent CLI, and DuckDB versions against the repository pins; drift
+produces an `infrastructure_invalid` receipt instead of calling the agent.
 
 Grade all runs and build the report:
 
@@ -123,11 +135,12 @@ These commands write the following artifacts:
 
 | Path | Contents |
 |---|---|
-| `results/{model}/{run_id}/transcript.jsonl` | Complete model transcript |
-| `results/{model}/{run_id}/answers/` | Answer CSVs and the final workflow |
-| `results/{model}/{run_id}/meta.json` | Status, budgets, tokens, cost, and experiment fingerprints |
-| `results/{model}/{run_id}/grades.json` | Per-question grades |
-| `results/{model}/{run_id}/diffs.json` | Cell-level mismatches for failed answers |
+| `results/{configuration}/{run_id}/transcript.jsonl` | Complete native JSONL trajectory |
+| `results/{configuration}/{run_id}/stderr.log` | Native CLI diagnostics |
+| `results/{configuration}/{run_id}/answers/` | Answer CSVs and the final workflow |
+| `results/{configuration}/{run_id}/meta.json` | Status, normalized usage, runtime receipt, and experiment fingerprints |
+| `results/{configuration}/{run_id}/grades.json` | Per-question grades |
+| `results/{configuration}/{run_id}/diffs.json` | Cell-level mismatches for failed answers |
 | `results/report.md` | Reliability results and diagnostic tables |
 | `results/pareto.png` | Per-session accuracy against imputed cost |
 
@@ -138,9 +151,11 @@ invalidates the trial.
 ## Compare like with like
 
 The reliability report does not pool every run of the same model. A group must
-share the complete experiment fingerprint: model, policy specification, golden
-fixtures, pinned datasets, harness commit, input encoding, attempt limit, and
-wall-clock limit. Changing any of these creates a separate row in the report.
+share the complete experiment fingerprint: agent adapter, requested and
+provider-reported model, reasoning effort, CLI and image identity, tool and
+permission surface, policy specification, golden fixtures, pinned datasets,
+harness commit, input encoding, attempt limit, and wall-clock limit. Changing
+any of these creates a separate row in the report.
 
 For a standard repeated comparison, run ten independent trials per model with
 the same configuration:
@@ -151,10 +166,12 @@ uv run python harness/run.py --model sonnet --passes 10 --label baseline
 uv run python harness/run.py --model opus --passes 10 --label baseline
 ```
 
-The harness uses each model's default sampling settings. It logs input, output,
-and cache tokens, then imputes cost from the list prices in
-[`harness/pricing.py`](harness/pricing.py). These are comparison estimates;
-sessions authenticated through a subscription do not incur those API charges.
+The harness preserves each CLI default unless a setting such as
+`--reasoning-effort` is explicit. It records normalized input, output, cached,
+and reasoning tokens where the native transcript exposes them. Claude cost is
+imputed from [`harness/pricing.py`](harness/pricing.py); unsupported pricing is
+recorded as unavailable rather than invented. Subscription-authenticated
+sessions do not necessarily incur the imputed API charge.
 
 ## How grading works
 
@@ -214,16 +231,18 @@ golden fixtures; a temporary outage does not.
 
 ## Reproducibility and credential handling
 
-The container runs with no host user configuration. The harness mounts only a
-copy of the Claude login credential, or passes `ANTHROPIC_API_KEY` when set.
-It deletes the credential copy with the session and force-removes the container
-on exit.
+The container runs with no host user configuration. For login authentication,
+the harness places a temporary copy of the selected native credential in the
+throwaway container home. For API-key authentication, it passes only the
+`ANTHROPIC_API_KEY` or `CODEX_API_KEY` environment-variable name to Docker, not
+the secret value on the command line. The temporary home is deleted with the
+session and the container is force-removed on exit.
 
 Full transcripts are committed for audit, which makes accidental credential
 output especially serious.
 [`scripts/check_credentials.py`](scripts/check_credentials.py) scans file
 contents in local hooks and CI. If a token reaches a transcript, treat it as
-leaked and rotate it with `claude login`.
+leaked and rotate it with the provider login command.
 
 Install the repository hooks after `uv sync`:
 

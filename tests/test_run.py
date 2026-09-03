@@ -847,7 +847,75 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name in ("prompts", "policies", "fixtures"):
         shutil.copytree(REPO_ROOT / name, root / name)
     monkeypatch.setattr(run, "REPO_ROOT", root)
+    monkeypatch.setattr(
+        run,
+        "runtime_snapshot",
+        lambda image, adapter: {
+            "image": image,
+            "image_id": "sha256:test",
+            "image_repo_digests": [],
+            "cli": adapter.scaffold,
+            "cli_version": adapter.expected_cli_version,
+            "cli_version_output": adapter.expected_cli_version,
+            "duckdb_version": run.agents.DUCKDB_VERSION,
+            "duckdb_version_output": run.agents.DUCKDB_VERSION,
+        },
+    )
     return root
+
+
+def test_codex_session_uses_the_common_result_layout_and_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = fake_repo(tmp_path, monkeypatch)
+    credentials = tmp_path / "codex-auth.json"
+    credentials.write_text('{"tokens":"decoy"}', encoding="utf-8")
+    monkeypatch.setattr(run, "CODEX_CREDENTIALS", credentials)
+    monkeypatch.setattr(run, "source_coop_sample", dict)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+
+    class FakePopen:
+        def __init__(
+            self,
+            cmd: list[str],
+            stdout: IO[str],
+            stderr: IO[str],
+            text: bool,
+            **kwargs: Any,
+        ) -> None:
+            mount = next(arg for arg in cmd if arg.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            for question_id in run.question_ids():
+                (answers / f"{run.answer_name(question_id)}.csv").write_text(
+                    "value\n1\n", encoding="utf-8"
+                )
+            stdout.write('{"type":"thread.started","thread_id":"thread-1"}\n')
+            stdout.write(
+                '{"type":"turn.completed","usage":'
+                '{"input_tokens":3,"output_tokens":1}}\n'
+            )
+            self.returncode = 0
+
+        def poll(self) -> int | None:
+            return 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+
+    run.run_session("gpt-test", False, agent="codex", auth="login")
+
+    result = next(root.glob("results/codex-gpt-test/*"))
+    meta = json.loads((result / "meta.json").read_text(encoding="utf-8"))
+    assert (result / "answers").is_dir()
+    assert (result / "transcript.jsonl").is_file()
+    assert (result / "stderr.log").is_file()
+    assert meta["schema_version"] == 2
+    assert meta["agent"] == "codex"
+    assert meta["status"] == "done"
+    assert meta["imputed_cost_usd"] is None
+    assert meta["agent_config"]["mode"] == "native"
+    assert meta["runtime"]["image_id"] == "sha256:test"
 
 
 def test_a_session_that_stops_short_is_resumed(

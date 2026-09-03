@@ -338,7 +338,10 @@ def report(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model", choices=sorted(runner.PRICES))
+    ap.add_argument("--agent", choices=("claude", "codex"), default="claude")
+    ap.add_argument("--model")
+    ap.add_argument("--auth", choices=("login", "api-key"))
+    ap.add_argument("--reasoning-effort")
     ap.add_argument("--passes", type=int, default=3, help="passes per arm (default 3)")
     ap.add_argument(
         "--arms", default="", help="comma-separated subset; default is every arm"
@@ -417,6 +420,9 @@ def main() -> int:
         label=args.label,
         max_attempts=args.max_attempts,
         ablations=args.ablations,
+        agent=args.agent,
+        auth=args.auth,
+        reasoning_effort=args.reasoning_effort,
     )
     if failures:
         print(f"[sweep] failed sessions by arm: {failures}", file=sys.stderr)

@@ -199,6 +199,8 @@ class Fingerprint(NamedTuple):
 
     model: str
     model_id: str | None
+    agent: str | None
+    agent_config: str | None
     arm: str
     spec: str | None
     golden: str | None
@@ -211,8 +213,10 @@ class Fingerprint(NamedTuple):
 
     def label(self) -> str:
         """One line naming the group, digests shortened to their first six."""
-        parts = [self.model, self.arm]
+        identity = f"{self.agent or 'legacy'}/{self.model}"
+        parts = [identity, self.arm]
         for name, digest in (
+            ("agent-config", self.agent_config),
             ("spec", self.spec),
             ("golden-at-run", self.golden),
             ("graded", self.graded_against),
@@ -239,6 +243,8 @@ def fingerprint_of(meta: Meta) -> Fingerprint:
     return Fingerprint(
         model=meta.get("model", "unknown"),
         model_id=meta.get("model_id"),
+        agent=meta.get("agent"),
+        agent_config=meta.get("agent_config_fingerprint"),
         arm=arm_of(meta),
         spec=spec_of(meta),
         golden=meta.get("golden_fingerprint"),
