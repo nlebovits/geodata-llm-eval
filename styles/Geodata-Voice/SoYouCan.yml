@@ -1,6 +1,7 @@
-extends: occurrence
-message: "'X, so you can Y' appears more than once. Use another conjunction."
-level: warning
-scope: text
-max: 1
-token: 'so (?:that )?you can'
+extends: existence
+message: "Replace '%s' with a specific causal or conditional relationship."
+level: error
+ignorecase: true
+scope: sentence
+tokens:
+  - 'so (?:that )?you can'

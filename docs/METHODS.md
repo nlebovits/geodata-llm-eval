@@ -2,7 +2,7 @@
 
 ## The question and why it matters
 
-The EU Deforestation Regulation requires operators to show that commodities placed on the EU market come from land not deforested after December 31, 2020. For a Brazilian soy or cattle portfolio, proving this requires resolving property IDs against the national cadastre, matching fields to those properties, classifying land cover, measuring forest loss, and routing flagged properties to cooperatives or buyers that can act. This is spatial work at scale — tedious, error-prone, and exactly the kind of task language models might handle well. The question is whether they can reliably execute it against real cloud-native data and what it costs.
+The EU Deforestation Regulation requires operators to show that commodities placed on the EU market come from land not deforested after December 31, 2020. For a Brazilian soy or cattle portfolio, proving this requires resolving property IDs against the national cadastre, matching fields to those properties, classifying land cover, measuring forest loss, and routing flagged properties to cooperatives or buyers that can act. This tedious and error-prone spatial work is a plausible task for language models. The benchmark asks whether they can execute it reliably against real cloud-native data and at what cost.
 
 We test three models on a 117-property Goiás portfolio. The agent receives four policy documents and 31 questions organized into six interdependent stages. It queries three remote GeoParquet catalogs over HTTP range requests, recovers from its own SQL errors, and writes a CSV per question plus a final decision artifact. A SQL oracle produces the answer key. An executable comparator grades the results.
 
@@ -30,7 +30,21 @@ The 31 questions form six stages. Each stage builds on the previous one and trac
 
 **Stage 1: catalog discovery (q01-q04).** Navigate three catalogs from metadata alone. Count STAC collections, read the recommended collection from the catalog description, report row counts and geometry EPSG.
 
-**Stage 2: cadastre resolution (q05-q07, q31).** Resolve the listed `cod_imovel` values against the 8,453,552-row CAR file. Report what resolves, what goes missing, what appears twice, and how many parcels fall under one hectare. The list arrives damaged: it carries a duplicated row, a parcel reduced to its centroid, a polygon with no id, a polygon with its coordinate axes swapped, and a point that lands on no parcel at all. `INPUTS.md` states the handling for each, and q31 grades the reconciliation identity that ties the buckets back to the arrival count. Handled correctly every defect resolves to a parcel that was already on the list, so the portfolio downstream is unchanged and a mishandled defect cascades visibly.
+**Stage 2: cadastre resolution (q05-q07, q31).** Resolve the listed
+`cod_imovel` values against the 8,453,552-row CAR file. Report the parcel count
+for each resolution outcome and for the one-hectare threshold. The damaged list
+contains five deliberate defects:
+
+- a duplicated row;
+- a parcel reduced to its centroid;
+- a polygon with no ID;
+- a polygon with swapped coordinate axes; and
+- a point that lands on no parcel.
+
+`INPUTS.md` states how to handle each defect. Question 31 grades the identity
+that reconciles these buckets with the arrival count. When handled correctly,
+every defect resolves to a parcel already on the list. A mistake changes the
+downstream portfolio and therefore remains visible in later stages.
 
 **Stage 3: field to cadastre matching (q08-q14).** Implement the matching rule from `MATCHING.md`. A field enters the analysis when two-thirds of its area falls inside a single listed parcel, or when two-thirds falls inside the buffered union of all listed parcels. The 25 m buffer closes sliver gaps between neighbouring CAR parcels. Report how many fields each rule admitted, the containment-fraction bounds, and the fields that intersect a parcel but fail both tests.
 
