@@ -108,6 +108,7 @@ skips = [
 # read as third-party packages without this.
 known_first_party = [
     "ablation",
+    "agents",
     "consistency",
     "grade",
     "layout",
@@ -117,6 +118,7 @@ known_first_party = [
     "probe",
     "reliability",
     "render",
+    "runtime",
     "report",
     "run",
     "sweep",

@@ -151,6 +151,46 @@ def test_a_run_that_wrote_nothing_stays_out_of_the_question_averages(
     assert sessions[0]["run_id"].startswith("20260721T")
 
 
+def test_diagnostics_separate_different_task_fingerprints(tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    shared = {
+        "agent": "codex",
+        "agent_config_fingerprint": "config-one",
+        "golden_fingerprint": "golden-one",
+    }
+    _session(
+        results,
+        "gpt-test",
+        1,
+        {"q01": "correct"},
+        0.0,
+        runtime={**shared, "spec_fingerprint": "spec-one"},
+    )
+    _session(
+        results,
+        "gpt-test",
+        2,
+        {"q01": "wrong"},
+        0.0,
+        runtime={**shared, "spec_fingerprint": "spec-two"},
+    )
+
+    groups = report._configuration_groups(report.load_sessions(results))
+
+    assert len(groups) == 2
+    assert {rows[0]["accuracy"] for _label, rows in groups} == {0.0, 1.0}
+
+
+@pytest.mark.parametrize("status", ["infrastructure_invalid", "authentication_invalid"])
+def test_an_external_invalid_run_stays_out_of_diagnostics(
+    tmp_path: Path, status: str
+) -> None:
+    results = tmp_path / "results"
+    _session(results, "opus", 1, {}, 0.0, runtime={"status": status})
+
+    assert report.load_sessions(results) == []
+
+
 def test_a_grader_error_hides_stale_grades_from_diagnostics(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _session(results, "opus", 1, {"q01": "correct"}, 1.0)

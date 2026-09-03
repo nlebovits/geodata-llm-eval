@@ -3,8 +3,8 @@
 A run used to be `results/{model}/pass-{n}`, a position in a sequence. Two
 runs could want the same name, so the harness carried guards to stop the
 second destroying the first, and the directory told a reader nothing about
-when it ran or against what code. A run is now named for its start time and
-the harness commit, which collides with nothing and reads on sight.
+when it ran or against what code. A run is now named for its start time, harness commit, and a random nonce,
+which makes collisions negligible and reads on sight.
 
 Nothing here knows that naming scheme. A run is a directory holding a
 meta.json, which keeps the readers working whatever the name says.
@@ -67,12 +67,19 @@ INVALID_STATUSES = frozenset(
     {INFRASTRUCTURE_INVALID, AUTHENTICATION_INVALID, GRADER_ERROR, UNGRADED}
 )
 
-# A session that wrote no answer at all measured nothing about the model. It
-# stays on disk for the audit trail and stays out of the per-question
-# averages. Written as a denylist so that a status invented later scores by
-# default, which costs an average one odd row rather than silently emptying
-# it. The reliability figures ignore this and count every attempted trial.
-UNSCORED_STATUSES = frozenset({"produced_nothing", AGENT_PRODUCED_NOTHING})
+# A run with no meaningful per-question output stays on disk for the audit
+# trail and out of diagnostic averages. This includes an agent that wrote
+# nothing and a trial invalidated before the agent ran. Written as a denylist
+# so that a status invented later scores by default rather than silently
+# disappearing.
+UNSCORED_STATUSES = frozenset(
+    {
+        "produced_nothing",
+        AGENT_PRODUCED_NOTHING,
+        INFRASTRUCTURE_INVALID,
+        AUTHENTICATION_INVALID,
+    }
+)
 
 
 def run_dirs(results_dir: Path, model: str = "") -> list[Path]:
@@ -99,8 +106,8 @@ def is_scored(meta: Meta) -> bool:
 
     Runs predating the status field were all complete, so absence reads as
     scored rather than as a run to silently drop. This governs the diagnostic
-    tables only. A run excluded here is still an attempted trial and still
-    counts against strict success; see trial_status.
+    tables only. trial_status separately decides whether an excluded run is an
+    agent failure that stays in the denominator or an invalid trial.
     """
     return meta.get("status", DONE) not in UNSCORED_STATUSES
 
@@ -199,6 +206,8 @@ class Fingerprint(NamedTuple):
 
     model: str
     model_id: str | None
+    agent: str | None
+    agent_config: str | None
     arm: str
     spec: str | None
     golden: str | None
@@ -211,8 +220,10 @@ class Fingerprint(NamedTuple):
 
     def label(self) -> str:
         """One line naming the group, digests shortened to their first six."""
-        parts = [self.model, self.arm]
+        identity = f"{self.agent or 'legacy'}/{self.model}"
+        parts = [identity, self.arm]
         for name, digest in (
+            ("agent-config", self.agent_config),
             ("spec", self.spec),
             ("golden-at-run", self.golden),
             ("graded", self.graded_against),
@@ -239,6 +250,8 @@ def fingerprint_of(meta: Meta) -> Fingerprint:
     return Fingerprint(
         model=meta.get("model", "unknown"),
         model_id=meta.get("model_id"),
+        agent=meta.get("agent"),
+        agent_config=meta.get("agent_config_fingerprint"),
         arm=arm_of(meta),
         spec=spec_of(meta),
         golden=meta.get("golden_fingerprint"),

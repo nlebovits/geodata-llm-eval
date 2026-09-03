@@ -34,13 +34,6 @@ from grade import load_questions, stage_summary
 # scores, cost, and runtime in one row.
 Session = dict[str, Any]
 
-MODEL_ORDER = ["haiku", "sonnet", "opus"]
-MODEL_LABELS = {
-    "haiku": "Haiku 4.5",
-    "sonnet": "Sonnet 5",
-    "opus": "Opus 4.8",
-}
-
 
 def load_sessions(results_dir: Path) -> list[Session]:
     sessions: list[Session] = []
@@ -63,6 +56,9 @@ def load_sessions(results_dir: Path) -> list[Session]:
         sessions.append(
             {
                 "model": meta["model"],
+                "agent": meta.get("agent", "legacy"),
+                "agent_config": meta.get("agent_config_fingerprint", ""),
+                "fingerprint": layout.fingerprint_of(meta),
                 "run_id": meta.get("run_id", session_dir.name),
                 "label": meta.get("label", ""),
                 "accuracy": correct / total if total else 0.0,
@@ -79,6 +75,19 @@ def load_sessions(results_dir: Path) -> list[Session]:
             }
         )
     return sessions
+
+
+def _configuration_groups(
+    sessions: list[Session],
+) -> list[tuple[str, list[Session]]]:
+    """Diagnostics grouped by the complete reliability fingerprint."""
+    grouped: dict[layout.Fingerprint, list[Session]] = {}
+    for session in sessions:
+        grouped.setdefault(session["fingerprint"], []).append(session)
+    output = []
+    for fingerprint, rows in sorted(grouped.items(), key=lambda item: item[0].label()):
+        output.append((fingerprint.label(), rows))
+    return output
 
 
 def _mean_or_none(values: list[float | None]) -> float | None:
@@ -105,13 +114,10 @@ def stage_grid_lines(
         "dependencies all passed (the error-propagation-adjusted score).",
         "",
     ]
-    header = "| Model | " + " | ".join(f"S{s}" for s in stages) + " |"
-    sep = "|-------|" + "|".join(["-----"] * len(stages)) + "|"
+    header = "| Configuration | " + " | ".join(f"S{s}" for s in stages) + " |"
+    sep = "|---------------|" + "|".join(["-----"] * len(stages)) + "|"
     lines += [header, sep]
-    for model in MODEL_ORDER:
-        rows = [s for s in sessions if s["model"] == model]
-        if not rows:
-            continue
+    for config_label, rows in _configuration_groups(sessions):
         summaries = [stage_summary(s["grades"], questions) for s in rows]
         cells = []
         for st in stages:
@@ -120,7 +126,7 @@ def stage_grid_lines(
             raw_s = f"{raw:.0%}" if raw is not None else "–"
             cond_s = f"{cond:.0%}" if cond is not None else "–"
             cells.append(f"{raw_s}/{cond_s}")
-        lines.append(f"| {MODEL_LABELS[model]} | " + " | ".join(cells) + " |")
+        lines.append(f"| {config_label} | " + " | ".join(cells) + " |")
     lines.append("")
     return lines
 
@@ -204,7 +210,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
             " pass^3 | pass^5 | pass^10 |"
         ),
         (
-            "|---------------|-----------|---------|-------|----------------|"
+            "|---------------|-----------|---------|---------------|----------------|"
             "--------|--------|---------|"
         ),
     ]
@@ -271,11 +277,16 @@ def reliability_lines(results_dir: Path) -> list[str]:
             wall_limit = "unlimited"
         else:
             wall_limit = f"{b.wall_limit_seconds / 60:g}m"
+        total_cost = (
+            f"${b.total_cost_usd:.2f}"
+            if b.total_cost_usd is not None
+            else "unavailable"
+        )
         lines.append(
             f"| {group.fingerprint.label()} | {resume_limit}"
             f" | {resumes_used} | {b.max_turns_used} | {wall_limit}"
             f" | {b.max_wall_seconds_used / 60:.0f}m"
-            f" | ${b.total_cost_usd:.2f} |"
+            f" | {total_cost} |"
         )
     lines.append("")
 
@@ -304,18 +315,15 @@ def runtime_lines(sessions: list[Session]) -> list[str]:
         "heartbeat, over wall clock. A high share with timeouts means the",
         "run was degraded by the network, not by the model.",
         "",
-        "| Model | Mean wall clock | In slow tool calls | Timed-out calls |",
-        "|-------|-----------------|--------------------|-----------------|",
+        "| Configuration | Mean wall clock | In slow tool calls | Timed-out calls |",
+        "|---------------|-----------------|--------------------|-----------------|",
     ]
-    for model in MODEL_ORDER:
-        rows = [s for s in sessions if s["model"] == model]
-        if not rows:
-            continue
+    for config_label, rows in _configuration_groups(sessions):
         wall = statistics.mean([s["duration_seconds"] for s in rows])
         share = statistics.mean([s["slow_tool_share"] for s in rows])
         timeouts = sum(s["timed_out_tool_calls"] for s in rows)
         lines.append(
-            f"| {MODEL_LABELS[model]} | {wall / 60:.0f}m | {share:.0%} | {timeouts} |"
+            f"| {config_label} | {wall / 60:.0f}m | {share:.0%} | {timeouts} |"
         )
     lines.append("")
     return lines
@@ -323,6 +331,8 @@ def runtime_lines(sessions: list[Session]) -> list[str]:
 
 def write_summary_csv(sessions: list[Session], path: Path) -> None:
     fields = [
+        "agent",
+        "agent_config",
         "model",
         "run_id",
         "label",
@@ -360,27 +370,25 @@ def accuracy_lines(sessions: list[Session]) -> list[str]:
         "tolerance itself: computed right, formatted or rounded differently.",
         "",
         (
-            "| Model | Passes | Mean accuracy | Accuracy range |"
+            "| Configuration | Passes | Mean accuracy | Accuracy range |"
             " Mean near misses | Mean cost (USD) |"
         ),
         (
-            "|-------|--------|---------------|----------------|"
+            "|---------------|--------|---------------|----------------|"
             "------------------|-----------------|"
         ),
     ]
-    for model in MODEL_ORDER:
-        rows = [s for s in sessions if s["model"] == model]
-        if not rows:
-            continue
+    for config_label, rows in _configuration_groups(sessions):
         accs = [s["accuracy"] for s in rows]
-        costs = [s["cost_usd"] for s in rows]
+        costs = [s["cost_usd"] for s in rows if s["cost_usd"] is not None]
+        cost_text = "$" + format(statistics.mean(costs), ".4f") if costs else "–"
         near = statistics.mean([s["near_miss"] for s in rows])
         lines.append(
-            f"| {MODEL_LABELS[model]} | {len(rows)}"
+            f"| {config_label} | {len(rows)}"
             f" | {statistics.mean(accs):.1%}"
             f" | {min(accs):.1%} – {max(accs):.1%}"
             f" | {near:.1f}"
-            f" | ${statistics.mean(costs):.4f} |"
+            f" | {cost_text} |"
         )
     lines.append("")
     return lines
@@ -426,16 +434,14 @@ def write_report_md(
 
 def write_pareto_png(sessions: list[Session], path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7, 5))
-    colors = {"haiku": "tab:green", "sonnet": "tab:blue", "opus": "tab:purple"}
-    for model in MODEL_ORDER:
-        rows = [s for s in sessions if s["model"] == model]
+    for config_label, group_rows in _configuration_groups(sessions):
+        rows = [s for s in group_rows if s["cost_usd"] is not None]
         if not rows:
             continue
         ax.scatter(
             [s["cost_usd"] for s in rows],
             [s["accuracy"] for s in rows],
-            label=MODEL_LABELS[model],
-            color=colors[model],
+            label=config_label,
             alpha=0.7,
         )
     ax.set_xlabel("Imputed cost per session (USD, list prices)")

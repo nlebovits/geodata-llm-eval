@@ -391,10 +391,10 @@ def test_a_run_is_named_for_when_it_ran_and_what_it_ran() -> None:
     """The name used to be a position in a sequence, so two runs could want
     it and the second destroyed the first. Every guard against that -- the
     scan for a free number, --start-pass, --force -- managed a collision a
-    timestamped name cannot have."""
+    timestamp plus nonce cannot have."""
     started = datetime(2026, 7, 26, 11, 46, 46, tzinfo=UTC)
-    name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca")
-    assert name == "20260726T114646Z-7f8fb7a"
+    name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca", "fixed123")
+    assert name == "20260726T114646Z-7f8fb7a-fixed123"
 
 
 def test_run_names_sort_chronologically() -> None:
@@ -403,6 +403,15 @@ def test_run_names_sort_chronologically() -> None:
     earlier = run.run_id(datetime(2026, 7, 26, 9, 0, tzinfo=UTC), "a" * 40)
     later = run.run_id(datetime(2026, 7, 26, 17, 0, tzinfo=UTC), "b" * 40)
     assert sorted([later, earlier]) == [earlier, later]
+
+
+def test_two_runs_at_the_same_instant_do_not_collide() -> None:
+    started = datetime(2026, 7, 26, 9, 0, 0, tzinfo=UTC)
+
+    first = run.run_id(started, "abc1234")
+    second = run.run_id(started, "abc1234")
+
+    assert first != second
 
 
 def test_two_runs_a_second_apart_do_not_collide() -> None:
@@ -847,7 +856,75 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for name in ("prompts", "policies", "fixtures"):
         shutil.copytree(REPO_ROOT / name, root / name)
     monkeypatch.setattr(run, "REPO_ROOT", root)
+    monkeypatch.setattr(
+        run,
+        "runtime_snapshot",
+        lambda image, adapter: {
+            "image": image,
+            "image_id": "sha256:test",
+            "image_repo_digests": [],
+            "cli": adapter.scaffold,
+            "cli_version": adapter.expected_cli_version,
+            "cli_version_output": adapter.expected_cli_version,
+            "duckdb_version": run.agents.DUCKDB_VERSION,
+            "duckdb_version_output": run.agents.DUCKDB_VERSION,
+        },
+    )
     return root
+
+
+def test_codex_session_uses_the_common_result_layout_and_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = fake_repo(tmp_path, monkeypatch)
+    credentials = tmp_path / "codex-auth.json"
+    credentials.write_text('{"tokens":"decoy"}', encoding="utf-8")
+    monkeypatch.setattr(run, "CODEX_CREDENTIALS", credentials)
+    monkeypatch.setattr(run, "source_coop_sample", dict)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    monkeypatch.setattr(run, "stop_session", lambda proc, container: None)
+    monkeypatch.setattr(run.time, "sleep", lambda seconds: None)
+
+    class FakePopen:
+        def __init__(
+            self,
+            cmd: list[str],
+            stdout: IO[str],
+            stderr: IO[str],
+            text: bool,
+            **kwargs: Any,
+        ) -> None:
+            mount = next(arg for arg in cmd if arg.endswith(":/workspace"))
+            answers = Path(mount.split(":")[0]) / "answers"
+            for question_id in run.question_ids():
+                (answers / f"{run.answer_name(question_id)}.csv").write_text(
+                    "value\n1\n", encoding="utf-8"
+                )
+            stdout.write('{"type":"thread.started","thread_id":"thread-1"}\n')
+            stdout.write(
+                '{"type":"turn.completed","usage":'
+                '{"input_tokens":3,"output_tokens":1}}\n'
+            )
+            self.returncode = 0
+
+        def poll(self) -> int | None:
+            return 0
+
+    monkeypatch.setattr(run.subprocess, "Popen", FakePopen)
+
+    run.run_session("gpt-test", False, agent="codex", auth="login")
+
+    result = next(root.glob("results/codex-gpt-test/*"))
+    meta = json.loads((result / "meta.json").read_text(encoding="utf-8"))
+    assert (result / "answers").is_dir()
+    assert (result / "transcript.jsonl").is_file()
+    assert (result / "stderr.log").is_file()
+    assert meta["schema_version"] == 2
+    assert meta["agent"] == "codex"
+    assert meta["status"] == "done"
+    assert meta["imputed_cost_usd"] is None
+    assert meta["agent_config"]["mode"] == "native"
+    assert meta["runtime"]["image_id"] == "sha256:test"
 
 
 def test_a_session_that_stops_short_is_resumed(

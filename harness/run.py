@@ -1,25 +1,15 @@
-"""Spawn independent benchmark sessions in Docker and collect transcripts.
+"""Run independent Claude Code or Codex benchmark sessions in Docker.
 
-Each session is one `docker run` of the pinned image: a fresh container,
-a fresh workspace, no state shared with any other session or with the
-host. The model works through the full question set once per session.
-
-The container workspace receives only prompts/task.md and
-fixtures/questions.yaml — never the golden answers.
-
-A session that ends its turn with questions still unanswered is resumed
-into the same session id, with a prompt naming what is missing, up to
---max-attempts times. Its transcript holds every attempt.
-
-Per session, this writes results/{model}/{run_id}/, where a run id is
-the UTC start time and the harness commit:
-    transcript.jsonl   raw stream-json output from the session
-    answers/           the CSVs the agent wrote
-    meta.json          model, tokens, turns, imputed cost, harness commit
+Every trial gets the same assembled task workspace in a fresh container. The
+native agent adapter controls only authentication, invocation, resume, and
+trajectory parsing; golden answers never enter the container. Each result keeps
+the raw JSONL trajectory, stderr, answers, normalized usage, runtime receipt,
+and a fingerprint of the complete agent configuration.
 
 Usage:
-    python harness/run.py --model sonnet --passes 10
-    python harness/run.py --model haiku --passes 1 --dry-run
+    python harness/run.py --agent claude --model sonnet --passes 10
+    python harness/run.py --agent codex --model gpt-5.6-sol --auth login \
+        --reasoning-effort high --passes 1
 """
 
 from __future__ import annotations
@@ -28,6 +18,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,13 +26,16 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 import ablation
+import agents
 import layout
+import runtime
 from pricing import PRICES, imputed_cost_usd
 from probe import USER_AGENT
 
@@ -126,6 +120,7 @@ def harness_commit() -> str:
 
 
 CREDENTIALS = Path.home() / ".claude" / ".credentials.json"
+CODEX_CREDENTIALS = Path.home() / ".codex" / "auth.json"
 
 # The container HOME is a clean /home/runner (see Dockerfile): no CLAUDE.md,
 # no hooks, no MCP config, no memory. A login token is the single host
@@ -171,40 +166,17 @@ def docker_command(
     container: str,
     prompt: str = INITIAL_PROMPT,
     resume_session: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> list[str]:
-    resume = ["--resume", resume_session] if resume_session else []
-    return [
-        # `--rm` already drops the container's anonymous volumes on exit.
-        # `--name` is what lets an interrupted run find and remove its own
-        # container afterwards. (`-v` belongs on `docker rm`, not here: on
-        # `docker run` it takes a mount spec and would swallow the next
-        # argument.)
-        "docker",
-        "run",
-        "--rm",
-        "--name",
-        container,
-        # Run as the invoking user. The mounted credential copy is 0600 and
-        # host-owned, and the CLI has to both read it and write a refreshed
-        # token back; a container uid that isn't the file's owner cannot do
-        # either. The image's own `runner` account can't be relied on for
-        # this, since its uid is fixed at build time and the host's is not.
-        "--user",
-        f"{os.getuid()}:{os.getgid()}",
-        "-v",
-        f"{workspace}:/workspace",
-        *auth_args(session_home),
+    """Backward-compatible Claude command builder."""
+    adapter = agents.ClaudeAdapter(model_id, CREDENTIALS, reasoning_effort)
+    return adapter.command(
         IMAGE,
-        "-p",
-        prompt,
-        *resume,
-        "--model",
-        model_id,
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--dangerously-skip-permissions",
-    ]
+        agents.TaskBundle(workspace, prompt),
+        session_home,
+        container,
+        resume_session,
+    )
 
 
 def read_records(transcript_path: Path) -> Iterator[Record]:
@@ -514,6 +486,9 @@ class Follower:
                 continue
 
     def emit(self, record: Record) -> None:
+        if record.get("type") in {"item.started", "item.completed"}:
+            self.emit_codex_item(record)
+            return
         if record.get("type") == "tool_progress":
             self.emit_heartbeat(record)
             return
@@ -524,6 +499,28 @@ class Follower:
                 self.emit_call(block)
             elif block.get("type") == "tool_result":
                 self.emit_result(block)
+
+    def emit_codex_item(self, record: Record) -> None:
+        """Render Codex native item lifecycle records."""
+        item = record.get("item") or {}
+        item_type = str(item.get("type", "?"))
+        if item_type == "agent_message":
+            return
+        call_id = str(item.get("id", "?"))
+        if record.get("type") == "item.started":
+            self.pending[call_id] = (item_type, self.clock())
+            subject = item.get("command") or item.get("query") or item_type
+            line = f"  {self.stamp()} {item_type[:9]:<9} {subject}"
+            print(line[:FOLLOW_WIDTH], flush=True)
+            return
+        _name, start = self.pending.pop(call_id, (item_type, None))
+        took = f"{self.clock() - start:.1f}s" if start is not None else "?"
+        failed = item.get("status") == "failed" or item.get("exit_code") not in (
+            None,
+            0,
+        )
+        marker = "FAILED" if failed else "done"
+        print(f"  {self.stamp()} {'':<9}   ↳ {marker} after {took}", flush=True)
 
     def emit_call(self, block: Record) -> None:
         name = block.get("name", "?")
@@ -668,6 +665,57 @@ def print_plan(
         print(f"  removed {removed} lines from {path}")
 
 
+def make_adapter(
+    agent: str,
+    model: str,
+    reasoning_effort: str | None,
+    auth: str | None,
+) -> agents.AgentAdapter:
+    """Resolve CLI flags into one native adapter configuration."""
+    if agent == "claude":
+        if model not in PRICES:
+            raise ValueError(
+                f"unknown Claude model {model!r}, expected one of {sorted(PRICES)}"
+            )
+        if reasoning_effort not in {None, "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("unsupported Claude reasoning effort")
+        return agents.ClaudeAdapter(
+            PRICES[model].model_id, CREDENTIALS, reasoning_effort
+        )
+    if agent == "codex":
+        if not auth:
+            raise ValueError("Codex runs require --auth login or --auth api-key")
+        supported = agents.CODEX_REASONING_EFFORTS.get(model)
+        if (
+            reasoning_effort is not None
+            and supported is not None
+            and reasoning_effort not in supported
+        ):
+            raise ValueError(
+                f"Codex model {model!r} does not support reasoning effort "
+                f"{reasoning_effort!r}; expected one of {sorted(supported)}"
+            )
+        return agents.CodexAdapter(model, CODEX_CREDENTIALS, auth, reasoning_effort)
+    raise ValueError(f"unknown agent {agent!r}")
+
+
+def agent_result_key(adapter: agents.AgentAdapter, model: str) -> str:
+    """The legacy model directory for Claude, a collision-free one for others."""
+    if adapter.name == "claude":
+        return model
+    safe_model = re.sub(r"[^A-Za-z0-9_.-]+", "-", model).strip("-")
+    return f"{adapter.name}-{safe_model}"
+
+
+def agent_config_fingerprint(config: dict[str, Any]) -> str:
+    """Stable identity of a secret-free, fully resolved agent configuration."""
+    payload = json.dumps(config, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+runtime_snapshot = runtime.inspect
+
+
 def run_session(
     model: str,
     dry_run: bool,
@@ -678,14 +726,19 @@ def run_session(
     arm: str = "",
     ablations: Path | None = None,
     max_wall_seconds: int = MAX_WALL_SECONDS,
+    agent: str = "claude",
+    reasoning_effort: str | None = None,
+    auth: str | None = None,
 ) -> None:
     arm_spec = resolve_arm(arm, ablations)
 
-    model_id = PRICES[model].model_id
+    adapter = make_adapter(agent, model, reasoning_effort, auth)
+    model_id = adapter.model_id
+    result_key = agent_result_key(adapter, model)
     started = datetime.now(UTC)
     name = run_id(started, harness_commit())
-    out_dir = REPO_ROOT / "results" / model / name
-    container = f"geodata-eval-{model}-{name}-{os.getpid()}"
+    out_dir = REPO_ROOT / "results" / result_key / name
+    container = f"geodata-eval-{result_key}-{name}-{os.getpid()}"
 
     with tempfile.TemporaryDirectory(prefix="geodata-eval-") as tmp:
         # Two siblings: only `workspace` is mounted at /workspace, so the
@@ -702,15 +755,68 @@ def run_session(
         arm_spec["receipt"] = ablation.apply_arm(workspace, arm_spec["ops"])
         spec_digest, spec_manifest = ablation.spec_fingerprint(workspace)
 
-        cmd = docker_command(workspace, session_home, model_id, container)
+        task = agents.TaskBundle(workspace, INITIAL_PROMPT)
+        cmd = adapter.command(IMAGE, task, session_home, container)
         if dry_run:
             print_plan(cmd, arm_spec, spec_digest, spec_manifest)
+            print(json.dumps(adapter.config(), sort_keys=True))
             return
 
+        try:
+            runtime_info = runtime_snapshot(IMAGE, adapter)
+        except runtime.RuntimeDrift as exc:
+            clear_pass_dir(out_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "answers").mkdir()
+            (out_dir / "transcript.jsonl").write_text("", encoding="utf-8")
+            (out_dir / "stderr.log").write_text(f"{exc}\n", encoding="utf-8")
+            failed_config = {
+                **adapter.config(),
+                "expected_cli_version": adapter.expected_cli_version,
+                "expected_duckdb_version": agents.DUCKDB_VERSION,
+                "max_attempts": max_attempts,
+                "max_wall_seconds": max_wall_seconds,
+                "cpu_limit": None,
+                "memory_limit": None,
+            }
+            failed_meta = {
+                "schema_version": 2,
+                "agent": adapter.name,
+                "agent_config": failed_config,
+                "agent_config_fingerprint": agent_config_fingerprint(failed_config),
+                "model": model,
+                "model_id": model_id,
+                "run_id": name,
+                "label": label,
+                "started_utc": started.isoformat(),
+                "finished_utc": datetime.now(UTC).isoformat(),
+                "duration_seconds": 0.0,
+                "exit_code": None,
+                "attempts": 0,
+                "harness_commit": harness_commit(),
+                "input_mode": input_mode,
+                "golden_fingerprint": golden_fingerprint(),
+                "pins_fingerprint": pins_fingerprint(),
+                "max_attempts": max_attempts,
+                "max_wall_seconds": max_wall_seconds,
+                "spec_fingerprint": spec_digest,
+                "spec_manifest": spec_manifest,
+                "ablation": arm_spec,
+                "status": layout.INFRASTRUCTURE_INVALID,
+                "runtime_error": str(exc),
+            }
+            (out_dir / "meta.json").write_text(
+                json.dumps(failed_meta, indent=2) + "\n", encoding="utf-8"
+            )
+            print(
+                f"[{result_key}/{name}] runtime preflight failed: {exc}",
+                file=sys.stderr,
+            )
+            return
         clear_pass_dir(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = out_dir / "transcript.jsonl"
-        errors_path = Path(tmp) / "stderr.log"
+        errors_path = out_dir / "stderr.log"
         started_at = time.monotonic()
         # Set by stream() when the budget runs out, read by the resume loop
         # and by the status. One flag across every attempt, because the budget
@@ -765,7 +871,9 @@ def run_session(
                         if time.monotonic() < next_beat:
                             continue
                         next_beat = time.monotonic() + HEARTBEAT_SECONDS
-                        turns, last_tool = progress_snapshot(transcript_path)
+                        turns, last_tool = adapter.progress(
+                            list(read_records(transcript_path))
+                        )
                         elapsed = (time.monotonic() - started_at) / 60
                         # Counted in the workspace, which is where the session
                         # writes. The results directory only receives them
@@ -817,17 +925,20 @@ def run_session(
             # the CLI already retried the credential ten times, and every
             # further attempt fails the same way. One sweep spent all three
             # proving it, and the arm came back n=1.
-            if len(missing) == question_count() and credential_rejected(
-                transcript_path
+            if (
+                len(missing) == question_count()
+                and adapter.facts(
+                    list(read_records(transcript_path))
+                ).authentication_rejected
             ):
                 print(
                     f"[{model}/{name}] the credential was rejected and"
-                    f" nothing was answered; not resuming. Run `claude"
-                    f" login` on the host and start this arm again.",
+                    f" nothing was answered; not resuming. Refresh the"
+                    f" {adapter.scaffold} credentials and start this arm again.",
                     file=sys.stderr,
                 )
                 break
-            resume = session_id(transcript_path)
+            resume = adapter.facts(list(read_records(transcript_path))).session_id
             if not resume:
                 print(
                     f"[{model}/{name}] no session id in the transcript; cannot resume"
@@ -840,12 +951,11 @@ def run_session(
                 flush=True,
             )
             returncode = stream(
-                docker_command(
-                    workspace,
+                adapter.command(
+                    IMAGE,
+                    agents.TaskBundle(workspace, resume_prompt(missing)),
                     session_home,
-                    model_id,
                     f"{container}-{attempts + 1}",
-                    resume_prompt(missing),
                     resume,
                 ),
                 f"{container}-{attempts + 1}",
@@ -859,8 +969,47 @@ def run_session(
             shutil.rmtree(answers_out)
         shutil.copytree(workspace / "answers", answers_out)
 
-        stats = parse_result_record(transcript_path)
+        facts = adapter.facts(list(read_records(transcript_path)))
+        stats = facts.usage()
+        config = {
+            **adapter.config(),
+            "model_id_reported": facts.model_id,
+            "cli_version_reported": facts.cli_version,
+            "tools_reported": list(facts.tools) if facts.tools is not None else None,
+            "permission_mode_reported": facts.permission_mode,
+            "runtime_image_id": runtime_info["image_id"],
+            "runtime_cli_version": runtime_info["cli_version"],
+            "max_attempts": max_attempts,
+            "max_wall_seconds": max_wall_seconds,
+            "cpu_limit": None,
+            "memory_limit": None,
+        }
+        config_digest = agent_config_fingerprint(config)
+        cost = (
+            round(
+                imputed_cost_usd(
+                    model,
+                    stats["input_tokens"],
+                    stats["output_tokens"],
+                    stats["cache_creation_tokens"],
+                    stats["cache_read_tokens"],
+                ),
+                6,
+            )
+            if adapter.name == "claude" and model in PRICES
+            else None
+        )
         meta = {
+            "schema_version": 2,
+            "agent": adapter.name,
+            "agent_config": config,
+            "agent_config_fingerprint": config_digest,
+            "runtime": runtime_info,
+            "transcript": {
+                "path": "transcript.jsonl",
+                "format": adapter.transcript_format,
+                "stderr_path": "stderr.log",
+            },
             "model": model,
             "model_id": model_id,
             "run_id": name,
@@ -883,16 +1032,7 @@ def run_session(
             "catalog_at_end": source_coop_sample(),
             **stats,
             **tool_timings(transcript_path),
-            "imputed_cost_usd": round(
-                imputed_cost_usd(
-                    model,
-                    stats["input_tokens"],
-                    stats["output_tokens"],
-                    stats["cache_creation_tokens"],
-                    stats["cache_read_tokens"],
-                ),
-                6,
-            ),
+            "imputed_cost_usd": cost,
         }
         waited = meta["slow_tool_seconds"]
         answered = len(list((out_dir / "answers").glob("q*.csv")))
@@ -901,9 +1041,14 @@ def run_session(
         meta["status"] = execution_status(
             answered,
             timed_out=timed_out,
-            credential_dead=credential_rejected(transcript_path),
+            credential_dead=facts.authentication_rejected,
         )
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
+        cost_text = (
+            "$" + format(cost, ".4f") + " imputed"
+            if cost is not None
+            else "cost unavailable"
+        )
         print(
             f"[{model}/{name}] {verdict}:"
             f" {answered}/{question_count()} answers,"
@@ -911,8 +1056,7 @@ def run_session(
             f" {duration / 60:.0f}m wall"
             f" ({waited / 60:.0f}m in slow tool calls,"
             f" {meta['timed_out_tool_calls']} timed out),"
-            f" ${meta['imputed_cost_usd']:.4f} imputed"
-            + (f", {attempts} attempts" if attempts > 1 else "")
+            f" {cost_text}" + (f", {attempts} attempts" if attempts > 1 else "")
         )
         if answered < question_count():
             print(
@@ -922,17 +1066,17 @@ def run_session(
             )
 
 
-def run_id(started: datetime, commit: str) -> str:
+def run_id(started: datetime, commit: str, nonce: str | None = None) -> str:
     """A run's directory name: when it started, and the code it ran.
 
     This used to be `pass-{n}`, a position in a sequence rather than an
     identity, so two runs could want the same name and the second destroyed
-    the first. Every guard around that -- --force, --start-pass, scanning for
-    the lowest free number -- existed to manage a collision that a name
-    carrying a timestamp cannot have. It sorts chronologically as a string,
-    and says when a run happened and what it ran without opening a file.
+    the first. A UTC timestamp keeps names chronologically sortable, the commit
+    identifies the code, and a random nonce prevents simultaneous or immediately
+    failing runs from colliding.
     """
-    return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}"
+    unique = nonce or uuid.uuid4().hex[:8]
+    return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}-{unique}"
 
 
 def source_coop_sample() -> dict[str, Any]:
@@ -1003,8 +1147,18 @@ def pins_fingerprint() -> str | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model", choices=sorted(PRICES), required=True)
+    ap.add_argument("--agent", choices=("claude", "codex"), default="claude")
+    ap.add_argument("--model", required=True)
     ap.add_argument("--passes", type=int, default=10)
+    ap.add_argument(
+        "--auth",
+        choices=("login", "api-key"),
+        help="Codex credential source; required with --agent codex",
+    )
+    ap.add_argument(
+        "--reasoning-effort",
+        help="explicit native reasoning effort; omission preserves the CLI default",
+    )
     ap.add_argument(
         "--label",
         default="",
@@ -1068,11 +1222,14 @@ def main() -> int:
                 arm=args.arm,
                 ablations=args.ablations,
                 max_wall_seconds=args.max_wall_seconds,
+                agent=args.agent,
+                reasoning_effort=args.reasoning_effort,
+                auth=args.auth,
             )
-        except ablation.AblationError as exc:
+        except (ablation.AblationError, ValueError, runtime.RuntimeDrift) as exc:
             # A mistyped arm is a config problem, not a crash. Say so in one
             # line rather than a traceback, and stop before spending anything.
-            print(f"ablation: {exc}", file=sys.stderr)
+            print(f"configuration: {exc}", file=sys.stderr)
             return 2
     return 0
 

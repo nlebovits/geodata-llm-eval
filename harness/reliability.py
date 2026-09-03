@@ -117,7 +117,7 @@ class Budget:
     max_turns_used: int
     wall_limit_seconds: int | None
     max_wall_seconds_used: float
-    total_cost_usd: float
+    total_cost_usd: float | None
 
 
 @dataclass(frozen=True)
@@ -166,13 +166,18 @@ def _budget(metas: list[Meta]) -> Budget:
     # (explicitly unlimited wall time).
     first = metas[0] if metas else {}
 
+    costs = [
+        float(cost)
+        for meta in metas
+        if (cost := meta.get("imputed_cost_usd")) is not None
+    ]
     return Budget(
         attempt_limit=first.get("max_attempts"),
         max_attempts_used=int(top("attempts")),
         max_turns_used=int(top("turns")),
         wall_limit_seconds=first.get("max_wall_seconds"),
         max_wall_seconds_used=float(top("duration_seconds")),
-        total_cost_usd=round(sum(m.get("imputed_cost_usd") or 0.0 for m in metas), 4),
+        total_cost_usd=round(sum(costs), 4) if costs else None,
     )
 
 

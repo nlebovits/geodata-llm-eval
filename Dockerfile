@@ -1,4 +1,4 @@
-# Session image: pinned Claude Code CLI + DuckDB, no user config.
+# Session image: pinned native agent CLIs + DuckDB, no user config.
 # Each benchmark session runs in a fresh container from this image so
 # nothing from the host (global CLAUDE.md, hooks, MCP servers, memory)
 # can leak into a run.
@@ -6,6 +6,7 @@
 FROM node:22-bookworm-slim
 
 ARG CLAUDE_CODE_VERSION=2.1.218
+ARG CODEX_CLI_VERSION=0.153.0
 # Must match fixtures/pins.json. The catalogs are GeoParquet 2.0.0, which
 # spatial rejects before 1.5: every read fails with "Geoparquet version
 # 2.0.0 is not supported", so the whole spatial half of the workflow is
@@ -26,9 +27,13 @@ RUN curl -fsSL -o /tmp/duckdb.zip \
     && rm /tmp/duckdb.zip \
     && duckdb --version
 
-# Pinned Claude Code CLI
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
-    && claude --version
+# Pinned native agent CLIs. Both live in the same image so changing agents
+# does not silently change the operating system or geospatial toolchain.
+RUN npm install -g \
+      @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
+      @openai/codex@${CODEX_CLI_VERSION} \
+    && claude --version \
+    && codex --version
 
 # Non-root user with a clean HOME: no CLAUDE.md, no hooks, no MCP config.
 #
@@ -44,7 +49,7 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
 # just be `useradd -m runner` — that lands on 1001 and cannot read files
 # owned by a host uid of 1000.
 RUN useradd -m -s /bin/bash runner \
-    && mkdir -p /home/runner/.claude \
+    && mkdir -p /home/runner/.claude /home/runner/.codex \
     && chmod -R 0777 /home/runner
 ENV HOME=/home/runner
 USER runner

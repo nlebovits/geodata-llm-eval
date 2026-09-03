@@ -106,12 +106,18 @@ uv sync
 uv run pytest
 ```
 
-Authenticate before building the session image. Then start one trial:
+Build the pinned session image, authenticate the selected CLI, and start one
+trial:
 
 ```bash
-claude login  # or: export ANTHROPIC_API_KEY=...
 docker build -t geodata-llm-eval .
-uv run python harness/run.py --model sonnet --passes 1 --follow
+
+claude login  # or: export ANTHROPIC_API_KEY=...
+uv run python harness/run.py --agent claude --model sonnet --passes 1 --follow
+
+codex login  # or: export CODEX_API_KEY=...
+uv run python harness/run.py --agent codex --model gpt-5.6-sol \
+  --auth login --reasoning-effort high --passes 1 --follow
 ```
 
 The command accepts these options:
@@ -134,11 +140,12 @@ These commands write the following artifacts:
 
 | Path | Contents |
 |---|---|
-| `results/{model}/{run_id}/transcript.jsonl` | Complete model transcript |
-| `results/{model}/{run_id}/answers/` | Answer CSVs and the final workflow |
-| `results/{model}/{run_id}/meta.json` | Status, budgets, tokens, cost, and experiment fingerprints |
-| `results/{model}/{run_id}/grades.json` | Per-question grades |
-| `results/{model}/{run_id}/diffs.json` | Cell-level mismatches for failed answers |
+| `results/{configuration}/{run_id}/transcript.jsonl` | Complete native JSONL trajectory |
+| `results/{configuration}/{run_id}/stderr.log` | Native CLI diagnostics |
+| `results/{configuration}/{run_id}/answers/` | Answer CSVs and the final workflow |
+| `results/{configuration}/{run_id}/meta.json` | Status, normalized usage, runtime receipt, and experiment fingerprints |
+| `results/{configuration}/{run_id}/grades.json` | Per-question grades |
+| `results/{configuration}/{run_id}/diffs.json` | Cell-level mismatches for failed answers |
 | `results/report.md` | Reliability results and diagnostic tables |
 | `results/pareto.png` | Per-session accuracy against imputed cost |
 
