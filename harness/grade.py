@@ -6,7 +6,8 @@ The comparator is deliberately dumb and deterministic:
 - Column order and column names are ignored; columns are matched by
   finding a column permutation under which all rows match.
 - Integers must match exactly. Strings match ignoring case.
-- Floats match within relative tolerance 1e-3 (absolute 1e-9 near zero).
+- Floats match within relative tolerance 1e-3 (absolute 1e-9 near zero),
+  either as written or after rounding to the golden's displayed precision.
 - A missing or unparseable answer file is a distinct outcome from a
   wrong answer, so broken sessions and wrong sessions stay separable.
 
@@ -212,14 +213,34 @@ def _quantize(answer: float, golden: float) -> float:
     return answer if places is None else round(answer, places)
 
 
+def _float_comparison_values(answer: float, golden: float) -> tuple[float, float]:
+    """Raw and presentation-normalised answer values used by the grader."""
+    return answer, _quantize(answer, golden)
+
+
+def _floats_match(answer: float, golden: float, rel_tol: float) -> bool:
+    """Whether raw or presentation-normalised values clear the tolerance.
+
+    The two paths protect different valid answers. Raw comparison preserves
+    the stated numeric tolerance; quantized comparison accepts an unrounded
+    answer when the oracle emitted a rounded golden. Neither path may make the
+    other stricter: in particular, rounding must not turn a raw in-tolerance
+    answer into a miss.
+    """
+    raw, quantized = _float_comparison_values(answer, golden)
+    return math.isclose(raw, golden, rel_tol=rel_tol, abs_tol=ABS_TOL) or math.isclose(
+        quantized, golden, rel_tol=rel_tol, abs_tol=ABS_TOL
+    )
+
+
 def values_match(
     a: object, b: object, geometry: bool = False, slack: float = 1.0
 ) -> bool:
     """True if answer cell `a` matches golden cell `b` within tolerance.
 
-    `b` is always the golden side: it sets the precision `a` is rounded to.
-    `slack` widens the tolerance; the near-miss pass uses NEAR_MISS_FACTOR,
-    everything else leaves it at 1.
+    `b` is always the golden side: it sets the precision of the optional
+    presentation-normalised comparison. `slack` widens the tolerance; the
+    near-miss pass uses NEAR_MISS_FACTOR, everything else leaves it at 1.
 
     Strings compare case-insensitively. The benchmark measures whether a model
     can resolve parcels, apply a containment rule, and route a commodity, not
@@ -248,9 +269,8 @@ def values_match(
                 int_slack = slack * max(GEOM_INT_SLACK, 0.01 * abs(b))
                 return abs(a - b) <= int_slack
             return a == b
-        rounded = _quantize(float(a), float(b))
         rel = slack * (GEOM_REL_TOL if geometry else REL_TOL)
-        return math.isclose(rounded, float(b), rel_tol=rel, abs_tol=ABS_TOL)
+        return _floats_match(float(a), float(b), rel)
     if isinstance(a, str) and isinstance(b, str):
         return a.casefold() == b.casefold()
     return a == b
@@ -387,6 +407,7 @@ def diff_table(
         for col, (got, want) in enumerate(zip(projected, g_row)):
             if values_match(got, want, geometry):
                 continue
+            numeric = _numeric_diagnostics(got, want)
             diffs.append(
                 {
                     "kind": "cell",
@@ -394,7 +415,7 @@ def diff_table(
                     "column": header[col] if col < len(header) else f"col{col}",
                     "golden": want,
                     "answer": got,
-                    "rel_error": _rel_error(got, want),
+                    **numeric,
                     "near_miss": values_match(got, want, geometry, NEAR_MISS_FACTOR),
                 }
             )
@@ -409,6 +430,37 @@ def _rel_error(got: object, want: object) -> float | None:
     if isinstance(got, bool) or isinstance(want, bool) or want == 0:
         return None
     return round(abs(float(got) - float(want)) / abs(float(want)), 6)
+
+
+def _numeric_diagnostics(got: object, want: object) -> dict[str, float | None]:
+    """Expose every numeric representation used by the float comparator.
+
+    `rel_error` remains the summary-compatible field and is the smaller error
+    across the raw and quantized paths. The named fields make that choice
+    auditable instead of printing a raw error beside a quantized verdict.
+    Integer pairs have only an exact/raw path.
+    """
+    raw_error = _rel_error(got, want)
+    quantized_answer: float | None = None
+    quantized_error: float | None = None
+    numeric = (int, float)
+    if (
+        isinstance(got, numeric)
+        and not isinstance(got, bool)
+        and isinstance(want, numeric)
+        and not isinstance(want, bool)
+        and not (isinstance(got, int) and isinstance(want, int))
+    ):
+        _, quantized_answer = _float_comparison_values(float(got), float(want))
+        quantized_error = _rel_error(quantized_answer, want)
+
+    errors = [error for error in (raw_error, quantized_error) if error is not None]
+    return {
+        "rel_error": min(errors) if errors else None,
+        "raw_rel_error": raw_error,
+        "quantized_answer": quantized_answer,
+        "quantized_rel_error": quantized_error,
+    }
 
 
 def diff_summary(diffs: list[Diff]) -> str:

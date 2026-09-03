@@ -224,6 +224,11 @@ def test_answer_is_rounded_to_goldens_precision() -> None:
     assert values_match(0.12932424484070615, 0.1)  # 29% raw relative error
 
 
+def test_rounding_cannot_turn_a_raw_in_tolerance_answer_into_a_miss() -> None:
+    """Regression for issue #22's q23 field-area false negative."""
+    assert values_match(60.35590403802483, 60.3)
+
+
 def test_rounding_does_not_excuse_a_wrong_value() -> None:
     assert not values_match(3.9, 3.5)
     assert not values_match(0.2, 0.1)
@@ -337,6 +342,20 @@ def test_diff_names_the_failing_cells_only() -> None:
     d = diffs[0]
     assert (d["column"], d["golden"], d["answer"]) == ("count", 1523.0, 1999.0)
     assert d["rel_error"] == round(476.0 / 1523.0, 6)
+    assert d["raw_rel_error"] == d["rel_error"]
+    assert d["quantized_answer"] == 1999.0
+    assert d["quantized_rel_error"] == d["rel_error"]
+
+
+def test_diff_exposes_raw_and_quantized_comparison_errors() -> None:
+    diffs = diff_table([[60.45590403802483]], [[60.3]], golden_header=["area"])
+    assert len(diffs) == 1
+    d = diffs[0]
+    assert d["raw_rel_error"] == 0.002585
+    assert d["quantized_answer"] == 60.5
+    assert d["quantized_rel_error"] == 0.003317
+    assert d["rel_error"] == d["raw_rel_error"]
+    assert d["near_miss"] is True
 
 
 def test_diff_survives_a_column_permutation() -> None:
