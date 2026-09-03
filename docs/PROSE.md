@@ -54,7 +54,18 @@ text. A person can write formulaic prose, and an agent can write clean prose.
 [Vale](https://vale.sh/) parses Markdown before it applies the rules in
 `styles/`. The `Geodata-*` styles cover project terminology, mechanics, and
 formulaic voice patterns. The pinned Google package supplies the broader
-developer-documentation rules.
+developer-documentation rules. The Microsoft package adds guidance about clear,
+direct technical writing. Rules that duplicate or conflict with local
+conventions are disabled in `.vale.ini`.
+
+The Readability package reports the Automated Readability Index (ARI) and
+Flesch Reading Ease for each document. Both findings are suggestions, so they
+appear in the advisory audit but don't fail CI. Use the scores to compare a
+document before and after an edit. Technical names can keep a sound document
+outside the package's general targets.
+
+Improve readability by unpacking abstractions and making relationships clear.
+Don't shorten sentences or replace precise terms only to improve a score.
 
 [proselint](https://github.com/amperser/proselint) reports selected clichés,
 hedges, redundant phrases, mixed metaphors, and commercial language. Its
@@ -94,7 +105,7 @@ Do not suppress a finding only to make the check pass.
 
 The repo owns the `Geodata-*` rules and their tests. They are adapted from the
 Portolan prose rules at the commit named in `styles/NOTICE`. `vale sync`
-downloads the Google package into an ignored directory.
+downloads the three pinned packages into ignored directories.
 
 Each custom rule has one failing and one passing example in
 `tests/test_prose_styles.py`. Add both examples when you add or change a rule.

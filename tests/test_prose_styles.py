@@ -119,6 +119,24 @@ def test_rule_inventory_matches_the_cases() -> None:
     assert rules == set(CASES)
 
 
+def test_microsoft_package_is_active(tmp_path: Path) -> None:
+    assert "Microsoft.Wordiness" in _checks(tmp_path, "Tools utilize the cached file.")
+
+
+def test_only_selected_readability_metrics_are_active(tmp_path: Path) -> None:
+    sentence = (
+        "Administrative interoperability documentation complicates implementation."
+    )
+    dense = " ".join([sentence] * 20)
+    readability = {
+        check for check in _checks(tmp_path, dense) if check.startswith("Readability.")
+    }
+    assert readability == {
+        "Readability.AutomatedReadability",
+        "Readability.FleschReadingEase",
+    }
+
+
 def test_filler_allows_a_concrete_not_just_contrast(tmp_path: Path) -> None:
     assert "Geodata-Voice.Filler" not in _checks(
         tmp_path, "The scanner checks content, not just paths."
