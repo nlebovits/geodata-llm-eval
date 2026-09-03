@@ -96,7 +96,7 @@ def test_codex_dry_run_is_a_no_cost_smoke_test(
 
     output = capsys.readouterr().out
     assert "--entrypoint codex" in output
-    assert "task.md" in output and "policies/MATCHING.md" in output
+    assert "SPEC.md" in output
     assert "fixtures/golden" not in output
     assert '"mode": "native"' in output
 

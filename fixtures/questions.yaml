@@ -58,8 +58,8 @@
 #
 # Deforestation comes from the era-band columns only; hansen_covered_area is
 # never used. Which land-cover classes fall under the regulation is governed by
-# policies/EUDR_CROPS.md, which the agent is given — the task is to APPLY that
-# policy correctly across the workflow, not to guess it.
+# SPEC.md section 7, which the agent receives. The task is to apply that policy
+# across the workflow, not to guess it.
 
 catalogs:
   trazo: https://data.source.coop/wri-data-lab/trazofields/catalog.json
@@ -141,7 +141,7 @@ questions:
     stage: 2
     depends_on: ["03"]
     question: >
-      Resolve the input list as policies/INPUTS.md requires. How many distinct
+      Resolve the input list as SPEC.md section 4 requires. How many distinct
       cadastral parcels does it resolve to, how many of those are present in
       the CAR file, and how many are missing? Count parcels, not input rows: a
       row that arrived without an id counts under the parcel it resolves to,
@@ -681,7 +681,7 @@ questions:
   # ------------------------------------------- Stage 2, out of file order: q31
   # A stage-2 question sitting after the stage-6 ones, because question ids are
   # sequential and renumbering would invalidate every stored golden. It grades
-  # the reconciliation identity in policies/INPUTS.md, so it belongs to the
+  # the reconciliation identity in SPEC.md section 4, so it belongs to the
   # stage that resolves the list, not to the stage it happens to be written
   # beside.
   - id: "31"

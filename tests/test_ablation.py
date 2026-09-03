@@ -150,7 +150,7 @@ def test_cut_ignores_heading_shaped_lines_inside_a_code_fence(tmp_path: Path) ->
 
 
 def test_a_horizontal_rule_is_not_read_as_a_setext_heading(tmp_path: Path) -> None:
-    """policies/MATCHING.md ends its body with a bare `---`. A setext parser
+    """The former matching policy ended with a bare `---`. A setext parser
     reads that as underlining the line above it."""
     doc = "# T\n\n## One\n\nbody\n\n---\n\n## Two\n\nb\n"
     ws = workspace(tmp_path, **{"policies__p.md": doc})
