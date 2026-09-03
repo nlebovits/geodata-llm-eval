@@ -72,6 +72,40 @@ repos:
       - id: zizmor
         args: [--no-online-audits]
 
+  # Prose rules. The Google package is pinned in .vale.ini; local rules and
+  # their rationale live in styles/ and docs/PROSE.md.
+  - repo: https://github.com/vale-cli/vale
+    rev: v3.19.0
+    hooks:
+      - id: vale
+        name: vale sync
+        args: [sync]
+        pass_filenames: false
+      - id: vale
+        name: vale (documentation errors)
+        args: [--output=line, --minAlertLevel=error]
+        types: [markdown]
+        exclude: >-
+          ^(AGENTS\.md|policies/|prompts/|results/(report|ablations)\.md$)
+      - id: vale
+        alias: vale-audit
+        name: vale (full prose audit)
+        args: [--output=line, --minAlertLevel=suggestion]
+        types: [markdown]
+        stages: [manual]
+        exclude: ^(AGENTS\.md|results/(report|ablations)\.md$)
+
+  # These editorial checks are advisory. Run them explicitly with:
+  # `uvx prek run proselint --all-files --hook-stage manual`.
+  - repo: https://github.com/amperser/proselint
+    rev: v0.16.0
+    hooks:
+      - id: proselint
+        args: [check, --config, proselint.json]
+        types: [markdown]
+        stages: [manual]
+        exclude: ^(AGENTS\.md|results/(report|ablations)\.md$)
+
   - repo: local
     hooks:
       # Runs on every file, including results/. A session given

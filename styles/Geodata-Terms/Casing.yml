@@ -1,0 +1,17 @@
+extends: substitution
+message: "Write '%s', not '%s'."
+level: warning
+ignorecase: false
+swap:
+  'geoparquet': GeoParquet
+  'Geoparquet': GeoParquet
+  'geojson': GeoJSON
+  'Geojson': GeoJSON
+  'geotiff': GeoTIFF
+  'Geotiff': GeoTIFF
+  'stac': STAC
+  'Stac': STAC
+  'duckdb': DuckDB
+  'Duckdb': DuckDB
+  'mapbiomas': MapBiomas
+  'Mapbiomas': MapBiomas

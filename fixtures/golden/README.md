@@ -1,6 +1,6 @@
 # Golden fixtures
 
-One verified result CSV per question (`q01.csv` … `q31.csv`), plus a
+One verified result CSV per question (`q01.csv` through `q31.csv`), plus a
 `SHA256SUMS` manifest. Authored by running hand-written queries against
 trazo3-fields and reviewing the results against known facts about the
 data, jointly with domain review.

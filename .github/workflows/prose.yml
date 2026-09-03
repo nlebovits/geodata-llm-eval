@@ -1,0 +1,133 @@
+name: Prose
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  VALE_VERSION: "3.19.0"
+
+jobs:
+  prose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the proposed change
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: repo
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the pull request base
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        working-directory: repo
+        run: |
+          uv python install 3.13
+          uv sync --locked --python 3.13
+
+      - name: Install Vale
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "v${VALE_VERSION}" \
+            --repo vale-cli/vale \
+            --pattern "vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
+            --output vale.tar.gz
+          tar xzf vale.tar.gz vale
+          sudo install -m 0755 vale /usr/local/bin/vale
+          vale --version
+
+      - name: Fetch the pinned Google style
+        working-directory: repo
+        run: vale sync
+
+      - name: Test custom rules and generated report prose
+        working-directory: repo
+        run: uv run pytest -q tests/test_prose_styles.py
+
+      - name: Report all Vale findings
+        working-directory: repo
+        run: |
+          mapfile -d '' files < <(
+            git ls-files -z -- '*.md' '*.mdx' \
+              ':(exclude)AGENTS.md' \
+              ':(exclude)results/report.md' \
+              ':(exclude)results/ablations.md'
+          )
+          if ((${#files[@]})); then
+            vale --minAlertLevel=suggestion --output=line "${files[@]}" || true
+          fi
+
+      - name: Report selected proselint findings
+        working-directory: repo
+        run: |
+          mapfile -d '' files < <(
+            git ls-files -z -- '*.md' '*.mdx' \
+              ':(exclude)AGENTS.md' \
+              ':(exclude)results/report.md' \
+              ':(exclude)results/ablations.md'
+          )
+          if ((${#files[@]})); then
+            uvx --from proselint==0.16.0 proselint check \
+              --config proselint.json "${files[@]}" || true
+          fi
+
+      - name: Gate handwritten documentation
+        working-directory: repo
+        run: |
+          mapfile -d '' files < <(
+            git ls-files -z -- '*.md' '*.mdx' \
+              ':(exclude)AGENTS.md' \
+              ':(exclude)policies/**' \
+              ':(exclude)prompts/**' \
+              ':(exclude)results/report.md' \
+              ':(exclude)results/ablations.md'
+          )
+          if ((${#files[@]})); then
+            vale --minAlertLevel=error --output=line "${files[@]}"
+          fi
+
+      - name: Capture current benchmark-input errors
+        if: github.event_name == 'pull_request'
+        working-directory: repo
+        run: >-
+          vale --minAlertLevel=error --output=JSON policies prompts
+          > ../current-vale.json || true
+
+      - name: Capture base benchmark-input errors
+        if: github.event_name == 'pull_request'
+        working-directory: base
+        run: >-
+          vale --config ../repo/.vale.ini --minAlertLevel=error
+          --output=JSON policies prompts > ../base-vale.json || true
+
+      - name: Reject new benchmark-input errors
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git -C repo diff --name-status -z --find-renames \
+            "$BASE_SHA" "$HEAD_SHA" -- policies prompts > vale-renames
+          python3 repo/scripts/compare_vale.py \
+            base-vale.json current-vale.json --renames vale-renames
