@@ -17,10 +17,13 @@
 # rows: null means the row count is data-determined; the grader takes it from
 # the golden file.
 #
-# grading: geometry marks questions whose numbers move under reasonable method
-# choices (equal-area projection, spherical vs ellipsoidal distance). Those
-# grade at relative 1e-2 with integer slack max(2, 1% of golden); everything
-# else at relative 1e-3.
+# grading accepts `exact` or `geometry` and defaults to `exact`. A question-level
+# policy applies to every output column unless that column declares its own
+# grading policy. Geometry values grade at relative 1e-2 with integer slack
+# max(2, 1% of golden); exact values use relative 1e-3 and exact integers.
+# Policies belong to the declared output columns, which have the same order as
+# the golden fixture. They follow those golden column indexes while the grader
+# discovers any permutation in the answer CSV.
 #
 # Every question reporting an absolute area or distance carries it, because no
 # convention for either is stated anywhere and none should be: the oracle
@@ -30,11 +33,10 @@
 # Polyconic land within a percent of each other, so the tolerance covers the
 # spread and the session picks its own method.
 #
-# q23 is the exception, and grades strict despite reporting hectares. Integer
-# slack would apply to its field_id as well, since the grader tries column
-# permutations and cannot tell an identifier from a quantity. Neighbouring
-# plots carry adjacent ids, so the slack would credit an answer naming the
-# wrong farm — a worse failure than rejecting a valid area method.
+# q23 mixes exact identifiers with method-sensitive hectares. Its area columns
+# override the exact question default with geometry grading. field_id stays
+# exact: neighbouring plots carry adjacent ids, so integer slack could otherwise
+# credit an answer naming the wrong farm.
 #
 # The ruling on strict task success: all 31 questions are critical, so a trial
 # passes only when every one of them grades correct. The task is one workflow
@@ -489,9 +491,11 @@ questions:
           description: Annex I commodity of the field
         - name: field_area_ha
           type: float
+          grading: geometry
           description: field area in hectares
         - name: post2020_loss_ha
           type: float
+          grading: geometry
           description: post-2020 loss hectares on the field
       rows: 10
 

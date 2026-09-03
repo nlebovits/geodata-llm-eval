@@ -186,6 +186,46 @@ def test_geometry_flag_threads_through_compare() -> None:
     assert not compare(answer, golden, geometry=False)
 
 
+def test_mixed_column_policies_follow_golden_through_permutation() -> None:
+    golden = [[100, 100.0]]
+    policies = ["exact", "geometry"]
+
+    # The answer writes area first. Geometry tolerance belongs to the golden
+    # area column after permutation, not to answer position zero.
+    assert compare([[100.8, 100]], golden, column_policies=policies)
+    assert not compare([[100.8, 101]], golden, column_policies=policies)
+
+
+def test_column_exact_overrides_geometry_question_default() -> None:
+    policies = ["exact", "geometry"]
+    assert not compare(
+        [[102, 100.8]],
+        [[100, 100.0]],
+        geometry=True,
+        column_policies=policies,
+    )
+
+
+def test_mixed_policy_near_miss_and_diff_use_resolved_columns(
+    tmp_path: Path,
+) -> None:
+    golden = write(tmp_path, "g.csv", "field_id,area\n100,100.0\n")
+    answer = write(tmp_path, "a.csv", "area,id\n105.0,100\n")
+
+    outcome, diffs = evaluate_question(
+        answer, golden, column_policies=["exact", "geometry"]
+    )
+
+    assert outcome == NEAR_MISS
+    assert [diff["column"] for diff in diffs] == ["area"]
+    assert diffs[0]["near_miss"] is True
+
+
+def test_column_policy_count_must_match_golden_width() -> None:
+    with pytest.raises(ValueError, match="1 policies for 2 columns"):
+        compare([[1, 2]], [[1, 2]], column_policies=["exact"])
+
+
 # --- dependency-aware stage summary ----------------------------------------
 
 QUESTIONS = [
@@ -383,6 +423,32 @@ def test_diff_summary_counts_cells_and_names_columns() -> None:
     answer = [[1.0, 99.0], [2.0, 98.0]]
     diffs = diff_table(answer, golden, golden_header=["id", "value"])
     assert diff_summary(diffs) == "2 cells in value, worst 890.0%"
+
+
+def test_grade_session_applies_declared_column_overrides(tmp_path: Path) -> None:
+    golden_dir = tmp_path / "golden"
+    golden_dir.mkdir()
+    (golden_dir / "q01.csv").write_text("field_id,area\n100,100.0\n")
+    session = tmp_path / "session"
+    (session / "answers").mkdir(parents=True)
+    (session / "answers" / "q01.csv").write_text("area,id\n100.8,100\n")
+    questions = [
+        {
+            "id": "01",
+            "stage": 1,
+            "output": {
+                "columns": [
+                    {"name": "field_id", "grading": "exact"},
+                    {"name": "area", "grading": "geometry"},
+                ]
+            },
+        }
+    ]
+
+    grades, diffs = grade_session(session, golden_dir, questions=questions)
+
+    assert grades == {"q01": CORRECT}
+    assert diffs == {}
 
 
 def test_grade_session_returns_grades_and_diffs(tmp_path: Path) -> None:
@@ -608,6 +674,33 @@ def test_questions_are_optional(tmp_path: Path) -> None:
     """The grader still runs where questions.yaml is absent; only the
     per-stage breakdown needs it."""
     assert grade.load_questions(tmp_path / "absent.yaml") == []
+
+
+def test_unknown_question_grading_policy_fails_validation(tmp_path: Path) -> None:
+    questions = write(
+        tmp_path,
+        "questions.yaml",
+        "questions:\n  - id: '01'\n    grading: approximate\n",
+    )
+    with pytest.raises(
+        ValueError, match="question q01.*'approximate'.*exact, geometry"
+    ):
+        grade.load_questions(questions)
+
+
+def test_unknown_column_grading_policy_fails_validation(tmp_path: Path) -> None:
+    questions = write(
+        tmp_path,
+        "questions.yaml",
+        "questions:\n"
+        "  - id: '01'\n"
+        "    output:\n"
+        "      columns:\n"
+        "        - name: area\n"
+        "          grading: approximate\n",
+    )
+    with pytest.raises(ValueError, match="column 'area'.*'approximate'"):
+        grade.load_questions(questions)
 
 
 def test_a_declared_question_with_no_golden_grades_ungradeable(

@@ -160,8 +160,8 @@ def test_every_question_reporting_a_computed_area_or_distance_is_tolerant() -> N
     within about a percent of each other, which the geometry tolerance covers.
     The loss questions stay strict because their hectares are sums of a column
     the catalog publishes: no method choice exists there, and the tolerance
-    would only cost discrimination. q23 stays strict for a different reason,
-    documented alongside it.
+    would only cost discrimination. q23 applies geometry tolerance only to its
+    computed area columns, as documented alongside it.
     """
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     graded = {q["id"] for q in spec["questions"] if q.get("grading") == "geometry"}
@@ -176,13 +176,9 @@ def test_q23_keeps_a_numeric_field_id_out_of_integer_slack() -> None:
     credit an answer naming the wrong farm."""
     spec = yaml.safe_load((REPO / "fixtures/questions.yaml").read_text("utf-8"))
     q23 = next(q for q in spec["questions"] if q["id"] == "23")
-    ids = [
-        c
-        for c in q23["output"]["columns"]
-        if c["name"] == "field_id" and c["type"] == "integer"
-    ]
-    assert ids, "q23 lost its integer field_id; revisit the grading choice"
-    assert q23.get("grading") != "geometry"
+    field_id = next(c for c in q23["output"]["columns"] if c["name"] == "field_id")
+    assert field_id["type"] == "integer"
+    assert field_id.get("grading", q23.get("grading", "exact")) == "exact"
 
 
 class _FlakyConnection:
