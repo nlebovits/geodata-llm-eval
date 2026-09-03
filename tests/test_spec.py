@@ -6,6 +6,7 @@ view to what a session is allowed to see."""
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -15,7 +16,7 @@ sys.path.insert(0, str(REPO / "harness"))
 
 import specdoc
 
-QUESTIONS = yaml.safe_load(
+QUESTIONS: list[dict[str, Any]] = yaml.safe_load(
     (REPO / "fixtures" / "questions.yaml").read_text(encoding="utf-8")
 )["questions"]
 
@@ -26,10 +27,10 @@ QUESTION_BLOCK = re.compile(
 STAGE_HEADING = re.compile(r"^### Stage (\d)\b", re.MULTILINE)
 
 
-def spec_questions() -> dict[str, dict]:
+def spec_questions() -> dict[str, dict[str, Any]]:
     """Question metadata as written in SPEC.md section 9."""
     section = SPEC.split("## 9.", 1)[1].split("## Open questions", 1)[0]
-    found: dict[str, dict] = {}
+    found: dict[str, dict[str, Any]] = {}
     stage = None
     pos = 0
     stages = [(m.start(), int(m.group(1))) for m in STAGE_HEADING.finditer(section)]
@@ -50,7 +51,7 @@ def spec_questions() -> dict[str, dict]:
     return found
 
 
-def test_spec_and_questions_yaml_cover_the_same_questions():
+def test_spec_and_questions_yaml_cover_the_same_questions() -> None:
     spec_ids = set(spec_questions())
     yaml_ids = {q["id"] for q in QUESTIONS}
     assert spec_ids == yaml_ids, (
@@ -59,7 +60,7 @@ def test_spec_and_questions_yaml_cover_the_same_questions():
     )
 
 
-def test_spec_row_counts_match_questions_yaml():
+def test_spec_row_counts_match_questions_yaml() -> None:
     spec = spec_questions()
     for q in QUESTIONS:
         declared = spec[q["id"]]["rows"]
@@ -70,7 +71,7 @@ def test_spec_row_counts_match_questions_yaml():
         )
 
 
-def test_spec_dependencies_match_questions_yaml():
+def test_spec_dependencies_match_questions_yaml() -> None:
     spec = spec_questions()
     for q in QUESTIONS:
         assert spec[q["id"]]["depends"] == sorted(q["depends_on"]), (
@@ -79,7 +80,7 @@ def test_spec_dependencies_match_questions_yaml():
         )
 
 
-def test_spec_stages_match_questions_yaml():
+def test_spec_stages_match_questions_yaml() -> None:
     spec = spec_questions()
     for q in QUESTIONS:
         assert spec[q["id"]]["stage"] == q["stage"], (
@@ -88,7 +89,7 @@ def test_spec_stages_match_questions_yaml():
         )
 
 
-def test_spec_names_the_geometry_graded_questions():
+def test_spec_names_the_geometry_graded_questions() -> None:
     """Section 2 lists the geometry-graded set in one line; it must be the
     set questions.yaml actually grades that way."""
     graded = {q["id"] for q in QUESTIONS if q.get("grading") == "geometry"}
@@ -104,7 +105,7 @@ def test_spec_names_the_geometry_graded_questions():
     )
 
 
-def test_agent_view_strips_what_a_session_must_not_see():
+def test_agent_view_strips_what_a_session_must_not_see() -> None:
     view = specdoc.agent_view(SPEC)
     assert "provenance:" not in view.lower(), "provenance reaches the session"
     assert "equivalence:" not in view, "grader equivalences reach the session"
@@ -115,7 +116,7 @@ def test_agent_view_strips_what_a_session_must_not_see():
     )
 
 
-def test_agent_view_keeps_the_rules_and_tables():
+def test_agent_view_keeps_the_rules_and_tables() -> None:
     view = specdoc.agent_view(SPEC)
     for kept in (
         "### Rule: primary-cadaster",
@@ -128,7 +129,7 @@ def test_agent_view_keeps_the_rules_and_tables():
         assert kept in view, f"agent view lost {kept!r}"
 
 
-def test_agent_view_leaves_no_seam():
+def test_agent_view_leaves_no_seam() -> None:
     view = specdoc.agent_view(SPEC)
     assert "\n\n\n" not in view, "a blank-line run betrays the removals"
     assert view.endswith("\n") and not view.endswith("\n\n")

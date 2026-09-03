@@ -119,6 +119,7 @@ known_first_party = [
     "reliability",
     "render",
     "runtime",
+    "specdoc",
     "report",
     "run",
     "sweep",
