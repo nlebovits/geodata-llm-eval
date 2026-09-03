@@ -72,6 +72,22 @@ def test_geometry_questions_are_marked() -> None:
         assert by_id[qid].get("grading") == "geometry", qid
 
 
+def test_q23_uses_geometry_only_for_area_columns() -> None:
+    q23 = next(q for q in load()["questions"] if q["id"] == "23")
+    policies = {
+        column["name"]: column.get("grading", q23.get("grading", "exact"))
+        for column in q23["output"]["columns"]
+    }
+
+    assert policies == {
+        "field_id": "exact",
+        "cod_imovel": "exact",
+        "annex1_commodity": "exact",
+        "field_area_ha": "geometry",
+        "post2020_loss_ha": "geometry",
+    }
+
+
 def test_prompt_names_the_files_the_oracle_reads() -> None:
     """The session and the grader must query the same bytes.
 

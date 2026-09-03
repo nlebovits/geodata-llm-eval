@@ -68,6 +68,10 @@ def golden_fingerprint(golden_dir: Path) -> str | None:
 GEOM_REL_TOL = 1e-2
 GEOM_INT_SLACK = 2
 
+EXACT = "exact"
+GEOMETRY = "geometry"
+GRADING_POLICIES = frozenset({EXACT, GEOMETRY})
+
 # An answer that fails its own tolerance but clears a tenfold looser one is a
 # different result from one that is wrong by half. Recording that separately
 # keeps rounding artifacts out of the failure count and surfaces tolerance
@@ -276,21 +280,43 @@ def values_match(
     return a == b
 
 
+def _column_geometry(
+    n_cols: int,
+    geometry: bool,
+    column_policies: Sequence[str] | None,
+) -> list[bool]:
+    """Resolve comparator policy once for each golden column."""
+    if column_policies is None:
+        return [geometry] * n_cols
+    if len(column_policies) != n_cols:
+        raise ValueError(
+            "grading policy count does not match golden columns: "
+            f"{len(column_policies)} policies for {n_cols} columns"
+        )
+    unknown = [policy for policy in column_policies if policy not in GRADING_POLICIES]
+    if unknown:
+        raise ValueError(f"unknown grading policy: {unknown[0]!r}")
+    return [policy == GEOMETRY for policy in column_policies]
+
+
 def _rows_match_under_permutation(
     answer: Sequence[Sequence[object]],
     golden: Sequence[Sequence[object]],
     perm: tuple[int, ...],
     geometry: bool = False,
     slack: float = 1.0,
+    column_policies: Sequence[str] | None = None,
 ) -> bool:
     """Check answer rows == golden rows as multisets, with answer columns
     reordered by perm."""
     remaining = [list(r) for r in golden]
+    column_geometry = _column_geometry(len(perm), geometry, column_policies)
     for a_row in answer:
         projected = [a_row[i] for i in perm]
         for idx, g_row in enumerate(remaining):
             if all(
-                values_match(p, g, geometry, slack) for p, g in zip(projected, g_row)
+                values_match(p, g, is_geometry, slack)
+                for p, g, is_geometry in zip(projected, g_row, column_geometry)
             ):
                 del remaining[idx]
                 break
@@ -304,6 +330,7 @@ def compare(
     golden: Sequence[Sequence[object]],
     geometry: bool = False,
     slack: float = 1.0,
+    column_policies: Sequence[str] | None = None,
 ) -> bool:
     """True if the answer table matches golden up to row order and
     column permutation."""
@@ -314,8 +341,11 @@ def compare(
     n_cols = len(golden[0])
     if len(answer[0]) != n_cols:
         return False
+    _column_geometry(n_cols, geometry, column_policies)
     for perm in itertools.permutations(range(n_cols)):
-        if _rows_match_under_permutation(answer, golden, perm, geometry, slack):
+        if _rows_match_under_permutation(
+            answer, golden, perm, geometry, slack, column_policies
+        ):
             return True
     return False
 
@@ -328,31 +358,46 @@ def _align_under_permutation(
     golden: Sequence[Sequence[object]],
     perm: tuple[int, ...],
     geometry: bool,
-) -> tuple[int, list[tuple[int, int]]]:
+    column_policies: Sequence[str] | None,
+) -> tuple[tuple[int, int], list[tuple[int, int]]]:
     """Pair answer rows to golden rows greedily, fewest mismatched cells first.
 
-    Returns the total number of mismatched cells and the pairing, as
+    Near-miss mismatches break ties using the same resolved column policies.
+    Returns (ordinary mismatches, near-miss mismatches) and the pairing, as
     (golden row index, answer row index).
     """
     unused = set(range(len(answer)))
+    column_geometry = _column_geometry(len(perm), geometry, column_policies)
     pairs: list[tuple[int, int]] = []
-    total = 0
+    total = (0, 0)
     for g_idx, g_row in enumerate(golden):
-        best_idx, best_cost = None, None
+        best_idx: int | None = None
+        best_cost: tuple[int, int] | None = None
         for a_idx in unused:
             projected = [answer[a_idx][i] for i in perm]
-            cost = sum(
-                1 for p, g in zip(projected, g_row) if not values_match(p, g, geometry)
+            cells = list(zip(projected, g_row, column_geometry))
+            cost = (
+                sum(
+                    1
+                    for p, g, is_geometry in cells
+                    if not values_match(p, g, is_geometry)
+                ),
+                sum(
+                    1
+                    for p, g, is_geometry in cells
+                    if not values_match(p, g, is_geometry, NEAR_MISS_FACTOR)
+                ),
             )
             if best_cost is None or cost < best_cost:
                 best_idx, best_cost = a_idx, cost
-            if cost == 0:
+            if cost == (0, 0):
                 break
         if best_idx is None:
             continue
         unused.discard(best_idx)
         pairs.append((g_idx, best_idx))
-        total += best_cost or 0
+        row_cost = best_cost or (0, 0)
+        total = (total[0] + row_cost[0], total[1] + row_cost[1])
     return total, pairs
 
 
@@ -361,6 +406,7 @@ def diff_table(
     golden: Sequence[Sequence[object]],
     geometry: bool = False,
     golden_header: list[str] | None = None,
+    column_policies: Sequence[str] | None = None,
 ) -> list[Diff]:
     """Per-cell differences between a wrong answer and golden.
 
@@ -382,6 +428,7 @@ def diff_table(
         ]
 
     n_cols = len(golden[0])
+    column_geometry = _column_geometry(n_cols, geometry, column_policies)
     header = list(golden_header or [])
     perms = (
         itertools.permutations(range(n_cols))
@@ -392,12 +439,14 @@ def diff_table(
     # always yields at least it, so the loop only ever improves on it.
     best_perm: tuple[int, ...] = tuple(range(n_cols))
     best_pairs: list[tuple[int, int]] = []
-    best_cost: float | None = None
+    best_cost: tuple[int, int] | None = None
     for perm in perms:
-        cost, pairs = _align_under_permutation(answer, golden, perm, geometry)
+        cost, pairs = _align_under_permutation(
+            answer, golden, perm, geometry, column_policies
+        )
         if best_cost is None or cost < best_cost:
             best_perm, best_pairs, best_cost = perm, pairs, cost
-        if cost == 0:
+        if cost == (0, 0):
             break
 
     diffs: list[Diff] = []
@@ -405,7 +454,8 @@ def diff_table(
         g_row = golden[g_idx]
         projected = [answer[a_idx][i] for i in best_perm]
         for col, (got, want) in enumerate(zip(projected, g_row)):
-            if values_match(got, want, geometry):
+            is_geometry = column_geometry[col]
+            if values_match(got, want, is_geometry):
                 continue
             numeric = _numeric_diagnostics(got, want)
             diffs.append(
@@ -416,7 +466,7 @@ def diff_table(
                     "golden": want,
                     "answer": got,
                     **numeric,
-                    "near_miss": values_match(got, want, geometry, NEAR_MISS_FACTOR),
+                    "near_miss": values_match(got, want, is_geometry, NEAR_MISS_FACTOR),
                 }
             )
     return diffs
@@ -485,7 +535,10 @@ def diff_summary(diffs: list[Diff]) -> str:
 
 
 def evaluate_question(
-    answer_path: Path, golden_path: Path, geometry: bool = False
+    answer_path: Path,
+    golden_path: Path,
+    geometry: bool = False,
+    column_policies: Sequence[str] | None = None,
 ) -> tuple[str, list[Diff]]:
     """Grade one question and, when it fails, say where.
 
@@ -501,36 +554,82 @@ def evaluate_question(
     answer = load_table(answer_path)
     if answer is None:
         return UNPARSEABLE, []
-    if compare(answer, golden, geometry):
+    if compare(answer, golden, geometry, column_policies=column_policies):
         return CORRECT, []
-    diffs = diff_table(answer, golden, geometry, load_header(golden_path))
-    if compare(answer, golden, geometry, slack=NEAR_MISS_FACTOR):
+    diffs = diff_table(
+        answer,
+        golden,
+        geometry,
+        load_header(golden_path),
+        column_policies,
+    )
+    if compare(
+        answer,
+        golden,
+        geometry,
+        slack=NEAR_MISS_FACTOR,
+        column_policies=column_policies,
+    ):
         return NEAR_MISS, diffs
     return WRONG, diffs
 
 
-def grade_question(answer_path: Path, golden_path: Path, geometry: bool = False) -> str:
-    return evaluate_question(answer_path, golden_path, geometry)[0]
+def grade_question(
+    answer_path: Path,
+    golden_path: Path,
+    geometry: bool = False,
+    column_policies: Sequence[str] | None = None,
+) -> str:
+    return evaluate_question(answer_path, golden_path, geometry, column_policies)[0]
+
+
+def _grading_policy(value: object, location: str) -> str:
+    """Validate and return one fixture grading policy."""
+    if not isinstance(value, str) or value not in GRADING_POLICIES:
+        allowed = ", ".join(sorted(GRADING_POLICIES))
+        raise ValueError(
+            f"invalid grading policy at {location}: {value!r}; expected {allowed}"
+        )
+    return str(value)
+
+
+def column_grading_policies(question: Question) -> list[str] | None:
+    """Column overrides in declared (and therefore golden) column order.
+
+    None means every column inherits the question-level policy, preserving the
+    scalar comparator path for old fixtures and callers.
+    """
+    qid = question.get("id", "?")
+    default = _grading_policy(question.get("grading", EXACT), f"question q{qid}")
+    output = question.get("output", {})
+    columns = output.get("columns", []) if isinstance(output, dict) else []
+    policies: list[str] = []
+    has_override = False
+    for index, column in enumerate(columns):
+        if not isinstance(column, dict):
+            continue
+        has_override = has_override or "grading" in column
+        name = column.get("name", index)
+        policies.append(
+            _grading_policy(
+                column.get("grading", default), f"question q{qid} column {name!r}"
+            )
+        )
+    return policies if has_override else None
+
+
+def geometry_graded_questions(questions: Sequence[Question]) -> set[str]:
+    """Question ids whose default grading policy is geometry."""
+    return {f"q{q['id']}" for q in questions if q.get("grading", EXACT) == GEOMETRY}
 
 
 def geometry_graded_ids(questions_path: Path) -> set[str]:
-    """The set of question ids marked `grading: geometry` in questions.yaml.
+    """The question ids whose default grading policy is geometry.
 
     Returns an empty set if the file or PyYAML is unavailable, so grading still
     runs (every question then uses the strict tolerance).
     """
-    try:
-        import yaml
-    except ImportError:
-        return set()
-    if not questions_path.exists():
-        return set()
-    spec = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
-    return {
-        f"q{q['id']}"
-        for q in spec.get("questions", [])
-        if q.get("grading") == "geometry"
-    }
+    return geometry_graded_questions(load_questions(questions_path))
 
 
 def grade_session(
@@ -552,8 +651,9 @@ def grade_session(
     success would then pass a trial that answered thirty of thirty-one.
     """
     geometry_ids = geometry_ids or set()
+    question_by_id = {f"q{q['id']}": q for q in (questions or [])}
     golden_paths = {p.stem: p for p in sorted(golden_dir.glob("q*.csv"))}
-    declared = {f"q{q['id']}" for q in (questions or [])}
+    declared = set(question_by_id)
     grades: dict[str, str] = {}
     diffs: dict[str, list[Diff]] = {}
     for qid in sorted(declared | set(golden_paths)):
@@ -562,8 +662,18 @@ def grade_session(
             grades[qid] = UNGRADEABLE
             continue
         answer_path = session_dir / "answers" / f"{qid}.csv"
+        question = question_by_id.get(qid)
+        column_policies = (
+            column_grading_policies(question) if question is not None else None
+        )
+        question_geometry = qid in geometry_ids or bool(
+            question and question.get("grading", EXACT) == GEOMETRY
+        )
         outcome, cells = evaluate_question(
-            answer_path, golden_path, geometry=qid in geometry_ids
+            answer_path,
+            golden_path,
+            geometry=question_geometry,
+            column_policies=column_policies,
         )
         grades[qid] = outcome
         if cells:
@@ -673,8 +783,14 @@ def load_questions(questions_path: Path) -> list[Question]:
         return []
     if not questions_path.exists():
         return []
-    loaded = yaml.safe_load(questions_path.read_text(encoding="utf-8"))
+    loaded = yaml.safe_load(questions_path.read_text(encoding="utf-8")) or {}
     questions: list[Question] = loaded.get("questions", [])
+    for question in questions:
+        _grading_policy(
+            question.get("grading", EXACT),
+            f"question q{question.get('id', '?')}",
+        )
+        column_grading_policies(question)
     return questions
 
 
@@ -729,8 +845,8 @@ def main() -> int:
         print(f"no sessions found under {args.results}", file=sys.stderr)
         return 1
 
-    geometry_ids = geometry_graded_ids(args.questions)
     questions = load_questions(args.questions)
+    geometry_ids = geometry_graded_questions(questions)
     graded_against = golden_fingerprint(args.golden)
 
     print(

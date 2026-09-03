@@ -169,9 +169,13 @@ The comparator applies these rules:
 - Column order and names do not matter. Values and their types still do.
 - Integers require exact matches.
 - String comparison is case-insensitive.
-- Most numeric values use a relative tolerance of `1e-3`.
-- Geometry-sensitive questions use `1e-2` plus integer slack of the greater
-  of 2 or 1% of the golden value.
+- Numeric values default to an `exact` grading policy with relative tolerance
+  `1e-3` and exact integer comparison.
+- A question may select `geometry` for all its columns, and an individual output
+  column may override that question default with `exact` or `geometry`.
+  Geometry values use `1e-2` plus integer slack of the greater of 2 or 1% of
+  the golden value. Column policies stay attached to golden-column positions
+  while the comparator discovers answer-column permutations.
 - A value within ten times its tolerance is a `near_miss`, which does not
   count as correct.
 - Missing, unparseable, near-miss, and wrong answers remain distinct.
