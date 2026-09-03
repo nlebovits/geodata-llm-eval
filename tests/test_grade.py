@@ -304,7 +304,7 @@ def test_counts_are_not_read_as_booleans() -> None:
 
 def test_commodity_casing_does_not_decide_a_question() -> None:
     """issue #20. The lowercase house style for `annex1_commodity` is stated
-    only in policies/EUDR_CROPS.md, so an arm run without that document has no
+    only in SPEC.md's scope section, so an arm run without that section has no
     way to recover it. Sessions that classified every class correctly still
     wrote `Cattle` and `Soya`, and since seven questions across three stages
     report the column, that one choice cost five points. Capitalisation is not

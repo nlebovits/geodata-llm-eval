@@ -326,12 +326,15 @@ def test_the_question_table_says_so_when_the_baseline_has_no_runs(
 
 
 def test_the_dry_run_receipt_names_every_arm_and_what_it_removes() -> None:
-    receipts = {"full": {}, "no-coops": {"policies/COOPS.md": 150}}
+    receipts = {"full": {}, "no-coops": {"SPEC.md": 150}}
     config = {
         "baseline": "full",
         "arms": {
             "full": {"why": "a", "ops": []},
-            "no-coops": {"why": "b", "ops": [{"drop": "policies/COOPS.md"}]},
+            "no-coops": {
+                "why": "b",
+                "ops": [{"cut": {"file": "SPEC.md", "heading": "Candidates"}}],
+            },
         },
     }
     body = "\n".join(sweep.describe(config, receipts, [], 3, "opus"))

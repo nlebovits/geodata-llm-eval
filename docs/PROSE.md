@@ -84,9 +84,8 @@ uvx prek@0.4.11 run vale-audit --all-files --hook-stage manual
 uvx prek@0.4.11 run proselint --all-files --hook-stage manual
 ```
 
-The normal Vale hook blocks errors in handwritten documentation. CI also
-blocks new errors in `policies/` and `prompts/`. Existing findings there stay
-visible because edits to those files change the benchmark specification.
+The normal Vale hook blocks errors in handwritten documentation, including the
+benchmark rules in `SPEC.md`.
 
 ## Suppress a false positive
 

@@ -36,6 +36,7 @@ import ablation
 import agents
 import layout
 import runtime
+import specdoc
 from pricing import PRICES, imputed_cost_usd
 from probe import USER_AGENT
 
@@ -76,7 +77,7 @@ MAX_WALL_SECONDS = 0
 # that stops for a reason other than waiting will stop again.
 MAX_ATTEMPTS = 3
 
-INITIAL_PROMPT = "Read task.md and complete it."
+INITIAL_PROMPT = "Read SPEC.md and complete it."
 
 # --follow truncates each tool call to one line of this width. A session
 # writes multi-line heredocs of SQL; the point of following is to see what it
@@ -91,7 +92,7 @@ TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
 PROBE_BYTES = 1_048_576
 PROBE_TIMEOUT = 30
 
-# The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
+# The input list, by encoding (see SPEC.md §4). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
 INPUT_FILES = {
     "csv": ["goias-sample.csv"],
@@ -348,7 +349,7 @@ def question_count() -> int:
 
 
 def answer_name(question_id: str) -> str:
-    """The answer file a question is written to, as task.md names it."""
+    """The answer file a question is written to, as SPEC.md names it."""
     return f"q{question_id}"
 
 
@@ -380,7 +381,7 @@ def resume_prompt(missing: list[str]) -> str:
         "when your turn ended, and its output is gone. Redo that work in the "
         "foreground, waiting for each query to return before you move on, "
         "and write each answer to answers/<question-id>.csv as soon as you "
-        "have it. Re-read task.md if you need the output contracts."
+        "have it. Re-read SPEC.md if you need the output contracts."
     )
 
 
@@ -636,15 +637,10 @@ def resolve_arm(arm: str, ablations: Path | None) -> dict[str, Any]:
 def assemble_workspace(workspace: Path, input_mode: str) -> None:
     """Build the tree the session is pointed at.
 
-    The policy documents are the binding spec the agent implements. The golden
-    fixtures never enter the workspace.
+    The exact SPEC.md is the binding document the agent implements. The
+    golden fixtures never enter the workspace.
     """
-    shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
-    shutil.copy(
-        REPO_ROOT / "fixtures" / "questions.yaml",
-        workspace / "questions.yaml",
-    )
-    shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
+    shutil.copy(REPO_ROOT / "SPEC.md", workspace / "SPEC.md")
     lists_dir = workspace / "lists"
     lists_dir.mkdir()
     for src in list_files(input_mode):
@@ -800,6 +796,7 @@ def run_session(
                 "max_attempts": max_attempts,
                 "max_wall_seconds": max_wall_seconds,
                 "spec_fingerprint": spec_digest,
+                "spec_contract_version": specdoc.CONTRACT_VERSION,
                 "spec_manifest": spec_manifest,
                 "ablation": arm_spec,
                 "status": layout.INFRASTRUCTURE_INVALID,
@@ -1026,6 +1023,7 @@ def run_session(
             "max_attempts": max_attempts,
             "max_wall_seconds": max_wall_seconds,
             "spec_fingerprint": spec_digest,
+            "spec_contract_version": specdoc.CONTRACT_VERSION,
             "spec_manifest": spec_manifest,
             "ablation": arm_spec,
             "catalog_at_start": catalog_before,
@@ -1179,7 +1177,7 @@ def main() -> int:
         "--input-mode",
         choices=sorted(INPUT_FILES),
         default="csv",
-        help="encoding of the input list; see policies/INPUTS.md",
+        help="encoding of the input list; see SPEC.md section 4",
     )
     ap.add_argument(
         "--max-attempts",

@@ -1,7 +1,7 @@
 """Generate the three input-list encodings, defects included.
 
 The list shipped with this benchmark used to be pristine: 117 rows, 117 distinct
-ids, no geometry. Every rule in policies/INPUTS.md therefore described a case
+ids, no geometry. Every input rule in SPEC.md section 4 therefore described a case
 that never occurred, and withholding the document cost a session nothing. This
 generator injects one instance of each defect the policy names, so the rules
 have something to fire on.

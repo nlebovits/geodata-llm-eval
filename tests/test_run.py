@@ -1,5 +1,5 @@
-"""Session assembly: the workspace gets the policies and the input list, and
-never the golden fixtures. Does not require Docker."""
+"""Session assembly: the workspace gets the exact spec and the input
+list, and never the golden fixtures. Does not require Docker."""
 
 import itertools
 import json
@@ -61,12 +61,17 @@ def test_run_py_never_copies_the_golden_fixtures() -> None:
             assert "golden" not in line.lower(), line.strip()
 
 
-def test_the_ablation_config_is_not_inside_the_policies_directory() -> None:
-    """policies/ is copied into the workspace wholesale. A config living there
-    would hand the session an itemised list of what was withheld from it,
-    which is the one thing an ablation must not reveal."""
+def test_the_ablation_config_never_reaches_the_workspace() -> None:
+    """The workspace receives only the exact SPEC.md and the input list. A
+    session that could read the ablation config would be handed an itemised
+    list of what was withheld from it, which is the one thing an ablation must
+    not reveal. This structural check ensures no assembly line copies or writes the
+    config, and it lives outside anything that is mounted."""
     assert run.ABLATIONS.exists(), "the shipped ablation config must be committed"
-    assert (REPO_ROOT / "policies") not in run.ABLATIONS.parents
+    source = (HARNESS / "run.py").read_text(encoding="utf-8")
+    for line in source.splitlines():
+        if "shutil.copy" in line or "copytree" in line or "write_text" in line:
+            assert "ablation" not in line.lower(), line.strip()
 
 
 def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
@@ -84,9 +89,9 @@ def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
     out = capsys.readouterr().out
 
     assert "arm no-coops" in out
-    assert "policies/COOPS.md" not in out.split("removed")[0], "COOPS.md must be gone"
-    assert "policies/MATCHING.md" in out, "the other policies must survive"
-    assert "removed 150 lines from policies/COOPS.md" in out
+    assert "removed" in out and "SPEC.md" in out
+    lines = [ln for ln in out.splitlines() if "removed" in ln]
+    assert lines and all("SPEC.md" in ln for ln in lines)
 
 
 def test_an_unknown_arm_fails_before_a_container_starts(
@@ -120,7 +125,7 @@ def test_a_plain_run_records_the_full_spec_and_reads_no_config(
     out = capsys.readouterr().out
 
     assert f"arm {run.FULL_SPEC}" in out
-    assert "policies/COOPS.md" in out and "removed" not in out
+    assert "SPEC.md" in out and "removed" not in out
 
 
 def fake_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -135,7 +140,7 @@ def test_dry_run_assembles_workspace_without_docker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     # dry_run prints the docker command and returns before invoking anything;
-    # it still copies policies + the list, so this exercises the mounting.
+    # it still stages the spec and copies the list, so this exercises mounting.
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -145,6 +150,16 @@ def test_dry_run_assembles_workspace_without_docker(
     out = capsys.readouterr().out
     assert "docker run" in out
     assert "--model claude-haiku-4-5-20251001" in out
+
+
+def test_workspace_gets_the_exact_contract_and_no_review_notes(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    run.assemble_workspace(workspace, "csv")
+
+    assert (workspace / "SPEC.md").read_bytes() == (REPO_ROOT / "SPEC.md").read_bytes()
+    assert not (workspace / "docs").exists()
+    assert "REVIEW_ONLY_CANARY" not in (workspace / "SPEC.md").read_text("utf-8")
 
 
 def test_auth_mounts_a_session_copy_not_the_host_credentials(
@@ -758,7 +773,9 @@ def test_the_prompt_rules_out_backgrounding_the_work() -> None:
     """One session parked an 8.4M-row join in a background task and ended its
     turn to wait for it; the container exited and killed the task. The prompt
     keeps the model in the foreground, in whatever words it uses to say so."""
-    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    import specdoc
+
+    task = specdoc.render(REPO_ROOT).lower()
     assert "foreground" in task
     assert "background" in task
 
@@ -769,7 +786,7 @@ def test_question_ids_are_the_question_count() -> None:
     ids = run.question_ids()
     assert len(ids) == run.question_count()
     assert len(set(ids)) == len(ids)
-    assert run.answer_name(ids[0]) == "q01", "task.md asks for answers/q{id}.csv"
+    assert run.answer_name(ids[0]) == "q01", "SPEC.md asks for answers/q{id}.csv"
 
 
 def test_missing_answers_names_what_the_session_still_owes(tmp_path: Path) -> None:
@@ -853,8 +870,8 @@ def test_the_session_id_is_the_last_one_the_transcript_carries(tmp_path: Path) -
 def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A repo root a session can be assembled from, outside the real one."""
     root = tmp_path / "repo"
-    for name in ("prompts", "policies", "fixtures"):
-        shutil.copytree(REPO_ROOT / name, root / name)
+    shutil.copytree(REPO_ROOT / "fixtures", root / "fixtures")
+    shutil.copy(REPO_ROOT / "SPEC.md", root / "SPEC.md")
     monkeypatch.setattr(run, "REPO_ROOT", root)
     monkeypatch.setattr(
         run,
@@ -920,6 +937,7 @@ def test_codex_session_uses_the_common_result_layout_and_status(
     assert (result / "transcript.jsonl").is_file()
     assert (result / "stderr.log").is_file()
     assert meta["schema_version"] == 2
+    assert meta["spec_contract_version"] == 2
     assert meta["agent"] == "codex"
     assert meta["status"] == "done"
     assert meta["imputed_cost_usd"] is None
