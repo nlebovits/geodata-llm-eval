@@ -28,9 +28,7 @@ def test_codex_login_command_is_native_and_resumable(tmp_path: Path) -> None:
     workspace.mkdir()
     adapter = agents.CodexAdapter("gpt-test", auth, "login", "high")
 
-    first = adapter.command(
-        "image", agents.TaskBundle(workspace, "do it"), home, "c1"
-    )
+    first = adapter.command("image", agents.TaskBundle(workspace, "do it"), home, "c1")
     resumed = adapter.command(
         "image", agents.TaskBundle(workspace, "finish"), home, "c2", "thread-1"
     )
@@ -51,9 +49,7 @@ def test_codex_api_key_is_passed_by_name_not_value(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("CODEX_API_KEY", "secret-decoy")
-    adapter = agents.CodexAdapter(
-        "gpt-test", tmp_path / "missing.json", "api-key"
-    )
+    adapter = agents.CodexAdapter("gpt-test", tmp_path / "missing.json", "api-key")
 
     args = adapter.auth_args(tmp_path / "home")
 
@@ -230,6 +226,20 @@ def test_report_fingerprint_separates_agent_configurations() -> None:
     assert layout.fingerprint_of(base) != layout.fingerprint_of(
         {**base, "agent_config_fingerprint": "config-two"}
     )
+
+
+@pytest.mark.parametrize("effort", ["max", "ultra"])
+def test_codex_accepts_reasoning_efforts_advertised_for_sol(
+    effort: str,
+) -> None:
+    adapter = run.make_adapter("codex", "gpt-5.6-sol", effort, "login")
+
+    assert adapter.reasoning_effort == effort
+
+
+def test_codex_rejects_reasoning_effort_not_advertised_for_sol() -> None:
+    with pytest.raises(ValueError, match="does not support reasoning effort"):
+        run.make_adapter("codex", "gpt-5.6-sol", "minimal", "login")
 
 
 def test_dockerfile_pins_both_native_agent_clis() -> None:

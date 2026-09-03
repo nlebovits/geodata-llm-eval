@@ -391,10 +391,10 @@ def test_a_run_is_named_for_when_it_ran_and_what_it_ran() -> None:
     """The name used to be a position in a sequence, so two runs could want
     it and the second destroyed the first. Every guard against that -- the
     scan for a free number, --start-pass, --force -- managed a collision a
-    timestamped name cannot have."""
+    timestamp plus nonce cannot have."""
     started = datetime(2026, 7, 26, 11, 46, 46, tzinfo=UTC)
-    name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca")
-    assert name == "20260726T114646Z-7f8fb7a"
+    name = run.run_id(started, "7f8fb7a3aa1f224ee05e7dd14f13a782b0a6e3ca", "fixed123")
+    assert name == "20260726T114646Z-7f8fb7a-fixed123"
 
 
 def test_run_names_sort_chronologically() -> None:
@@ -403,6 +403,15 @@ def test_run_names_sort_chronologically() -> None:
     earlier = run.run_id(datetime(2026, 7, 26, 9, 0, tzinfo=UTC), "a" * 40)
     later = run.run_id(datetime(2026, 7, 26, 17, 0, tzinfo=UTC), "b" * 40)
     assert sorted([later, earlier]) == [earlier, later]
+
+
+def test_two_runs_at_the_same_instant_do_not_collide() -> None:
+    started = datetime(2026, 7, 26, 9, 0, 0, tzinfo=UTC)
+
+    first = run.run_id(started, "abc1234")
+    second = run.run_id(started, "abc1234")
+
+    assert first != second
 
 
 def test_two_runs_a_second_apart_do_not_collide() -> None:

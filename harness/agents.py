@@ -22,6 +22,27 @@ CLAUDE_CODE_VERSION = "2.1.218"
 CODEX_CLI_VERSION = "0.153.0"
 DUCKDB_VERSION = "1.5.5"
 
+# The bundled model catalog shipped by the pinned Codex CLI. Keeping this
+# beside the version pin makes a CLI upgrade that changes model capabilities a
+# deliberate harness change rather than a paid invocation that fails after
+# accepting an impossible configuration.
+CODEX_REASONING_EFFORTS = {
+    "gpt-5.6-sol": frozenset({"low", "medium", "high", "xhigh", "max", "ultra"}),
+    "gpt-5.6-terra": frozenset({"low", "medium", "high", "xhigh", "max", "ultra"}),
+    "gpt-5.6-luna": frozenset({"low", "medium", "high", "xhigh", "max"}),
+    "gpt-daybreak-blue-latest": frozenset(
+        {"low", "medium", "high", "xhigh", "max", "ultra"}
+    ),
+    "gpt-daybreak-red-latest": frozenset(
+        {"low", "medium", "high", "xhigh", "max", "ultra"}
+    ),
+    "gpt-5.5": frozenset({"low", "medium", "high", "xhigh"}),
+    "gpt-5.4": frozenset({"low", "medium", "high", "xhigh"}),
+    "gpt-5.4-mini": frozenset({"low", "medium", "high", "xhigh"}),
+    "gpt-5.2": frozenset({"low", "medium", "high", "xhigh"}),
+    "codex-auto-review": frozenset({"low", "medium", "high", "xhigh", "max"}),
+}
+
 CONTAINER_CLAUDE_DIR = "/home/runner/.claude"
 CONTAINER_CODEX_DIR = "/home/runner/.codex"
 
@@ -123,6 +144,61 @@ def _copy_secret(source: Path, destination: Path) -> None:
     destination.chmod(0o600)
 
 
+def _claude_identity(
+    records: list[Record],
+) -> tuple[str | None, str | None, str | None, tuple[str, ...] | None, str | None]:
+    session_id = model_id = cli_version = permission_mode = None
+    tools = None
+    for record in records:
+        value = record.get("session_id")
+        if isinstance(value, str) and value:
+            session_id = value
+        message = record.get("message") or {}
+        if record.get("type") == "assistant" and isinstance(message.get("model"), str):
+            model_id = message["model"]
+        if record.get("type") != "system" or record.get("subtype") != "init":
+            continue
+        if isinstance(record.get("model"), str):
+            model_id = record["model"]
+        if isinstance(record.get("claude_code_version"), str):
+            cli_version = record["claude_code_version"]
+        advertised = record.get("tools")
+        if isinstance(advertised, list) and all(
+            isinstance(tool, str) for tool in advertised
+        ):
+            tools = tuple(advertised)
+        if isinstance(record.get("permissionMode"), str):
+            permission_mode = record["permissionMode"]
+    return session_id, model_id, cli_version, tools, permission_mode
+
+
+def _claude_usage(records: list[Record]) -> dict[str, int]:
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+    }
+    for record in records:
+        if record.get("type") != "result":
+            continue
+        usage = record.get("usage") or {}
+        totals["input_tokens"] += int(usage.get("input_tokens") or 0)
+        totals["output_tokens"] += int(usage.get("output_tokens") or 0)
+        totals["cache_creation_tokens"] += int(
+            usage.get("cache_creation_input_tokens") or 0
+        )
+        totals["cache_read_tokens"] += int(usage.get("cache_read_input_tokens") or 0)
+    return totals
+
+
+def _claude_authentication_rejected(records: list[Record]) -> bool:
+    return any(
+        record.get("subtype") == "api_retry" and record.get("error_status") == 401
+        for record in records
+    )
+
+
 class ClaudeAdapter:
     name = "claude"
     scaffold = "claude-code"
@@ -183,65 +259,19 @@ class ClaudeAdapter:
         ]
 
     def facts(self, records: list[Record]) -> TranscriptFacts:
-        totals = {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-        }
-        turns = 0
-        found_session = None
-        model_id = None
-        cli_version = None
-        tools = None
-        permission_mode = None
-        rejected = False
-        for record in records:
-            value = record.get("session_id")
-            if isinstance(value, str) and value:
-                found_session = value
-            if record.get("type") == "assistant":
-                turns += 1
-                message = record.get("message") or {}
-                if isinstance(message.get("model"), str):
-                    model_id = message["model"]
-            if record.get("type") == "system" and record.get("subtype") == "init":
-                if isinstance(record.get("model"), str):
-                    model_id = record["model"]
-                if isinstance(record.get("claude_code_version"), str):
-                    cli_version = record["claude_code_version"]
-                advertised = record.get("tools")
-                if isinstance(advertised, list) and all(
-                    isinstance(tool, str) for tool in advertised
-                ):
-                    tools = tuple(advertised)
-                if isinstance(record.get("permissionMode"), str):
-                    permission_mode = record["permissionMode"]
-            if record.get("type") == "result":
-                usage = record.get("usage") or {}
-                totals["input_tokens"] += int(usage.get("input_tokens") or 0)
-                totals["output_tokens"] += int(usage.get("output_tokens") or 0)
-                totals["cache_creation_tokens"] += int(
-                    usage.get("cache_creation_input_tokens") or 0
-                )
-                totals["cache_read_tokens"] += int(
-                    usage.get("cache_read_input_tokens") or 0
-                )
-            if (
-                record.get("subtype") == "api_retry"
-                and record.get("error_status") == 401
-            ):
-                rejected = True
+        session_id, model_id, cli_version, tools, permission_mode = _claude_identity(
+            records
+        )
         return TranscriptFacts(
-            session_id=found_session,
-            turns=turns,
+            session_id=session_id,
+            turns=sum(record.get("type") == "assistant" for record in records),
             reasoning_output_tokens=0,
             model_id=model_id,
             cli_version=cli_version,
             tools=tools,
             permission_mode=permission_mode,
-            authentication_rejected=rejected,
-            **totals,
+            authentication_rejected=_claude_authentication_rejected(records),
+            **_claude_usage(records),
         )
 
     def progress(self, records: list[Record]) -> tuple[int, str]:

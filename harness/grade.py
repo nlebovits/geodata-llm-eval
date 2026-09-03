@@ -856,21 +856,17 @@ def main() -> int:
     for session_dir in session_dirs:
         meta = read_meta(session_dir)
         if not is_scored(meta):
-            # A session that wrote nothing never attempted the questions.
-            # Scoring it as thirty wrong answers blames the model for a run
-            # that did not happen, and drags every average it appears in.
-            # It did fail the task, though, so it is recorded as a trial that
-            # did not pass and stays in the reliability denominator.
+            # No per-question claim can be recovered from an empty agent run
+            # or a trial invalidated before the agent ran. Keep the audit
+            # record, and let trial_status decide failure versus invalidity.
             _write_meta(
                 session_dir,
                 meta,
                 strict_success=False,
                 graded_against=graded_against,
             )
-            print(
-                f"{run_name(session_dir):<34} "
-                f"{meta.get('status', 'unknown')} — not scored, trial failed"
-            )
+            status = meta.get("status", "unknown")
+            print(f"{run_name(session_dir):<34} {status} — not scored")
             continue
         try:
             grades, diffs = grade_session(

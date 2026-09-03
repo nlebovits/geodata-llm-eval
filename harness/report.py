@@ -34,13 +34,6 @@ from grade import load_questions, stage_summary
 # scores, cost, and runtime in one row.
 Session = dict[str, Any]
 
-MODEL_ORDER = ["haiku", "sonnet", "opus"]
-MODEL_LABELS = {
-    "haiku": "Haiku 4.5",
-    "sonnet": "Sonnet 5",
-    "opus": "Opus 4.8",
-}
-
 
 def load_sessions(results_dir: Path) -> list[Session]:
     sessions: list[Session] = []
@@ -65,6 +58,7 @@ def load_sessions(results_dir: Path) -> list[Session]:
                 "model": meta["model"],
                 "agent": meta.get("agent", "legacy"),
                 "agent_config": meta.get("agent_config_fingerprint", ""),
+                "fingerprint": layout.fingerprint_of(meta),
                 "run_id": meta.get("run_id", session_dir.name),
                 "label": meta.get("label", ""),
                 "accuracy": correct / total if total else 0.0,
@@ -86,18 +80,13 @@ def load_sessions(results_dir: Path) -> list[Session]:
 def _configuration_groups(
     sessions: list[Session],
 ) -> list[tuple[str, list[Session]]]:
-    """Diagnostics grouped by the same agent identity as reliability."""
-    grouped: dict[tuple[str, str, str], list[Session]] = {}
+    """Diagnostics grouped by the complete reliability fingerprint."""
+    grouped: dict[layout.Fingerprint, list[Session]] = {}
     for session in sessions:
-        key = (session["agent"], session["model"], session["agent_config"])
-        grouped.setdefault(key, []).append(session)
+        grouped.setdefault(session["fingerprint"], []).append(session)
     output = []
-    for (agent, model, digest), rows in sorted(grouped.items()):
-        if digest:
-            label = f"{agent}/{model} ({digest[:6]})"
-        else:
-            label = MODEL_LABELS.get(model, f"{agent}/{model}")
-        output.append((label, rows))
+    for fingerprint, rows in sorted(grouped.items(), key=lambda item: item[0].label()):
+        output.append((fingerprint.label(), rows))
     return output
 
 
@@ -392,9 +381,7 @@ def accuracy_lines(sessions: list[Session]) -> list[str]:
     for config_label, rows in _configuration_groups(sessions):
         accs = [s["accuracy"] for s in rows]
         costs = [s["cost_usd"] for s in rows if s["cost_usd"] is not None]
-        cost_text = (
-            "$" + format(statistics.mean(costs), ".4f") if costs else "–"
-        )
+        cost_text = "$" + format(statistics.mean(costs), ".4f") if costs else "–"
         near = statistics.mean([s["near_miss"] for s in rows])
         lines.append(
             f"| {config_label} | {len(rows)}"

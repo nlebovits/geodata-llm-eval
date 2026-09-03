@@ -40,7 +40,14 @@ from typing import Any
 import ablation
 import run as runner
 from grade import load_questions, stage_summary
-from layout import group_by_arm, is_scored, read_meta, regraded, run_dirs
+from layout import (
+    Fingerprint,
+    group_by_fingerprint,
+    is_scored,
+    read_meta,
+    regraded,
+    run_dirs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # One arm's aggregated result: its name, the spec digest it saw, and the
@@ -127,16 +134,12 @@ def sweep(
 def arm_rows(
     results_dir: Path, model: str, questions: list[dict[str, Any]]
 ) -> tuple[list[ArmRow], list[Excluded]]:
-    """One row per (arm, spec), plus the runs excluded and why."""
+    """One row per complete experiment fingerprint."""
     rows: list[ArmRow] = []
     excluded: list[Excluded] = []
-    groups = group_by_arm(run_dirs(results_dir, model))
-    # Runs predating the ablation harness carry no fingerprint, so a results
-    # directory holding both sorts a str against None unless the key says
-    # otherwise. Every real tree has both for as long as the old runs are kept.
-    for (arm, spec), dirs in sorted(
-        groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")
-    ):
+    groups = group_by_fingerprint(run_dirs(results_dir, model))
+    for fingerprint, dirs in sorted(groups.items(), key=lambda item: item[0].label()):
+        arm, spec = fingerprint.arm, fingerprint.spec
         kept, grades = [], []
         for run_dir in dirs:
             meta = read_meta(run_dir)
@@ -161,6 +164,7 @@ def arm_rows(
         ]
         rows.append(
             {
+                "fingerprint": fingerprint,
                 "arm": arm,
                 "spec": (spec or "-")[:4],
                 "runs": len(kept),
@@ -296,6 +300,18 @@ def _question_line(
     )
 
 
+def _ablation_context(fingerprint: Fingerprint) -> Fingerprint:
+    """Everything that must match before two ablation arms may be compared."""
+    return fingerprint._replace(arm="all arms", spec=None)
+
+
+def _rows_by_context(rows: list[ArmRow]) -> dict[Fingerprint, list[ArmRow]]:
+    grouped: dict[Fingerprint, list[ArmRow]] = {}
+    for row in rows:
+        grouped.setdefault(_ablation_context(row["fingerprint"]), []).append(row)
+    return grouped
+
+
 def report(
     results_dir: Path, questions_path: Path, config: dict[str, Any] | None
 ) -> list[str]:
@@ -305,31 +321,39 @@ def report(
     models = sorted({d.parent.name for d in run_dirs(results_dir)})
     for model in models:
         rows, excluded = arm_rows(results_dir, model, questions)
-        if len(rows) < 2:
-            continue
-        out += [f"Ablation arms - {model}", ""]
-        out += arm_table(rows)
-        out += ["", f"Per-question pass rate - {model}", ""]
-        out += question_table(rows, baseline, questions)
-        seen: dict[str, list[str]] = {}
-        for r in rows:
-            seen.setdefault(r["arm"], []).append(r["spec"])
-        for arm, specs in seen.items():
-            if len(specs) > 1:
-                out += [
-                    "",
-                    (
-                        f"! arm {arm} saw {len(specs)} different specs "
-                        f"({', '.join(specs)}); they are reported "
-                        f"separately, never pooled"
-                    ),
-                ]
-        for run_dir, why in excluded:
-            out.append(f"! excluded {run_dir.parent.name}/{run_dir.name}: {why}")
-        for r in rows:
-            if r["why"]:
-                out += ["", f"{r['arm']}: {' '.join(r['why'].split())}"]
-        out.append("")
+        for context, context_rows in sorted(
+            _rows_by_context(rows).items(), key=lambda item: item[0].label()
+        ):
+            if len(context_rows) < 2:
+                continue
+            label = context.label()
+            out += [f"Ablation arms - {label}", ""]
+            out += arm_table(context_rows)
+            out += ["", f"Per-question pass rate - {label}", ""]
+            out += question_table(context_rows, baseline, questions)
+            seen: dict[str, list[str]] = {}
+            for row in context_rows:
+                seen.setdefault(row["arm"], []).append(row["spec"])
+            for arm, specs in seen.items():
+                if len(specs) > 1:
+                    out += [
+                        "",
+                        (
+                            f"! arm {arm} saw {len(specs)} different specs "
+                            f"({', '.join(specs)}); they are reported "
+                            f"separately, never pooled"
+                        ),
+                    ]
+            for row in context_rows:
+                if row["why"]:
+                    arm_name = row["arm"]
+                    why = " ".join(row["why"].split())
+                    out += ["", f"{arm_name}: {why}"]
+            out.append("")
+        if rows:
+            for run_dir, why in excluded:
+                name = f"{run_dir.parent.name}/{run_dir.name}"
+                out.append(f"! excluded {name}: {why}")
     return out or ["no model has runs for more than one arm yet"]
 
 

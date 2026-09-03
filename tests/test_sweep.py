@@ -156,6 +156,32 @@ def test_runs_in_one_arm_with_different_specs_are_not_pooled(tmp_path: Path) -> 
     assert any("saw 2 different specs" in line for line in lines)
 
 
+def test_ablation_rows_are_separated_by_agent_configuration(
+    tmp_path: Path,
+) -> None:
+    results = tmp_path / "results"
+    for run_id, config, grade in (
+        ("20260101T000000Z-aaa", "config-one", "correct"),
+        ("20260101T000100Z-aaa", "config-two", "wrong"),
+    ):
+        make_run(
+            results,
+            "opus",
+            run_id,
+            "full",
+            "1111",
+            {"q01": grade},
+            agent="claude",
+            agent_config_fingerprint=config,
+        )
+
+    rows, _excluded = sweep.arm_rows(results, "opus", QUESTIONS)
+
+    assert len(rows) == 2
+    assert {row["runs"] for row in rows} == {1}
+    assert len(sweep._rows_by_context(rows)) == 2
+
+
 def test_a_regraded_run_is_excluded_and_named(tmp_path: Path) -> None:
     """A run scored against goldens it never saw is a fact about the fixtures,
     not about the withheld text."""

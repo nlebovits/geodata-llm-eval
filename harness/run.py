@@ -26,6 +26,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -514,7 +515,10 @@ class Follower:
             return
         _name, start = self.pending.pop(call_id, (item_type, None))
         took = f"{self.clock() - start:.1f}s" if start is not None else "?"
-        failed = item.get("status") == "failed" or item.get("exit_code") not in (None, 0)
+        failed = item.get("status") == "failed" or item.get("exit_code") not in (
+            None,
+            0,
+        )
         marker = "FAILED" if failed else "done"
         print(f"  {self.stamp()} {'':<9}   ↳ {marker} after {took}", flush=True)
 
@@ -681,11 +685,17 @@ def make_adapter(
     if agent == "codex":
         if not auth:
             raise ValueError("Codex runs require --auth login or --auth api-key")
-        if reasoning_effort not in {None, "minimal", "low", "medium", "high", "xhigh"}:
-            raise ValueError("unsupported Codex reasoning effort")
-        return agents.CodexAdapter(
-            model, CODEX_CREDENTIALS, auth, reasoning_effort
-        )
+        supported = agents.CODEX_REASONING_EFFORTS.get(model)
+        if (
+            reasoning_effort is not None
+            and supported is not None
+            and reasoning_effort not in supported
+        ):
+            raise ValueError(
+                f"Codex model {model!r} does not support reasoning effort "
+                f"{reasoning_effort!r}; expected one of {sorted(supported)}"
+            )
+        return agents.CodexAdapter(model, CODEX_CREDENTIALS, auth, reasoning_effort)
     raise ValueError(f"unknown agent {agent!r}")
 
 
@@ -798,7 +808,10 @@ def run_session(
             (out_dir / "meta.json").write_text(
                 json.dumps(failed_meta, indent=2) + "\n", encoding="utf-8"
             )
-            print(f"[{result_key}/{name}] runtime preflight failed: {exc}", file=sys.stderr)
+            print(
+                f"[{result_key}/{name}] runtime preflight failed: {exc}",
+                file=sys.stderr,
+            )
             return
         clear_pass_dir(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -858,7 +871,9 @@ def run_session(
                         if time.monotonic() < next_beat:
                             continue
                         next_beat = time.monotonic() + HEARTBEAT_SECONDS
-                        turns, last_tool = adapter.progress(list(read_records(transcript_path)))
+                        turns, last_tool = adapter.progress(
+                            list(read_records(transcript_path))
+                        )
                         elapsed = (time.monotonic() - started_at) / 60
                         # Counted in the workspace, which is where the session
                         # writes. The results directory only receives them
@@ -912,7 +927,9 @@ def run_session(
             # proving it, and the arm came back n=1.
             if (
                 len(missing) == question_count()
-                and adapter.facts(list(read_records(transcript_path))).authentication_rejected
+                and adapter.facts(
+                    list(read_records(transcript_path))
+                ).authentication_rejected
             ):
                 print(
                     f"[{model}/{name}] the credential was rejected and"
@@ -1039,8 +1056,7 @@ def run_session(
             f" {duration / 60:.0f}m wall"
             f" ({waited / 60:.0f}m in slow tool calls,"
             f" {meta['timed_out_tool_calls']} timed out),"
-            f" {cost_text}"
-            + (f", {attempts} attempts" if attempts > 1 else "")
+            f" {cost_text}" + (f", {attempts} attempts" if attempts > 1 else "")
         )
         if answered < question_count():
             print(
@@ -1050,17 +1066,17 @@ def run_session(
             )
 
 
-def run_id(started: datetime, commit: str) -> str:
+def run_id(started: datetime, commit: str, nonce: str | None = None) -> str:
     """A run's directory name: when it started, and the code it ran.
 
     This used to be `pass-{n}`, a position in a sequence rather than an
     identity, so two runs could want the same name and the second destroyed
-    the first. Every guard around that -- --force, --start-pass, scanning for
-    the lowest free number -- existed to manage a collision that a name
-    carrying a timestamp cannot have. It sorts chronologically as a string,
-    and says when a run happened and what it ran without opening a file.
+    the first. A UTC timestamp keeps names chronologically sortable, the commit
+    identifies the code, and a random nonce prevents simultaneous or immediately
+    failing runs from colliding.
     """
-    return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}"
+    unique = nonce or uuid.uuid4().hex[:8]
+    return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}-{unique}"
 
 
 def source_coop_sample() -> dict[str, Any]:
