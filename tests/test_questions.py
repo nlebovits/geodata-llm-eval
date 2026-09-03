@@ -61,7 +61,7 @@ def test_no_question_mentions_the_banned_column() -> None:
 
 def test_ablated_spec_does_not_leak_the_eudr_scope_answer(tmp_path: Path) -> None:
     """The scope mapping lives in SPEC.md section 7, which the no-crops arm
-    withholds. Once that section is cut, nothing left in the rendered view —
+    withholds. Once that section is cut, nothing left in the agent contract —
     the task, the other rules, the question definitions — may hand the answer
     back by naming the in-scope commodity list inline."""
     ws = tmp_path / "ws"

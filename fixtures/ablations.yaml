@@ -2,19 +2,18 @@
 #
 # An arm is applied to the workspace copy after it is assembled, so SPEC.md
 # itself is never modified. Every heading named here is checked against the
-# rendered spec before the first session starts, so a typo aborts the sweep
+# agent contract before the first session starts, so a typo aborts the sweep
 # in a second rather than producing an arm that ablated nothing, scored like
 # the baseline, and read as "the spec does not matter".
 #
 # This file is never mounted into a session: the workspace receives only the
-# rendered SPEC.md view and the input list. A session that could read this
+# exact SPEC.md and the input list. A session that could read this
 # file would be handed a list of exactly what was withheld from it.
 # tests/test_run.py pins that.
 #
-# The cut unit is a SPEC.md heading. Sections (## 4., ## 5., ...) correspond
-# to the former policy documents; single rules (### Rule: ...) are the
-# narrow arms. Cutting a rule removes its grading equivalences with it,
-# because both live in the same block of the source document.
+# Section numbers and rule slugs are stable IDs. Display-title edits therefore
+# cannot silently disable an arm. Generic heading cuts remain available for
+# experiments that do not target one of these named units.
 #
 # `why` is required. It is reprinted under the report table.
 
@@ -34,9 +33,7 @@ arms:
       consume it and stages 1 to 4 do not, so movement in the early stages is
       cascade or noise rather than an effect of the missing section.
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "8. Cooperative and buyer candidates"
+      - cut_section: 8
 
   no-inputs:
     why: >
@@ -47,9 +44,7 @@ arms:
       same 117 parcels as a clean list, so a mishandled defect shows up twice:
       directly in q31, and as a cascade through every parcel-level answer.
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "4. Input list handling"
+      - cut_section: 4
 
   no-matching:
     why: >
@@ -57,9 +52,7 @@ arms:
       the thresholds, and the tie rules. Stage 3 onward reads everything it
       produces, so this is the widest blast radius of any single section.
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "5. Field–parcel matching"
+      - cut_section: 5
 
   no-crops:
     why: >
@@ -67,9 +60,7 @@ arms:
       which fields count as in scope at all, so damage should start at
       stage 4 and carry through the coop questions.
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "7. EUDR scope and routing"
+      - cut_section: 7
 
   no-widening:
     why: >
@@ -78,9 +69,7 @@ arms:
       inside a section the session can otherwise still read, which separates
       "cannot find the policy" from "has the policy and applies it wrongly".
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "Rule: widening"
+      - cut_rule: widening
 
   no-tie-rules:
     why: >
@@ -93,9 +82,5 @@ arms:
       name, which cut the tie prose without the surrounding rules; scores are
       only comparable within a spec fingerprint anyway.
     ops:
-      - cut:
-          file: SPEC.md
-          heading: "Rule: primary-cadaster"
-      - cut:
-          file: SPEC.md
-          heading: "Rule: ranking"
+      - cut_rule: primary-cadaster
+      - cut_rule: ranking

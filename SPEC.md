@@ -1,20 +1,7 @@
 # Benchmark specification for deforestation reviews
 
-**Draft for review.**
-
-This document is the benchmark's single source of truth. It replaces the
-documents that lived in `prompts/` and `policies/`. It also incorporates the
-output contracts from `fixtures/questions.yaml` and the comparison rules from
-`harness/grade.py`.
-
-`harness/specdoc.py` renders the version that an agent receives. The renderer
-removes question references, provenance, and the open questions. The
-`spec_fingerprint` hashes this rendered version.
-
-Each rule has a stable ID followed by its requirements. The **Questions
-affected** field names its dependent questions, while **Provenance** records
-the source and rationale. The final [Open questions](#open-questions) section
-tracks conflicts that still need a decision.
+This document is the complete specification for the task. Read all of it
+before starting work.
 
 ---
 
@@ -62,17 +49,8 @@ Rows compare as an unordered multiset. Row order matters only when a question
 defines a ranking. In that case, follow the question's rank rule rather than
 the file order.
 
-Provenance: initial design (PR #5).
-
 ### Rule: column-names-are-free
 Choose your column names and order. The grader matches columns by meaning and type only.
-
-Provenance: initial design (PR #5).
-
-### Rule: quantize-before-compare
-Round numeric answers to match the golden value's decimal places before comparison. Output precision is not tested.
-
-Provenance: issue #6. A golden rounded to one decimal failed a correct answer at small magnitudes. The fix went into the comparator, not the prompt.
 
 ### Rule: numeric-tolerance
 Numbers compare at 0.1% relative error, with an absolute floor of 0.000000001.
@@ -80,33 +58,13 @@ Questions marked `geometry` can shift with the calculation method. Their
 decimal values allow 1% relative error. Their integer counts allow a difference
 of either 2 units or 1% of the golden value, whichever is larger.
 
-These tolerances account for defensible differences in feature counts. A value
-outside its tolerance but within ten times that limit counts as a near miss.
+These tolerances account for defensible differences in feature counts.
 
 Geometry-graded questions: q08–q12, q14, q15, q19, q26, q30.
-
-Provenance: initial design (PR #5). The project added the near-miss split for
-triage.
 
 ### Rule: q23-grades-strict
 q23 allows no tolerance for `field_id`. Adjacent plots have adjacent IDs, so a
 "close enough" comparison could credit the wrong farm.
-
-Provenance: PR #5, via the questions.yaml header.
-
-### Rule: strings-fold-case
-Compare strings without regard to case. The answer key does not use case to
-distinguish values.
-
-Provenance: PR #24 (issue #20). An arm run without the scope section lost five points to capitalization alone.
-
-### Rule: booleans-are-liberal
-Accept `true`, `True`, `TRUE`, `yes`, `t`, and `1` as true values.
-Accept their negative forms as false values. A bare `1` or `0` counts as a
-Boolean only when compared with a word, which prevents a count column from
-matching a flag.
-
-Provenance: issue #6. `True` against `true` failed a correct answer.
 
 ### Rule: area-and-distance-method-is-free
 You may choose the method for computing areas and distances. Geodesic area,
@@ -114,8 +72,6 @@ equal-area projections, and Brazil Polyconic agree within 1%. The geometry
 tolerance absorbs this spread.
 
 This rule applies to all hectare and kilometer columns except q23.
-
-Provenance: the questions.yaml header. One stored run used planar EPSG:5880 area and lost only q23, as designed.
 
 ---
 
@@ -128,24 +84,11 @@ Query three GeoParquet datasets remotely with DuckDB (spatial and httpfs extensi
 - Cadastral parcels (Brazil's Rural Environmental Registry, known as CAR): `https://data.source.coop/tristangruppwri/cadastral/brazil-car-area-imovel/brazil_car_area_imovel.parquet`
 - Commodity infrastructure: `https://data.source.coop/tristangruppwri/soft-commodity-infrastructure/facilities/BR_facilities.parquet`
 
-Provenance: prompts/task.md.
-
 ### Rule: coordinates-are-lon-lat
 All geometry is WGS84 longitude-first. Set `geometry_always_xy = true` when loading. Loading with latitude-first axis order shrinks Goiás areas by a factor of about 1.5 and moves every distance.
 
-Questions affected: q08–q15, q19, q22, q23, q26, q30, workflow.
-
-Provenance: the oracle shipped this bug until July 26, 2026 (commit e606096)
-and penalized correct answers. No agent-facing document described the correct
-behavior before this specification.
-
 ### Rule: loss-bands-are-square-metres
 Trazo3 deforestation columns are in square metres. Divide by 10,000 to get hectares.
-
-Questions affected: q15, q17–q23, q30, workflow.
-
-Provenance: Trazo3 catalog documentation. Previously stated only in an oracle
-comment.
 
 ---
 
@@ -164,24 +107,11 @@ property leaves part of the source area unaudited.
 A repeated `cod_imovel` with identical geometry represents one parcel. Report
 the duplicate count before collapsing those rows.
 
-Questions affected: q05, q31.
-
-Provenance: PR #19 (issue #18). The project added defects to the list to make
-this rule measurable.
-
 ### Rule: centroid-resolves-by-containment
 A point resolves to the CAR parcel that contains it. Mark it `centroid_resolved`. If the point lands in no parcel or in several, report it as unresolvable.
 
-Questions affected: q05, q31.
-
-Provenance: PR #19.
-
 ### Rule: idless-polygon-resolves-by-containment
 A polygon with no id resolves by geometric match against CAR using the single-parcel containment test. Mark it `geometry_resolved`.
-
-Questions affected: q05, q31.
-
-Provenance: PR #19.
 
 ### Rule: axis-flip-repair
 A geometry has swapped axes when its original coordinates fall outside Brazil
@@ -189,20 +119,12 @@ but exchanging latitude and longitude moves it inside Brazil. Exchange the
 coordinates, resolve the geometry, and mark it `axis_repaired`. If both
 orderings fall outside Brazil, report the geometry as unresolvable.
 
-Questions affected: q31.
-
-Provenance: PR #19. Measured as its own bucket because the oracle once shipped the same class of bug.
-
 ### Rule: reconciliation-identity
 Every input row lands in exactly one of six buckets. They sum to the arrival count:
 
 `resolved_clean + centroid_resolved + geometry_resolved + axis_repaired + duplicates_removed + unresolvable = input_rows`
 
 The count `input_rows` is rows as they arrived, before deduplication.
-
-Questions affected: q31.
-
-Provenance: policies/INPUTS.md. Graded since PR #19.
 
 ---
 
@@ -218,16 +140,8 @@ parcels. Either of these tests can qualify the field:
 Measure both areas in the EPSG:4326 coordinate reference system (CRS). Their
 scale cancels in the ratio.
 
-Questions affected: q09–q15 and everything downstream.
-
-Provenance: Tristan Grupp (WRI), 2026-07-17. Runs without this rule invent a 0.5 threshold instead, which moves 16 of 31 questions.
-
 ### Rule: matching-parameters
 Set `contain_threshold` = 0.667 and `neighbor_gap_tolerance_m` = 25. The 25 m buffer closes CAR sliver gaps between neighbors. Dissolve the buffered union before intersecting so overlapping parcels are never double-counted.
-
-Questions affected: q09–q12.
-
-Provenance: policies/MATCHING.md.
 
 ### Rule: primary-cadaster
 Each matched field has one primary cadaster: the listed parcel with the largest
@@ -235,37 +149,18 @@ containment fraction. When multiple parcels fall within 1e-9 of the maximum,
 choose the lowest `cod_imovel` by string comparison. Report the true maximum
 as `max_single_frac`.
 
-Questions affected: q13, q20, q23, q24, q26–q30, workflow.
-
-Provenance: PR #13 (issue #12). Exactly 54 of 793 matched fields tie. One run
-scored full marks only because it matched the oracle's scan order. Measurements
-put method noise at no more than 1.7e-10 and the closest genuine gap at 1.6e-8,
-which supports the 1e-9 tolerance.
-
 ### Rule: excluded-fields-are-counted
 Exclude and count fields that fail both tests. An intersection requires
 positive area, so touching a parcel boundary does not count.
 
-Questions affected: q12.
-
-Provenance: policies/MATCHING.md. The positive-area reading was oracle-only before this document.
-
 ### Rule: envelope
 The stage-3 envelope is the bounding box of the union of the listed parcels. It is one box, not a per-parcel box. A field belongs to it if the geometries intersect.
-
-Questions affected: q08.
-
-Provenance: oracle-only before this document (fields_extract.sql.tmpl).
 
 ### Rule: duplicate-car-ids
 CAR contains 8,453,554 rows for 8,437,940 distinct IDs. Treat each row as a
 separate parcel in the single-parcel test. The aggregate test dissolves these
 rows like any other overlap. If a listed ID is absent from CAR, report it as
 missing and add no geometry.
-
-Questions affected: q03, q05, q07.
-
-Provenance: policies/MATCHING.md.
 
 ---
 
@@ -274,24 +169,11 @@ Provenance: policies/MATCHING.md.
 ### Rule: post-2020-loss
 Post-2020 loss is the 2021–2024 era band alone. A field carries post-2020 loss when that band is greater than zero. There is no minimum area threshold.
 
-Questions affected: q15, q17–q20, q23, q24, q26–q30, workflow.
-
-Provenance: the EUDR cutoff is December 31, 2020, and the prior band ends in
-2020. Only the oracle defined the zero threshold before this document.
-
 ### Rule: loss-from-era-bands-only
 Total loss is the sum of the five era bands. Do not use `hansen_covered_area` or `hansen_loss_area`.
 
-Questions affected: q21, q22.
-
-Provenance: the questions.yaml header. The hansen_loss_area exclusion was oracle-only before this document.
-
 ### Rule: era-bands
 The five Hansen eras are 2001-2004, 2005-2009, 2010-2014, 2015-2020, 2021-2024. Label them as year ranges in exactly that form.
-
-Questions affected: q21.
-
-Provenance: Trazo3 column structure.
 
 ---
 
@@ -327,21 +209,11 @@ commodity and caveat values.
 The table omits cocoa and rubber because MapBiomas has no dedicated class for
 either commodity and neither is materially present in Brazil.
 
-Strings compare case-insensitively.
-
-Questions affected: q16–q20, q23–q25, q30, workflow.
-
-Provenance: policies/EUDR_CROPS.md. Cocoa and rubber omitted per TG, 2026-07-24.
-
 ### Rule: two-reasons-to-exclude
 The regulation does not cover classes 18, 20, 40, 41, 47, 48, and 62. Class 9
 (Forest Plantation) is out of scope for a different reason: the sensor cannot
 detect it reliably. Planted timber remains an Annex I commodity. Any output
 that excludes forest plantation must cite detection limits as the reason.
-
-Questions affected: q16, q18.
-
-Provenance: policies/EUDR_CROPS.md.
 
 ### Rule: routing-table
 Map MapBiomas classes to delivery tiers:
@@ -361,26 +233,14 @@ Coffee and palm have no facilities in the product, so there are no delivery cand
 
 A class absent from the scope table keeps every tier (the unknown-crop case).
 
-Questions affected: q24–q26, q28–q30, workflow.
-
-Provenance: policies/EUDR_CROPS.md and policies/COOPS.md.
-
 ### Rule: dominant-class
 When a parcel contains several field classes, the class covering the most
 hectares is dominant. Break ties with the lowest `mbmode24` code. Include all
 matched fields on the parcel, regardless of scope.
 
-Questions affected: q24, q26, q28–q30, workflow.
-
-Provenance: policies/EUDR_CROPS.md. This rule never varied across 19 stored runs.
-
 ### Rule: flagged-set
 Flag a parcel as non-compliant when at least one matched, in-scope field has
 post-2020 loss. These parcels form the flagged set.
-
-Questions affected: q24, q26–q30, workflow.
-
-Provenance: prompts/task.md.
 
 ---
 
@@ -403,10 +263,6 @@ Because each mill sits at its town's centroid, its distance measures
 town-to-parcel. Mark every mill candidate as `town_centroid` and exclude mills
 from the proximity override.
 
-Questions affected: q02, q24–q30, workflow.
-
-Provenance: policies/COOPS.md.
-
 ### Rule: ranking
 Order candidates by these keys:
 
@@ -419,28 +275,15 @@ Order candidates by these keys:
 
 Distances have no tie tolerance.
 
-Questions affected: q26, q28, q30, workflow.
-
-Provenance: policies/COOPS.md. Forty-five Goiás parcels have two facilities at
-the same distance, so the `entity_id` tie-break often applies.
-
 ### Rule: proximity-override
 Promote a delivery facility closer than 10 km to the top and mark it
 `nearest_by_far`. Keep the relationship candidate below it. Mills do not
 participate.
 
-Questions affected: q28–q30.
-
-Provenance: policies/COOPS.md.
-
 ### Rule: widening
 If fewer than 2 delivery candidates fall within 100 km, expand the radius up to
 300 km until you find 2. Mark the result as `widened`. If no candidates fall
 within 300 km, mark the result as `no_match`, and report it.
-
-Questions affected: q28, q29.
-
-Provenance: policies/COOPS.md. The nearest cooperative silo to Jussara is 58 km, so widening is normal, not failure.
 
 ### Rule: candidate-parameters
 After ranking, keep at most 5 candidates before reconciliation. Set
@@ -448,19 +291,10 @@ After ranking, keep at most 5 candidates before reconciliation. Set
 applies only to `intake_point`. Compute distance from the parcel centroid to
 the facility point in EPSG:5880.
 
-Questions affected: q26, q28–q30, workflow.
-
-Provenance: policies/COOPS.md.
-
 ### Rule: gap-markers
 When a flagged parcel's commodity has no tier, set `routed_tier` to
 `no_tier`. Route an unknown class as `unknown`. Join multiple tiers with
-`|` in tier-name order. For empty cells, accept an empty string, `NULL`,
-`none`, or `n/a`.
-
-Questions affected: q16, q24, q25, q30, workflow.
-
-Provenance: oracle-only before this document (coop_routing.sql.tmpl, portfolio.sql.tmpl).
+`|` in tier-name order. Use an empty string for an empty cell.
 
 ---
 
@@ -631,66 +465,6 @@ distance. Leave distance empty for non-distance tiers.
 
 Columns: `cod_imovel`, `annex1_commodity` (strings), `post2020_loss_ha` (float), `entity_id`, `entity_kind`, `tier`, `basis` (strings), `distance_km` (float). Rows: data. Depends: q24, q26, q27, q28. Geometry-graded.
 
-`workflow.csv` repeats q30 in the fixed eight-column form from section 1. The
-harness checks this file for consistency but does not grade it.
+`workflow.csv` repeats q30 in the fixed eight-column form from section 1.
 
 ---
-
-## Open questions
-
-Code under `oracle/` generates the answer key. An audit on August 2, 2026,
-found eight conflicts between that code and this specification. Each conflict
-needs a human decision. Until then, the answer key retains the behavior
-described below.
-
-1. **Which table drives the routing fallback?** The routing rule gives every
-   delivery tier to a class missing from the scope table. The old policy gave
-   every tier to a class missing from the *routing* table instead. The answer
-   key follows the scope-table interpretation.
-
-   Under the current interpretation, Rice, Citrus, Cotton, Other Perennial,
-   and Forest Plantation receive no delivery tiers. The other interpretation
-   would give them every tier. Neither choice changes the current answers
-   because the Goiás list has no flagged parcels in these classes.
-
-2. **q24 and q27 point to the wrong dependency.** Both depend on q20, which
-   covers only the 10 worst parcels. Because q24 and q27 cover every flagged
-   parcel, they should depend on the questions that define the flag. Correcting
-   this bookkeeping does not change any answers.
-
-3. **Widening counts facilities that the crop cannot use.** The answer key
-   first counts every delivery facility within 100 km. It filters unusable
-   facility types only after choosing whether to widen the radius. The written
-   rule instead appears to count usable types only.
-
-   As a result, a grain silo can determine the radius for a cattle parcel that
-   cannot use that silo. Resolving this conflict will change some answers.
-
-4. **The grader does not implement the empty-cell promise.** The gap-marker
-   rule accepts `NULL`, `none`, and `n/a` when the answer key has an empty
-   cell. The grader currently rejects those values. Either implement this
-   equivalence or remove it from the rule.
-
-5. **q22 does not measure what it describes.** The question asks for hectares
-   cleared in each year. The answer key instead sums a field's loss across all
-   years and assigns that total to the dominant loss year. It can therefore
-   count 2021 loss under 2019. Either change the question or change the answer
-   key.
-
-6. **A field can match without touching a parcel.** The aggregate test buffers
-   parcels outward by 25 m, which lets a field pass without touching an actual
-   parcel. The written rules include that field, while the answer key drops it.
-   The Goiás list contains no such field, so either decision preserves the
-   current answers.
-
-7. **A point with an ID has two possible classifications.** For a row with both
-   an ID and point geometry, the input rules require `centroid_resolved`. The
-   answer key sees the ID first, marks the row `resolved_clean`, and ignores
-   its geometry. This conflict affects only the `geometry` and `split` input
-   encodings, which share the CSV answer key.
-
-8. **The specification does not define "outside Brazil."** The axis-flip rule
-   needs this boundary. The answer key uses a rectangle from 75°W to 28°W and
-   34°S to 6°N. Under that definition, some points in the Atlantic count as
-   inside Brazil. The specification must either adopt this rectangle or define
-   another boundary.

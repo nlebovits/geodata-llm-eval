@@ -1,7 +1,4 @@
-"""SPEC.md is the single source of ground truth; fixtures/questions.yaml is
-the machine-readable derivation the harness consumes. These tests pin the two
-together so neither can drift without CI noticing, and pin the rendered agent
-view to what a session is allowed to see."""
+"""Pin the public contract to its machine-readable derivation and boundary."""
 
 import re
 import sys
@@ -12,6 +9,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 SPEC = (REPO / "SPEC.md").read_text(encoding="utf-8")
+REVIEW = (REPO / "docs" / "SPEC_REVIEW.md").read_text(encoding="utf-8")
 sys.path.insert(0, str(REPO / "harness"))
 
 import specdoc
@@ -105,19 +103,13 @@ def test_spec_names_the_geometry_graded_questions() -> None:
     )
 
 
-def test_agent_view_strips_what_a_session_must_not_see() -> None:
-    view = specdoc.agent_view(SPEC)
-    assert "provenance:" not in view.lower(), "provenance reaches the session"
-    assert "equivalence:" not in view, "grader equivalences reach the session"
-    assert "Open questions" not in view, "the contested list reaches the session"
-    assert "PR #" not in view, "repo history reaches the session"
-    assert "Questions affected" not in view, (
-        "the per-rule impact map reaches the session"
-    )
+def test_agent_view_is_the_exact_contract() -> None:
+    assert specdoc.agent_view(SPEC) == SPEC
+    assert specdoc.render(REPO).encode() == (REPO / "SPEC.md").read_bytes()
+    assert specdoc.CONTRACT_VERSION == 2
 
 
-def test_agent_view_keeps_the_rules_and_tables() -> None:
-    view = specdoc.agent_view(SPEC)
+def test_agent_contract_keeps_the_rules_and_tables() -> None:
     for kept in (
         "### Rule: primary-cadaster",
         "### Rule: widening",
@@ -126,10 +118,31 @@ def test_agent_view_keeps_the_rules_and_tables() -> None:
         "contain_threshold` = 0.667",
         "**q31**",
     ):
-        assert kept in view, f"agent view lost {kept!r}"
+        assert kept in SPEC, f"agent contract lost {kept!r}"
 
 
-def test_agent_view_leaves_no_seam() -> None:
-    view = specdoc.agent_view(SPEC)
-    assert "\n\n\n" not in view, "a blank-line run betrays the removals"
-    assert view.endswith("\n") and not view.endswith("\n\n")
+def test_reviewer_only_canaries_never_enter_the_agent_contract() -> None:
+    canaries = ("REVIEW_ONLY_CANARY", "GRADER_ONLY_CANARY")
+    assert all(canary in REVIEW for canary in canaries)
+    assert all(canary not in SPEC for canary in canaries)
+
+
+def test_agent_contract_excludes_reviewer_and_comparator_details() -> None:
+    forbidden = (
+        "Provenance:",
+        "Questions affected:",
+        "Open questions",
+        "quantize-before-compare",
+        "strings-fold-case",
+        "booleans-are-liberal",
+        "near miss",
+        "case-insensitively",
+        "scan order",
+    )
+    for text in forbidden:
+        assert text.lower() not in SPEC.lower(), f"agent contract exposes {text!r}"
+
+
+def test_agent_contract_has_no_rendering_seams() -> None:
+    assert "\n\n\n" not in SPEC
+    assert SPEC.endswith("\n") and not SPEC.endswith("\n\n")

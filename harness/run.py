@@ -637,10 +637,10 @@ def resolve_arm(arm: str, ablations: Path | None) -> dict[str, Any]:
 def assemble_workspace(workspace: Path, input_mode: str) -> None:
     """Build the tree the session is pointed at.
 
-    The rendered SPEC.md is the binding document the agent implements. The
+    The exact SPEC.md is the binding document the agent implements. The
     golden fixtures never enter the workspace.
     """
-    (workspace / "SPEC.md").write_text(specdoc.render(REPO_ROOT), encoding="utf-8")
+    shutil.copy(REPO_ROOT / "SPEC.md", workspace / "SPEC.md")
     lists_dir = workspace / "lists"
     lists_dir.mkdir()
     for src in list_files(input_mode):
@@ -796,6 +796,7 @@ def run_session(
                 "max_attempts": max_attempts,
                 "max_wall_seconds": max_wall_seconds,
                 "spec_fingerprint": spec_digest,
+                "spec_contract_version": specdoc.CONTRACT_VERSION,
                 "spec_manifest": spec_manifest,
                 "ablation": arm_spec,
                 "status": layout.INFRASTRUCTURE_INVALID,
@@ -1022,6 +1023,7 @@ def run_session(
             "max_attempts": max_attempts,
             "max_wall_seconds": max_wall_seconds,
             "spec_fingerprint": spec_digest,
+            "spec_contract_version": specdoc.CONTRACT_VERSION,
             "spec_manifest": spec_manifest,
             "ablation": arm_spec,
             "catalog_at_start": catalog_before,

@@ -1,4 +1,4 @@
-"""Session assembly: the workspace gets the rendered spec view and the input
+"""Session assembly: the workspace gets the exact spec and the input
 list, and never the golden fixtures. Does not require Docker."""
 
 import itertools
@@ -62,7 +62,7 @@ def test_run_py_never_copies_the_golden_fixtures() -> None:
 
 
 def test_the_ablation_config_never_reaches_the_workspace() -> None:
-    """The workspace receives only the rendered SPEC.md and the input list. A
+    """The workspace receives only the exact SPEC.md and the input list. A
     session that could read the ablation config would be handed an itemised
     list of what was withheld from it, which is the one thing an ablation must
     not reveal. This structural check ensures no assembly line copies or writes the
@@ -140,7 +140,7 @@ def test_dry_run_assembles_workspace_without_docker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     # dry_run prints the docker command and returns before invoking anything;
-    # it still renders the spec and copies the list, so this exercises mounting.
+    # it still stages the spec and copies the list, so this exercises mounting.
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -150,6 +150,16 @@ def test_dry_run_assembles_workspace_without_docker(
     out = capsys.readouterr().out
     assert "docker run" in out
     assert "--model claude-haiku-4-5-20251001" in out
+
+
+def test_workspace_gets_the_exact_contract_and_no_review_notes(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    run.assemble_workspace(workspace, "csv")
+
+    assert (workspace / "SPEC.md").read_bytes() == (REPO_ROOT / "SPEC.md").read_bytes()
+    assert not (workspace / "docs").exists()
+    assert "REVIEW_ONLY_CANARY" not in (workspace / "SPEC.md").read_text("utf-8")
 
 
 def test_auth_mounts_a_session_copy_not_the_host_credentials(
@@ -927,6 +937,7 @@ def test_codex_session_uses_the_common_result_layout_and_status(
     assert (result / "transcript.jsonl").is_file()
     assert (result / "stderr.log").is_file()
     assert meta["schema_version"] == 2
+    assert meta["spec_contract_version"] == 2
     assert meta["agent"] == "codex"
     assert meta["status"] == "done"
     assert meta["imputed_cost_usd"] is None
