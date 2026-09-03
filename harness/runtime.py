@@ -20,7 +20,9 @@ def _run(command: list[str]) -> str:
             command, capture_output=True, text=True, check=True
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise RuntimeDrift(f"runtime preflight failed: {' '.join(command)}: {exc}") from exc
+        raise RuntimeDrift(
+            f"runtime preflight failed: {' '.join(command)}: {exc}"
+        ) from exc
 
 
 def _version(text: str) -> str:
