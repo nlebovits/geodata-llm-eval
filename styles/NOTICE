@@ -1,0 +1,8 @@
+The Geodata-* Vale rules are adapted from the Portolan prose rules:
+
+  https://github.com/portolan-sdi/portolan-ops
+  commit ae93b7c7c23ddb9661292f621243896c3e23c25e
+
+The adapted rules remain available under the Apache License, Version 2.0.
+The files were renamed, narrowed to this repository, and extended with a
+generic contrast-slogan rule.

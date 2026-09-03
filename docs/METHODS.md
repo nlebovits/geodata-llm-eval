@@ -2,7 +2,7 @@
 
 ## The question and why it matters
 
-The EU Deforestation Regulation requires operators to show that commodities placed on the EU market come from land not deforested after 31 December 2020. For a Brazilian soy or cattle portfolio, proving this requires resolving property IDs against the national cadastre, matching fields to those properties, classifying land cover, measuring forest loss, and routing flagged properties to cooperatives or buyers that can act. This is spatial work at scale—tedious, error-prone, and exactly the kind of task language models might handle well. The question is whether they can reliably execute it against real cloud-native data and what it costs.
+The EU Deforestation Regulation requires operators to show that commodities placed on the EU market come from land not deforested after December 31, 2020. For a Brazilian soy or cattle portfolio, proving this requires resolving property IDs against the national cadastre, matching fields to those properties, classifying land cover, measuring forest loss, and routing flagged properties to cooperatives or buyers that can act. This is spatial work at scale — tedious, error-prone, and exactly the kind of task language models might handle well. The question is whether they can reliably execute it against real cloud-native data and what it costs.
 
 We test three models on a 117-property Goiás portfolio. The agent receives four policy documents and 31 questions organized into six interdependent stages. It queries three remote GeoParquet catalogs over HTTP range requests, recovers from its own SQL errors, and writes a CSV per question plus a final decision artifact. A SQL oracle produces the answer key. An executable comparator grades the results.
 
@@ -48,7 +48,7 @@ The four documents in `policies/` define the specification. They state the 2/3 c
 
 `EUDR_CROPS.md` defines crop scope. The agent must read this policy and carry its caveats through nine downstream questions. This mirrors the real job, where a compliance rule arrives as a document and the analyst implements it.
 
-`INPUTS.md` governs the input list and forbids silent drops. An omitted property is an unaudited sourcing area—the exact failure the workflow exists to prevent. The reconciliation identity must hold:
+`INPUTS.md` governs the input list and forbids silent drops. An omitted property is an unaudited sourcing area — the exact failure the workflow exists to prevent. The reconciliation identity must hold:
 
 ```
 resolved_clean + centroid_resolved + geometry_resolved

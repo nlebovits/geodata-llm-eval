@@ -1,0 +1,6 @@
+extends: occurrence
+message: "'X, so you can Y' appears more than once. Use another conjunction."
+level: warning
+scope: text
+max: 1
+token: 'so (?:that )?you can'

@@ -27,3 +27,6 @@ fixtures/golden/_work/
 
 # MCP tool caches, local to a checkout
 .serena/
+
+# Downloaded by `vale sync`; .vale.ini pins the package release.
+styles/Google/
