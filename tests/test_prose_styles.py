@@ -47,6 +47,14 @@ CASES = {
         "I hope this helps.",
         "The command prints the result.",
     ),
+    "Geodata-Voice.AffirmativeNegativeEcho": (
+        "It reads the policy. It does not read the answers.",
+        "Although it reads the policy, the answers remain unavailable.",
+    ),
+    "Geodata-Voice.SerialListCadence": (
+        "It reads red, blue, and green files. It writes one, two, and three.",
+        "It reads red, blue, and green files. The output contains three files.",
+    ),
     "Geodata-Voice.ClosingTail": (
         "In conclusion, publish the files.",
         "Publish the files.",
@@ -69,8 +77,8 @@ CASES = {
         "The publisher wrote the file yesterday.",
     ),
     "Geodata-Voice.SoYouCan": (
-        "It is open, so you can read it. It is indexed, so you can find it.",
-        "It is open, so you can read it. The index makes it searchable.",
+        "It is open, so you can read it.",
+        "Because it is open, you can read it.",
     ),
     "Geodata-Voice.StockTransitions": (
         "In today's landscape, catalogs matter.",

@@ -17,13 +17,34 @@ State uncertainty, costs, and unsupported cases without promotional language.
 
 ## Avoid formulaic prose
 
-Vary sentence length and structure. Do not repeat a grammatical frame
-across adjacent sentences or paragraphs.
+Vary sentence length and structure. Prefer syntax that states the relationship
+between ideas over syntax that merely adds one item after another.
+
+Avoid enumerative parataxis. It often appears as:
+
+- repeated inline lists;
+- compound predicates;
+- balanced coordinate clauses; or
+- affirmative-negative sentence pairs.
+
+Common frames include `It does A, B, and C`, `X does A and does B`, and
+`It does A. It does not do B`. Use subordination when ideas have a causal,
+conditional, temporal, concessive, or purposive relationship. Reserve inline
+lists for items that form a meaningful set.
+
+Replace the resultative frame `X, so you can Y` with the relationship that
+makes Y possible:
+
+```text
+Because the repository includes the fixtures, you can regrade a saved run.
+```
+
+Do not repeat a grammatical frame across adjacent sentences or paragraphs.
 
 Cut stock transitions, filler, chatbot closings, dramatic setup clauses, and
 contrasts that turn two facts into a slogan. Limit em dashes rather than using
-them as a default transition. End on the final substantive point instead of a
-summary that repeats it.
+an em dash as a default transition. End on the final substantive point instead
+of a summary that repeats it.
 
 These rules describe text patterns. They do not identify who or what wrote the
 text. A person can write formulaic prose, and an agent can write clean prose.

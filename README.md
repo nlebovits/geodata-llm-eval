@@ -2,14 +2,15 @@
 
 This repository tests whether a language model can complete an end-to-end EU
 Deforestation Regulation (EUDR) sourcing workflow against real cloud-hosted
-geospatial data. It measures whether the whole workflow succeeds reliably,
-where errors enter or propagate, and what each attempt costs.
+geospatial data. Its headline metrics cover whole-workflow reliability and
+per-attempt cost. Diagnostic scores locate errors and trace their propagation.
 
-The benchmark gives an agent a Brazilian rural-property portfolio, four policy
-documents, and 31 questions. The agent must inspect three Source Cooperative
-catalogs, query remote GeoParquet data, apply the policies, and produce a final
-list of non-compliant properties and their best contacts. A deterministic SQL
-oracle and comparator grade the result; no model judges another model.
+The agent receives a Brazilian rural-property portfolio and four policy
+documents. Across 31 questions, it inspects three Source Cooperative catalogs
+and queries their remote GeoParquet data. The policies govern the final list of
+non-compliant properties and the contact selected for each one.
+
+A deterministic SQL oracle grades every result. No model judges another model.
 
 ## What the benchmark measures
 
@@ -27,7 +28,8 @@ The report leads with two reliability measures:
 
 Only failures proven external to the agent, such as a dead credential,
 unavailable infrastructure, or a grader crash, invalidate a trial. The report
-keeps those trials visible and shows both the attempted and valid counts.
+includes those trials in the attempted total. A separate valid count exposes
+their exclusion from the denominator.
 
 Per-question accuracy, stage-level accuracy, near misses, consistency, runtime,
 and imputed API cost help diagnose the strict result. They are partial-credit
@@ -55,9 +57,10 @@ portfolio + questions + policies
 ```
 
 Each trial runs in a fresh Docker container with a clean workspace. The session
-receives the task, question set, policy documents, and input portfolio. It does
-not receive the golden answers. The harness can resume an unfinished session up
-to the configured attempt limit and records every attempt in one transcript.
+receives the task and question set alongside the policy documents and input
+portfolio. Golden answers remain outside the container. When work stops early,
+the harness can resume the session up to the configured attempt limit. Every
+attempt stays in one transcript.
 
 The workflow has six dependent stages:
 
@@ -84,8 +87,8 @@ accuracy for questions whose upstream dependencies passed.
 
 You need Python 3.12 or later, [uv](https://docs.astral.sh/uv/), Docker, and
 either a Claude login or an `ANTHROPIC_API_KEY`. Runs query live remote
-catalogs and can transfer several gigabytes, so first check the setup with one
-pass or a dry run.
+catalogs and can transfer several gigabytes. Because of that cost, check the
+setup with one pass or a dry run.
 
 Install the dependencies and run the local tests:
 
@@ -94,7 +97,7 @@ uv sync
 uv run pytest
 ```
 
-Authenticate, build the session image, and start one trial:
+Authenticate before building the session image. Then start one trial:
 
 ```bash
 claude login  # or: export ANTHROPIC_API_KEY=...
@@ -157,14 +160,15 @@ sessions authenticated through a subscription do not incur those API charges.
 
 [`oracle/render.py`](oracle/render.py) runs the vendored rural-land EUDR SQL
 against the pinned catalogs and writes `fixtures/golden/qNN.csv` plus a
-`SHA256SUMS` manifest. Golden fixtures are committed, so you can regrade a
-saved run without calling a model or querying the source data again.
+`SHA256SUMS` manifest. Because the repository includes the golden fixtures,
+you can regrade a saved run without calling a model or querying the source data.
 
 The comparator applies these rules:
 
-- Rows compare as multisets, so row order does not matter.
-- Column order and names do not matter; values and their types do.
-- Integers match exactly, and strings match without regard to case.
+- Row order does not matter because rows compare as multisets.
+- Column order and names do not matter. Values and their types still do.
+- Integers require exact matches.
+- String comparison is case-insensitive.
 - Most numeric values use a relative tolerance of `1e-3`.
 - Geometry-sensitive questions use `1e-2` plus integer slack of the greater
   of 2 or 1% of the golden value.
@@ -248,8 +252,9 @@ also lists the advisory Vale and proselint commands.
 ## Scope limits
 
 The benchmark measures the deforestation-free condition and selected CAR-based
-legality indicators. It does not make a complete EUDR compliance determination,
-which also requires legality evidence and a due diligence statement.
+legality indicators. A complete EUDR compliance determination remains outside
+its scope because that decision also requires legality evidence and a due
+diligence statement.
 
 Metadata dropout, held-out catalogs, and throughput remain out of scope. Coffee
 and oil palm have no delivery infrastructure in the current facilities data;
