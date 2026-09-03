@@ -127,6 +127,22 @@ def test_cut_matches_heading_text_without_the_hashes(tmp_path: Path) -> None:
     assert "Cut me" not in (ws / "policies/p.md").read_text(encoding="utf-8")
 
 
+def test_cut_rule_targets_the_stable_rule_id(tmp_path: Path) -> None:
+    doc = "# T\n\n## 1. Any title\n\n### Rule: stable-id\n\nsecret\n"
+    ws = workspace(tmp_path, **{"SPEC.md": doc})
+    ablation.apply_arm(ws, [{"cut_rule": "stable-id"}])
+    assert "stable-id" not in (ws / "SPEC.md").read_text(encoding="utf-8")
+
+
+def test_cut_section_ignores_the_display_title(tmp_path: Path) -> None:
+    doc = "# T\n\n## 4. A completely rewritten title\n\nsecret\n\n## 5. Keep\n\nbody\n"
+    ws = workspace(tmp_path, **{"SPEC.md": doc})
+    ablation.apply_arm(ws, [{"cut_section": 4}])
+    out = (ws / "SPEC.md").read_text(encoding="utf-8")
+    assert "rewritten title" not in out
+    assert "## 5. Keep" in out
+
+
 def test_cut_leaves_no_marker_and_no_run_of_blank_lines(tmp_path: Path) -> None:
     """A visible seam tells the session that spec was withheld, and it will
     hedge or report the policy as incomplete. That measures the notice, not

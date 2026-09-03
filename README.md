@@ -62,7 +62,7 @@ portfolio + specification
 ```
 
 Each trial starts a fresh Docker container with a clean workspace. The container
-holds a rendered view of `SPEC.md` and the property portfolio. It can't access the
+holds the exact `SPEC.md` and the property portfolio. It can't access the
 answer key.
 
 If the model stops early, the harness can resume the same session. It stops
