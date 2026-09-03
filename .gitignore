@@ -30,3 +30,5 @@ fixtures/golden/_work/
 
 # Downloaded by `vale sync`; .vale.ini pins the package release.
 styles/Google/
+styles/Microsoft/
+styles/Readability/
