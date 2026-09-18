@@ -19,6 +19,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 
 | Configuration | Attempted | Invalid | Valid | Strict success | pass^3 | pass^5 | pass^10 |
 |---------------|-----------|---------|---------------|----------------|--------|--------|---------|
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 5 | 0 (0%) | 5 | 0% (0/5) | 0% [0%–8%] | 0% [0%–2%] | – (n=5<10) |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 4 | 0 (0%) | 4 | 0% (0/4) | 0% [0%–12%] | – (n=4<5) | – (n=4<10) |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 1 | 0 (0%) | 1 | 0% (0/1) | – (n=1<3) | – (n=1<5) | – (n=1<10) |
 
@@ -26,6 +27,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 
 | Configuration | agent_produced_nothing | agent_timeout | authentication_invalid | failed | grader_error | infrastructure_invalid | passed | ungraded |
 |---------------|---|---|---|---|---|---|---|---|
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 0 | 0 | 0 | 5 | 0 | 0 | 0 | 0 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 0 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 
@@ -37,6 +39,7 @@ says something different at three resumes than at one.
 
 | Configuration | Resume limit | Max resumes used | Max turns used | Wall limit | Max wall used | Total cost |
 |---------------|--------------|------------------|----------------|------------|---------------|------------|
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 2 | 0 | 134 | unlimited | 23m | $22.65 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 2 | 0 | 133 | unlimited | 26m | $17.59 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 2 | 0 | 115 | unlimited | 30m | $4.67 |
 
@@ -60,6 +63,7 @@ tolerance itself: computed right, formatted or rounded differently.
 |---------------|--------|---------------|----------------|------------------|-----------------|
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 1 | 87.1% | 87.1% – 87.1% | 2.0 | $4.6713 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 4 | 90.3% | 90.3% – 90.3% | 0.8 | $4.3986 |
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 5 | 91.6% | 87.1% – 96.8% | 0.8 | $4.5292 |
 
 ## Runtime
 
@@ -71,6 +75,7 @@ run was degraded by the network, not by the model.
 |---------------|-----------------|--------------------|-----------------|
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 30m | 39% | 0 |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 21m | 7% | 0 |
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 20m | 3% | 0 |
 
 ## Accuracy by workflow stage
 
@@ -81,3 +86,4 @@ dependencies all passed (the error-propagation-adjusted score).
 |---------------|-----|-----|-----|-----|-----|-----|
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness 42b045 · csv · attempt limit 3 · wall limit unlimited | 100%/100% | 100%/100% | 86%/86% | 78%/78% | 83%/67% | 100%/– |
 | claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ec3740 · csv · attempt limit 3 · wall limit unlimited | 94%/94% | 100%/100% | 96%/100% | 78%/74% | 92%/78% | 100%/100% |
+| claude/opus · full · agent-config f208cf · spec ae7901 · golden-at-run 7bbdf1 · graded 7bbdf1 · pins df2389 · harness ff0a0c · csv · attempt limit 3 · wall limit unlimited | 95%/95% | 100%/100% | 100%/100% | 80%/81% | 90%/75% | 100%/100% |

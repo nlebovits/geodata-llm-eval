@@ -1,0 +1,56 @@
+{
+  "q15": [
+    {
+      "answer": 95,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.188034,
+      "rel_error": 0.188034,
+      "row": 0
+    }
+  ],
+  "q19": [
+    {
+      "answer": 0.0020703,
+      "column": "loss_share",
+      "golden": 0.0969,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0021,
+      "quantized_rel_error": 0.978328,
+      "raw_rel_error": 0.978635,
+      "rel_error": 0.978328,
+      "row": 0
+    },
+    {
+      "answer": 0.0200377,
+      "column": "loss_share",
+      "golden": 0.227,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.02,
+      "quantized_rel_error": 0.911894,
+      "raw_rel_error": 0.911728,
+      "rel_error": 0.911728,
+      "row": 1
+    }
+  ],
+  "q24": [
+    {
+      "answer": "gravity_catchment|intake_point",
+      "column": "routed_tier",
+      "golden": "intake_point",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 12
+    }
+  ]
+}
