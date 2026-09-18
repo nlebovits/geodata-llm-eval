@@ -1396,3 +1396,78 @@ def test_the_pins_digest_changes_with_the_pinned_data(tmp_path: Path) -> None:
     answer unchanged still changes what the session had to work from."""
     original = run.pins_fingerprint()
     assert original is not None and len(original) == 12
+
+
+def scripted_clock(monkeypatch: pytest.MonkeyPatch, marks: list[float]) -> None:
+    """Drive run.time.monotonic through a fixed sequence of readings."""
+    readings = iter(marks)
+    monkeypatch.setattr(run.time, "monotonic", lambda: next(readings))
+
+
+def test_the_route_sample_separates_latency_from_throughput(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Four seconds of DNS, TCP, TLS, and TTFB in front of a one-second
+    transfer is a 1 MB/s link, not a 200 kB/s one. Dividing the megabyte by
+    the sum is what printed 0.5 MB/s on a gigabit line."""
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * run.PROBE_BYTES, "abc-LHR"),
+    )
+    # started, first_byte, done.
+    scripted_clock(monkeypatch, [10.0, 14.0, 15.0])
+
+    sample = run.source_coop_sample()
+
+    assert sample["ttfb_seconds"] == 4.0
+    assert sample["transfer_seconds"] == 1.0
+    assert sample["seconds"] == 5.0
+    assert sample["bytes_per_second"] == run.PROBE_BYTES
+
+
+def test_an_instant_transfer_reports_no_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cached or mocked read can finish inside one clock tick. The rate is
+    unknown there, and None says so where a division would raise."""
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * run.PROBE_BYTES),
+    )
+    scripted_clock(monkeypatch, [3.0, 3.0, 3.0])
+
+    sample = run.source_coop_sample()
+
+    assert sample["ok"] is True
+    assert sample["bytes_per_second"] is None
+
+
+def test_the_route_summary_prints_both_numbers() -> None:
+    line = run.route_summary(
+        {"bytes_per_second": 9_100_000, "ttfb_seconds": 1.94, "colo": "LHR"}
+    )
+
+    assert line == "source.coop ttfb 1.9s, 9.1 MB/s via LHR"
+
+
+def test_the_route_summary_says_unreachable_without_a_rate() -> None:
+    """A failed probe has no bytes and no timings. Formatting one as 0.0 MB/s
+    would read as a measurement of a link that was never measured."""
+    assert run.route_summary({"ok": False, "error": "URLError: reset"}) == (
+        "source.coop unreachable via ?"
+    )
+    assert (
+        run.route_summary({"bytes_per_second": None, "colo": "AMS"})
+        == "source.coop unreachable via AMS"
+    )
+
+
+def test_the_probe_reads_past_tcp_slow_start() -> None:
+    """A fresh connection spends most of a megabyte ramping. Measured on one
+    link: 1.2 MB/s over 1 MB, 6.0 MB/s over 8 MB, 12.8 MB/s over 32 MB. The
+    smallest read reports a tenth of the rate the route can hold."""
+    assert run.PROBE_BYTES >= 8 * 1_048_576

@@ -112,12 +112,36 @@ class AgentAdapter(Protocol):
     def config(self) -> dict[str, Any]: ...
 
 
+# A remote scan of the 8.45 million row CAR parquet runs for minutes. Claude
+# Code defaults its Bash tool to 120 seconds, which killed the very query
+# SPEC.md section 1 asks a session to run in the foreground and wait for. The
+# 2026-09-18 Opus run hit that cap, concluded remote reads were unusable, and
+# spent the rest of the trial downloading 3 GB in the background instead.
+#
+# The default is what a session gets when it names no timeout. The maximum is
+# the ceiling it may ask for. Both travel in the run metadata, because a cap
+# that reshapes agent strategy is part of what the session was handed.
+BASH_DEFAULT_TIMEOUT_MS = 600_000
+BASH_MAX_TIMEOUT_MS = 1_800_000
+
+CLAUDE_TOOL_ENV = {
+    "BASH_DEFAULT_TIMEOUT_MS": str(BASH_DEFAULT_TIMEOUT_MS),
+    "BASH_MAX_TIMEOUT_MS": str(BASH_MAX_TIMEOUT_MS),
+}
+
+
+def _env_args(env: dict[str, str] | None) -> list[str]:
+    """`docker run -e K=V` pairs, in a stable order."""
+    return [arg for key in sorted(env or {}) for arg in ("-e", f"{key}={env[key]}")]
+
+
 def _docker_prefix(
     image: str,
     workspace: Path,
     container: str,
     entrypoint: str,
     auth_args: list[str],
+    env: dict[str, str] | None = None,
 ) -> list[str]:
     return [
         "docker",
@@ -130,6 +154,7 @@ def _docker_prefix(
         "-v",
         f"{workspace}:/workspace",
         *auth_args,
+        *_env_args(env),
         "--entrypoint",
         entrypoint,
         image,
@@ -245,6 +270,7 @@ class ClaudeAdapter:
                 container,
                 "claude",
                 self.auth_args(session_home),
+                CLAUDE_TOOL_ENV,
             ),
             "-p",
             task.prompt,
@@ -298,6 +324,8 @@ class ClaudeAdapter:
             "permission_policy": "bypassPermissions",
             "outer_sandbox": "docker",
             "network_policy": "unrestricted",
+            "bash_default_timeout_ms": BASH_DEFAULT_TIMEOUT_MS,
+            "bash_max_timeout_ms": BASH_MAX_TIMEOUT_MS,
         }
 
 
@@ -443,4 +471,10 @@ class CodexAdapter:
             "permission_policy": "bypass-approvals-and-sandbox",
             "outer_sandbox": "docker",
             "network_policy": "unrestricted",
+            # Codex exposes no equivalent of BASH_DEFAULT_TIMEOUT_MS. The
+            # model sets timeout_ms on each shell call instead, so the cap
+            # varies per call and the harness cannot state one. Tracked
+            # upstream as openai/codex#4775.
+            "bash_default_timeout_ms": None,
+            "bash_max_timeout_ms": None,
         }

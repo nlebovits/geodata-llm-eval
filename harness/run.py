@@ -87,9 +87,16 @@ FOLLOW_WIDTH = 150
 # Where a tool call's subject lives, by tool. Falls back to the whole input.
 TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
 
-# A 1 MB range read is big enough to measure a route and small enough that
+# An 8 MB range read is big enough to measure a route and small enough that
 # a dead one fails fast. See source-cooperative/data.source.coop#194.
-PROBE_BYTES = 1_048_576
+#
+# 1 MB was too small. A fresh TCP connection spends most of a megabyte in
+# slow start, so the same link that sustains 13 MB/s over 32 MB measures
+# 1.2 MB/s over 1 MB. That tenfold understatement is a route diagnosis
+# pointing at the wrong cause, which is what this sample exists to prevent.
+# 8 MB reads within about a factor of two of steady state and adds roughly
+# 1.5 seconds to the start of a run.
+PROBE_BYTES = 8 * 1_048_576
 PROBE_TIMEOUT = 30
 
 # The input list, by encoding (see SPEC.md §4). experiment 1 (Goiás)
@@ -820,12 +827,7 @@ def run_session(
         # is the whole trial's, not each attempt's.
         timed_out = False
         catalog_before = source_coop_sample()
-        rate = catalog_before.get("bytes_per_second")
-        speed = f"{rate / 1e6:.1f} MB/s" if rate else "unreachable"
-        print(
-            f"[{model}/{name}] starting"
-            f" (source.coop {speed} via {catalog_before.get('colo') or '?'})"
-        )
+        print(f"[{model}/{name}] starting ({route_summary(catalog_before)})")
 
         follower = Follower() if follow else None
 
@@ -1077,6 +1079,23 @@ def run_id(started: datetime, commit: str, nonce: str | None = None) -> str:
     return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}-{unique}"
 
 
+def route_summary(sample: dict[str, Any]) -> str:
+    """The route, as one line of the run header.
+
+    Latency and throughput are printed as two numbers because they fail
+    independently. source.coop answers a small ranged read in about two
+    seconds and then delivers at several MB/s, so a single combined figure
+    reads as a slow link and sends the reader after the wrong cause.
+    """
+    rate = sample.get("bytes_per_second")
+    ttfb = sample.get("ttfb_seconds")
+    colo = sample.get("colo") or "?"
+    if not rate:
+        return f"source.coop unreachable via {colo}"
+    latency = f"ttfb {ttfb:.1f}s, " if ttfb is not None else ""
+    return f"source.coop {latency}{rate / 1e6:.1f} MB/s via {colo}"
+
+
 def source_coop_sample() -> dict[str, Any]:
     """How fast the catalogs are answering, right now.
 
@@ -1085,6 +1104,16 @@ def source_coop_sample() -> dict[str, Any]:
     source-cooperative/data.source.coop#194). Without a sample beside the run
     there is no way to tell a slow model from a slow route afterwards, and the
     route is gone by the time anyone asks.
+
+    Time to first byte and transfer time are reported separately, and
+    `bytes_per_second` divides by the transfer alone. Summing them first
+    produced a throughput figure that was really latency: one 1 MB read with
+    two seconds of DNS, TCP, TLS, and TTFB in front of it printed as
+    "0.5 MB/s" on a gigabit link, and printed the same value through two
+    different Cloudflare edges half an hour apart. Two runs on 2026-09-18 were
+    diagnosed against that number before anyone measured the real rate, which
+    was closer to 9 MB/s. probe.fetch_range splits the same three parts for
+    the same reason.
     """
     url = json.loads(
         (REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8")
@@ -1102,16 +1131,20 @@ def source_coop_sample() -> dict[str, Any]:
     try:
         # url comes from fixtures/pins.json, which is committed.
         with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:  # nosec B310
+            first_byte = time.monotonic()
             payload = response.read()
             colo = (response.headers.get("cf-ray") or "").rsplit("-", 1)[-1]
     except Exception as exc:  # noqa: BLE001 - never fatal
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
-    elapsed = time.monotonic() - started
+    done = time.monotonic()
+    transfer = done - first_byte
     return {
         "ok": len(payload) == PROBE_BYTES,
         "bytes": len(payload),
-        "seconds": round(elapsed, 2),
-        "bytes_per_second": round(len(payload) / elapsed) if elapsed else None,
+        "seconds": round(done - started, 2),
+        "ttfb_seconds": round(first_byte - started, 2),
+        "transfer_seconds": round(transfer, 2),
+        "bytes_per_second": round(len(payload) / transfer) if transfer else None,
         "colo": colo,
     }
 

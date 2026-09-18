@@ -248,3 +248,70 @@ def test_dockerfile_pins_both_native_agent_clis() -> None:
     assert f"ARG CLAUDE_CODE_VERSION={agents.CLAUDE_CODE_VERSION}" in dockerfile
     assert f"ARG CODEX_CLI_VERSION={agents.CODEX_CLI_VERSION}" in dockerfile
     assert "@openai/codex@${CODEX_CLI_VERSION}" in dockerfile
+
+
+def test_the_claude_container_raises_the_bash_timeout_past_the_default(
+    tmp_path: Path,
+) -> None:
+    """A remote scan of the 8.45M-row CAR parquet outlives Claude Code's 120s
+    Bash default. The 2026-09-18 Opus run hit that cap, gave up on remote
+    reads, and corrupted a 3 GB download in the background instead."""
+    credentials = tmp_path / "creds.json"
+    credentials.write_text('{"token":"decoy"}', encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    adapter = agents.ClaudeAdapter("claude-test", credentials)
+
+    cmd = adapter.command(
+        "image", agents.TaskBundle(workspace, "do it"), tmp_path / "home", "c1"
+    )
+
+    default = f"BASH_DEFAULT_TIMEOUT_MS={agents.BASH_DEFAULT_TIMEOUT_MS}"
+    ceiling = f"BASH_MAX_TIMEOUT_MS={agents.BASH_MAX_TIMEOUT_MS}"
+    assert default in cmd
+    assert ceiling in cmd
+    assert agents.BASH_DEFAULT_TIMEOUT_MS > 120_000
+    assert agents.BASH_MAX_TIMEOUT_MS >= agents.BASH_DEFAULT_TIMEOUT_MS
+    # Every -e carries an explicit assignment, so the value is pinned by the
+    # harness rather than inherited from whatever shell launched it.
+    assert cmd[cmd.index(default) - 1] == "-e"
+    assert cmd.index("--entrypoint") > cmd.index(default)
+
+
+def test_the_tool_timeout_is_recorded_in_the_agent_config(tmp_path: Path) -> None:
+    """A cap that reshapes strategy belongs in the fingerprint. Raising it
+    should split new runs from old ones rather than pool them."""
+    credentials = tmp_path / "creds.json"
+    credentials.write_text('{"token":"decoy"}', encoding="utf-8")
+    claude = agents.ClaudeAdapter("claude-test", credentials).config()
+    codex = agents.CodexAdapter("gpt-test", credentials, "login").config()
+
+    assert claude["bash_default_timeout_ms"] == agents.BASH_DEFAULT_TIMEOUT_MS
+    assert claude["bash_max_timeout_ms"] == agents.BASH_MAX_TIMEOUT_MS
+    # Codex exposes no equivalent: the model sets timeout_ms per shell call.
+    # See openai/codex#4775.
+    assert codex["bash_default_timeout_ms"] is None
+    assert codex["bash_max_timeout_ms"] is None
+    assert run.agent_config_fingerprint(claude) != run.agent_config_fingerprint(codex)
+
+
+def test_codex_carries_no_claude_only_environment(tmp_path: Path) -> None:
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"tokens":"decoy"}', encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    adapter = agents.CodexAdapter("gpt-test", auth, "login")
+
+    cmd = adapter.command(
+        "image", agents.TaskBundle(workspace, "do it"), tmp_path / "home", "c1"
+    )
+
+    assert not [arg for arg in cmd if arg.startswith("BASH_")]
+
+
+def test_the_image_carries_ps() -> None:
+    """Without ps a session cannot tell a finished background download from a
+    stalled one. Guessing wrong once cost a 3 GB file and a whole run."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "procps" in dockerfile
