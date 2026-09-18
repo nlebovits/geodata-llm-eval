@@ -315,3 +315,125 @@ def test_the_image_carries_ps() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert "procps" in dockerfile
+
+
+EXPIRED_OAUTH = (
+    "Failed to authenticate: OAuth session expired and could not be refreshed"
+)
+
+
+def claude_rejected(records: list[dict[str, Any]]) -> bool:
+    """Whether the Claude adapter reads these records as a dead credential."""
+    adapter = agents.ClaudeAdapter("claude-test", Path("missing"))
+    return adapter.facts(records).authentication_rejected
+
+
+def test_an_expired_token_the_cli_never_sent_is_a_dead_credential() -> None:
+    """The 2026-09-18 Sonnet sweep died here. The mounted token had expired, so
+    the CLI refused before its first API call and wrote no `api_retry` record
+    at all. A 401-only check saw nothing, the resume loop spent all three
+    attempts re-proving it, and the trial landed as `agent_produced_nothing`
+    instead of invalid -- a stale token counted against the model's score.
+
+    Note `subtype` on this record: `success`, while `is_error` is true and
+    `api_error_status` is null. No status field names the failure.
+    """
+    assert claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": True,
+                "terminal_reason": "api_error",
+                "api_error_status": None,
+                "result": EXPIRED_OAUTH,
+            },
+        ]
+    )
+
+
+def test_the_synthetic_turn_alone_is_enough() -> None:
+    """The refusal lands twice, and the assistant turn comes first. A session
+    killed between the two still has to read as a dead credential."""
+    assert claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "assistant",
+                "message": {
+                    "model": "<synthetic>",
+                    "content": [{"type": "text", "text": EXPIRED_OAUTH}],
+                },
+            },
+        ]
+    )
+
+
+def test_a_401_the_cli_retried_is_still_a_dead_credential() -> None:
+    """The older shape. The token was live when mounted and expired mid-sweep,
+    so the API answered 401 and the CLI logged one record per retry."""
+    assert claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "system",
+                "subtype": "api_retry",
+                "attempt": 1,
+                "error_status": 401,
+                "error": "authentication_failed",
+            },
+            {"type": "result", "is_error": True},
+        ]
+    )
+
+
+def test_the_check_reads_every_attempt_not_just_the_last() -> None:
+    """A later attempt can fail before reaching the API and log nothing
+    diagnostic. Scoping the check to the newest attempt would miss the
+    rejection that the earlier one recorded."""
+    assert claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {"type": "system", "subtype": "api_retry", "error_status": 401},
+            {"type": "result", "is_error": True},
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {"type": "assistant", "message": {"content": []}},
+            {"type": "result", "is_error": True},
+        ]
+    )
+
+
+def test_an_overloaded_api_is_not_a_dead_credential() -> None:
+    """529 is infrastructure. Invalidating the trial as an auth failure would
+    hide a real outage behind a credential warning."""
+    assert not claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "system",
+                "subtype": "api_retry",
+                "attempt": 1,
+                "error_status": 529,
+                "error": "overloaded",
+            },
+            {"type": "result", "is_error": False},
+        ]
+    )
+
+
+def test_an_error_result_that_is_not_about_authentication_is_not_one() -> None:
+    """Every agent failure ends in an error result. Only the text separates a
+    dead credential from a session that ran and lost."""
+    assert not claude_rejected(
+        [
+            {"type": "system", "subtype": "init", "session_id": "s"},
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": True,
+                "terminal_reason": "api_error",
+                "result": "API Error: 500 Internal Server Error",
+            },
+        ]
+    )

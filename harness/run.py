@@ -254,29 +254,6 @@ def session_id(transcript_path: Path) -> str | None:
     return found
 
 
-def credential_rejected(transcript_path: Path) -> bool:
-    """Whether a 401 appears anywhere in this run's transcript.
-
-    The mounted token copy expires, and a session starting after it does gets
-    a 401 on its first call. The CLI retries ten times, logging each as an
-    `api_retry` record, then exits 1 having written nothing -- which reads to
-    the resume loop exactly like a session that stopped with work left.
-
-    The caller pairs this with "no answers at all", because that combination
-    is what distinguishes a dead credential from one refreshed mid-session:
-    a run that recovered has answers on disk and is worth resuming. Read on
-    its own this is deliberately broad, and it has to be. In the run that
-    prompted it, the third attempt logged no api_retry at all -- by then the
-    CLI could not find its config file and failed before reaching the API --
-    so a rule that inspected only the latest attempt would have missed the
-    very failure it was written for.
-    """
-    return any(
-        record.get("subtype") == "api_retry" and record.get("error_status") == 401
-        for record in read_records(transcript_path)
-    )
-
-
 # A heartbeat's `tool_use_id` is not the call's id. The CLI appends a
 # per-heartbeat suffix, so one 300-second Bash call arrives as
 # `toolu_018fJLAK...-heartbeat-1` through `-heartbeat-9`. Grouping on the raw
