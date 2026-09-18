@@ -49,5 +49,7 @@
   "timed_out_tool_calls": 0,
   "imputed_cost_usd": 0.0,
   "answers_written": 0,
-  "status": "produced_nothing"
+  "status": "produced_nothing",
+  "strict_success": false,
+  "graded_against": "7bbdf1bbf735"
 }

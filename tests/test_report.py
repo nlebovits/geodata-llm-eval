@@ -297,3 +297,74 @@ def test_an_invalidated_trial_is_named_and_counted_separately(
     assert "| 2 | 1 (50%) | 1 |" in lines
     assert "authentication_invalid" in lines
     assert "20260722T120000Z-abc1234" in lines
+
+
+def test_runtime_is_recomputed_from_the_transcript(tmp_path: Path) -> None:
+    """meta.json carries the measurement as it was defined on the day of the
+    run. Two of those definitions were wrong, and the runs are still on disk.
+
+    Heartbeats were grouped by an id ending `-heartbeat-N`, so one slow call
+    counted as many, and timeouts were inferred from a hardcoded 120-second
+    cap that the harness later raised. The report re-derives both, the way
+    grade.py re-grades rather than trusting grades.json.
+    """
+    results = tmp_path / "results"
+    _session(
+        results,
+        "opus",
+        1,
+        {"q01": "correct"},
+        1.2,
+        runtime={
+            # What the old code stored: ten readings of one call, summed, and
+            # every reading past two minutes counted as a kill.
+            "duration_seconds": 1000.0,
+            "slow_tool_calls": 10,
+            "slow_tool_seconds": 1650.0,
+            "timed_out_tool_calls": 8,
+        },
+    )
+    transcript = results / "opus" / "20260721T120000Z-abc1234" / "transcript.jsonl"
+    transcript.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "type": "tool_heartbeat",
+                    "tool_use_id": f"toolu_a-heartbeat-{n}",
+                    "tool_name": "Bash",
+                    "elapsed_time_seconds": 30 * n,
+                }
+            )
+            for n in range(1, 11)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    session = report.load_sessions(results)[0]
+
+    assert session["slow_tool_seconds"] == 300.0
+    assert session["slow_tool_share"] == 0.3
+    assert session["timed_out_tool_calls"] == 0
+
+
+def test_runtime_falls_back_to_meta_without_a_transcript(tmp_path: Path) -> None:
+    """An archived run brought back by hand may have no transcript."""
+    results = tmp_path / "results"
+    _session(
+        results,
+        "opus",
+        1,
+        {"q01": "correct"},
+        1.2,
+        runtime={
+            "duration_seconds": 1000.0,
+            "slow_tool_seconds": 400.0,
+            "timed_out_tool_calls": 2,
+        },
+    )
+
+    session = report.load_sessions(results)[0]
+
+    assert session["slow_tool_share"] == 0.4
+    assert session["timed_out_tool_calls"] == 2

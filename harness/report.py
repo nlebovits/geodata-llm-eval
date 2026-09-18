@@ -22,6 +22,7 @@ from typing import Any
 import layout
 import matplotlib
 import reliability
+import run
 from layout import is_scored, run_dirs
 
 matplotlib.use("Agg")
@@ -33,6 +34,32 @@ from grade import load_questions, stage_summary
 # One graded session, flattened for the tables and the plot: identity,
 # scores, cost, and runtime in one row.
 Session = dict[str, Any]
+
+
+def current_timings(session_dir: Path, meta: Session) -> dict[str, Any]:
+    """Runtime figures for one session, re-derived from its transcript.
+
+    Recomputed rather than read from meta.json, for the reason grade.py
+    re-grades rather than trusting grades.json: a measurement is only worth
+    reporting against the current definition of it. Two definitions have
+    already changed under runs that are still on disk. Heartbeats were grouped
+    by an id carrying a `-heartbeat-N` suffix, so one slow call counted as
+    many and a 2026-09-18 run reported 194% of its own wall clock. Timeouts
+    were inferred from a hardcoded 120-second cap, so every call that outlived
+    two minutes and finished counted as killed once the harness raised that
+    cap. Both stale figures sit in the meta.json of every run made before
+    2026-09-18.
+
+    Falls back to the stored values when the transcript is gone, which is the
+    case for an archived run brought back by hand.
+    """
+    transcript = session_dir / "transcript.jsonl"
+    if not transcript.exists():
+        return {
+            "slow_tool_seconds": meta.get("slow_tool_seconds", 0.0) or 0.0,
+            "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
+        }
+    return run.tool_timings(transcript)
 
 
 def load_sessions(results_dir: Path) -> list[Session]:
@@ -52,7 +79,8 @@ def load_sessions(results_dir: Path) -> list[Session]:
         correct = sum(1 for v in grades.values() if v == "correct")
         near_miss = sum(1 for v in grades.values() if v == "near_miss")
         duration = meta.get("duration_seconds", 0.0) or 0.0
-        slow = meta.get("slow_tool_seconds", 0.0) or 0.0
+        timings = current_timings(session_dir, meta)
+        slow = timings.get("slow_tool_seconds", 0.0) or 0.0
         sessions.append(
             {
                 "model": meta["model"],
@@ -70,7 +98,7 @@ def load_sessions(results_dir: Path) -> list[Session]:
                 "duration_seconds": duration,
                 "slow_tool_seconds": slow,
                 "slow_tool_share": slow / duration if duration else 0.0,
-                "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
+                "timed_out_tool_calls": timings.get("timed_out_tool_calls", 0),
                 "grades": grades,
             }
         )

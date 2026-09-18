@@ -1,4 +1,30 @@
 {
+  "q03": [
+    {
+      "answer": 8453554,
+      "column": "n_rows",
+      "golden": 8453552,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    },
+    {
+      "answer": 8437940,
+      "column": "n_distinct_ids",
+      "golden": 8437938,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    }
+  ],
   "q28": [
     {
       "answer": 2,
@@ -6,6 +32,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 0
     },
@@ -15,6 +44,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 0
     },
@@ -24,6 +56,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 1
     },
@@ -33,6 +68,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 1
     },
@@ -42,6 +80,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 2
     },
@@ -51,6 +92,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 2
     },
@@ -60,6 +104,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 3
     },
@@ -69,6 +116,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 3
     },
@@ -78,6 +128,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 4
     },
@@ -87,6 +140,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 4
     },
@@ -96,6 +152,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 5
     },
@@ -105,6 +164,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 5
     },
@@ -114,6 +176,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 6
     },
@@ -123,6 +188,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 6
     },
@@ -132,6 +200,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 7
     },
@@ -141,6 +212,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 7
     },
@@ -150,6 +224,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 8
     },
@@ -159,6 +236,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 8
     },
@@ -168,6 +248,9 @@
       "golden": 1,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
       "rel_error": 1.0,
       "row": 8
     },
@@ -177,6 +260,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 9
     },
@@ -186,6 +272,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 9
     },
@@ -195,6 +284,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 10
     },
@@ -204,6 +296,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 10
     },
@@ -213,6 +308,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 11
     },
@@ -222,6 +320,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 11
     },
@@ -231,6 +332,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 12
     },
@@ -240,6 +344,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 12
     },
@@ -249,6 +356,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 13
     },
@@ -258,6 +368,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 13
     },
@@ -267,6 +380,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 14
     },
@@ -276,6 +392,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 14
     },
@@ -285,6 +404,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 15
     },
@@ -294,6 +416,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 15
     },
@@ -303,6 +428,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 16
     },
@@ -312,6 +440,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 16
     },
@@ -321,6 +452,9 @@
       "golden": 1,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
       "rel_error": 1.0,
       "row": 16
     },
@@ -330,6 +464,9 @@
       "golden": 5,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.6,
       "rel_error": 0.6,
       "row": 17
     },
@@ -339,6 +476,9 @@
       "golden": 4,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.75,
       "rel_error": 0.75,
       "row": 17
     }
@@ -350,6 +490,9 @@
       "golden": 2,
       "kind": "cell",
       "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
       "rel_error": 1.0,
       "row": 0
     }
@@ -361,6 +504,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 0
     },
@@ -370,6 +516,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 0
     },
@@ -379,6 +528,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 0
     },
@@ -388,6 +540,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 1
     },
@@ -397,6 +552,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 1
     },
@@ -406,6 +564,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 1
     },
@@ -415,6 +576,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 1
     },
@@ -424,6 +588,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.999227,
       "rel_error": 0.999227,
       "row": 2
     },
@@ -433,6 +600,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 2
     },
@@ -442,6 +612,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 2
     },
@@ -451,6 +624,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 2
     },
@@ -460,6 +636,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 3
     },
@@ -469,6 +648,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 3
     },
@@ -478,6 +660,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 3
     },
@@ -487,6 +672,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 3
     },
@@ -496,6 +684,9 @@
       "golden": 5219258,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998949,
       "rel_error": 0.998949,
       "row": 4
     },
@@ -505,6 +696,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 4
     },
@@ -514,6 +708,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 4
     },
@@ -523,6 +720,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 4
     },
@@ -532,6 +732,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 5
     },
@@ -541,6 +744,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 5
     },
@@ -550,6 +756,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 5
     },
@@ -559,6 +768,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 5
     },
@@ -568,6 +780,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 6
     },
@@ -577,6 +792,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 6
     },
@@ -586,6 +804,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 6
     },
@@ -595,6 +816,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 6
     },
@@ -604,6 +828,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 8
     },
@@ -613,6 +840,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 8
     },
@@ -622,6 +852,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 8
     },
@@ -631,6 +864,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 8
     },
@@ -640,6 +876,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 9
     },
@@ -649,6 +888,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 9
     },
@@ -658,6 +900,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 9
     },
@@ -667,6 +912,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 9
     },
@@ -676,6 +924,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.999227,
       "rel_error": 0.999227,
       "row": 10
     },
@@ -685,6 +936,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 10
     },
@@ -694,6 +948,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 10
     },
@@ -703,6 +960,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 10
     },
@@ -712,6 +972,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 11
     },
@@ -721,6 +984,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 11
     },
@@ -730,6 +996,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 11
     },
@@ -739,6 +1008,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 11
     },
@@ -748,6 +1020,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.999227,
       "rel_error": 0.999227,
       "row": 12
     },
@@ -757,6 +1032,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 12
     },
@@ -766,6 +1044,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 12
     },
@@ -775,6 +1056,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 12
     },
@@ -784,6 +1068,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.998948,
       "rel_error": 0.998948,
       "row": 13
     },
@@ -793,6 +1080,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 13
     },
@@ -802,6 +1092,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 13
     },
@@ -811,6 +1104,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 13
     },
@@ -820,6 +1116,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.999227,
       "rel_error": 0.999227,
       "row": 15
     },
@@ -829,6 +1128,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 15
     },
@@ -838,6 +1140,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 15
     },
@@ -847,6 +1152,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 15
     },
@@ -856,6 +1164,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 16
     },
@@ -865,6 +1176,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 16
     },
@@ -874,6 +1188,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 16
     },
@@ -883,6 +1200,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 16
     },
@@ -892,6 +1212,9 @@
       "golden": 5212204,
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 17
     },
@@ -901,6 +1224,9 @@
       "golden": "cooperative",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 17
     },
@@ -910,6 +1236,9 @@
       "golden": "membership_muni",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 17
     },
@@ -919,6 +1248,9 @@
       "golden": "",
       "kind": "cell",
       "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
       "rel_error": null,
       "row": 17
     }

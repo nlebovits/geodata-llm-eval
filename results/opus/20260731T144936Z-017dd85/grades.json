@@ -1,7 +1,7 @@
 {
   "q01": "correct",
   "q02": "correct",
-  "q03": "correct",
+  "q03": "near_miss",
   "q04": "correct",
   "q05": "correct",
   "q06": "correct",
@@ -28,5 +28,6 @@
   "q27": "wrong",
   "q28": "wrong",
   "q29": "correct",
-  "q30": "wrong"
+  "q30": "wrong",
+  "q31": "missing"
 }

@@ -320,12 +320,33 @@ def test_the_credential_check_reads_every_attempt_not_just_the_last(
     assert run.credential_rejected(path)
 
 
-def heartbeat(call_id: str, tool: str, seconds: float) -> dict[str, Any]:
+def heartbeat(call_id: str, tool: str, seconds: float, nth: int = 1) -> dict[str, Any]:
+    """One heartbeat, in the shape the CLI actually writes.
+
+    The `-heartbeat-N` suffix is the whole point. A helper that emitted a bare
+    id let tool_timings pass its tests while miscounting every real transcript.
+    """
     return {
         "type": "tool_heartbeat",
-        "tool_use_id": call_id,
+        "tool_use_id": f"toolu_{call_id}-heartbeat-{nth}",
         "tool_name": tool,
         "elapsed_time_seconds": seconds,
+    }
+
+
+def timed_out_result(call_id: str, after: str = "10m 0s") -> dict[str, Any]:
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": f"toolu_{call_id}",
+                    "is_error": True,
+                    "content": f"Exit code 143\nCommand timed out after {after}",
+                }
+            ]
+        },
     }
 
 
@@ -348,19 +369,74 @@ def test_tool_timings_take_the_last_heartbeat_per_call(tmp_path: Path) -> None:
     assert timings["slow_tool_seconds_by_tool"] == {"Bash": 90.0}
 
 
-def test_tool_timings_count_calls_that_hit_the_cap(tmp_path: Path) -> None:
-    """A call at the cap was killed, not answered. That is the difference
-    between a slow query and one that never returned, and a run whose wall
-    clock is mostly killed queries has measured nothing."""
+def test_tool_timings_count_the_calls_the_cli_says_it_killed(
+    tmp_path: Path,
+) -> None:
+    """A killed call is read from the tool result, not guessed from elapsed.
+
+    A session can raise its own Bash timeout per call, so no single duration
+    separates a slow call from a killed one. The old test compared elapsed
+    against a hardcoded 120 seconds, and every call that outlived two minutes
+    and finished counted as a timeout once the harness raised the cap.
+    """
     path = write_transcript(
         tmp_path,
         [
-            heartbeat("a", "Bash", run.TOOL_TIMEOUT_SECONDS),
-            heartbeat("b", "Bash", run.TOOL_TIMEOUT_SECONDS - 1),
+            heartbeat("a", "Bash", 30),
+            heartbeat("a", "Bash", 900, nth=30),
+            timed_out_result("a"),
+            heartbeat("b", "Bash", 480),
         ],
     )
 
-    assert run.tool_timings(path)["timed_out_tool_calls"] == 1
+    timings = run.tool_timings(path)
+
+    assert timings["timed_out_tool_calls"] == 1
+    # b ran eight minutes, four times the old cap, and was never killed.
+    assert timings["slow_tool_calls"] == 2
+
+
+def test_tool_timings_group_every_heartbeat_of_one_call(tmp_path: Path) -> None:
+    """One 300-second call arrives as ten heartbeats under ten ids.
+
+    Keying on the raw `tool_use_id` counted it ten times and summed the
+    running elapsed of each reading, which put the 2026-09-18 run at 194% of
+    its own wall clock.
+    """
+    path = write_transcript(
+        tmp_path,
+        [heartbeat("a", "Bash", 30 * n, nth=n) for n in range(1, 11)],
+    )
+
+    timings = run.tool_timings(path)
+
+    assert timings["slow_tool_calls"] == 1
+    assert timings["slow_tool_seconds"] == 300
+    assert timings["slow_tool_seconds_by_tool"] == {"Bash": 300.0}
+
+
+def test_a_successful_tool_error_is_not_a_timeout(tmp_path: Path) -> None:
+    """Most tool errors are the agent's SQL, not a killed process."""
+    path = write_transcript(
+        tmp_path,
+        [
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_a",
+                            "is_error": True,
+                            "content": 'Parser Error: syntax error at or near "rows"',
+                        }
+                    ]
+                },
+            }
+        ],
+    )
+
+    assert run.tool_timings(path)["timed_out_tool_calls"] == 0
 
 
 def test_tool_timings_survive_a_transcript_still_being_written(tmp_path: Path) -> None:

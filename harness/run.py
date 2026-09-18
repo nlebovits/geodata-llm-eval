@@ -277,30 +277,53 @@ def credential_rejected(transcript_path: Path) -> bool:
     )
 
 
-# The CLI caps a Bash call here. A call reported at or above the cap was
-# killed rather than answered, which is the difference between a query that
-# was slow and one that never returned.
-TOOL_TIMEOUT_SECONDS = 120
+# A heartbeat's `tool_use_id` is not the call's id. The CLI appends a
+# per-heartbeat suffix, so one 300-second Bash call arrives as
+# `toolu_018fJLAK...-heartbeat-1` through `-heartbeat-9`. Grouping on the raw
+# field counts that call nine times and sums its running elapsed as though the
+# readings were separate calls, which put one 2026-09-18 run at 194% of its own
+# wall clock. Splitting here restores one entry per call.
+HEARTBEAT_SUFFIX = re.compile(r"-heartbeat-\d+$")
+
+# What a killed call says. The CLI reports it verbatim in the tool result, so
+# this is a fact from the transcript rather than an inference from duration.
+# The previous test compared elapsed against a hardcoded 120-second cap, which
+# silently became wrong the moment the harness raised BASH_DEFAULT_TIMEOUT_MS:
+# every call that ran longer than two minutes and finished was counted as a
+# timeout. A phrase the CLI itself emits cannot drift out of step with the cap.
+TIMEOUT_MARKER = "Command timed out"
+
+
+def _call_id(heartbeat_id: str) -> str:
+    """The tool call a heartbeat belongs to."""
+    return HEARTBEAT_SUFFIX.sub("", heartbeat_id)
 
 
 def tool_timings(transcript_path: Path) -> dict[str, Any]:
     """Where a session spent its wall clock.
 
     The CLI emits heartbeat records carrying a running `elapsed_time_seconds`
-    for calls slow enough to need one, so the last heartbeat per tool_use_id
-    is a lower bound on that call's duration. Short calls emit none and are
+    for calls slow enough to need one, so the last heartbeat per call is a
+    lower bound on that call's duration. Short calls emit none and are
     invisible here, which is the point: this measures the tail.
 
     Remote reads dominate a run of this benchmark, so a total duration on its
     own cannot distinguish a session that thought for half an hour from one
     that waited on source.coop for half an hour.
+
+    Timeouts are counted from the tool results, not from these durations. A
+    session may raise its own Bash timeout per call, so no single number
+    separates a slow call from a killed one. The killed call says so itself.
     """
     longest: dict[str, tuple[str, float]] = {}
+    timed_out = 0
     for record in read_records(transcript_path):
+        timed_out += _timeouts_in(record)
         seconds = record.get("elapsed_time_seconds")
-        call_id = record.get("tool_use_id")
-        if seconds is None or call_id is None:
+        heartbeat_id = record.get("tool_use_id")
+        if seconds is None or heartbeat_id is None:
             continue
+        call_id = _call_id(str(heartbeat_id))
         name = record.get("tool_name") or "unknown"
         if call_id not in longest or seconds > longest[call_id][1]:
             longest[call_id] = (name, float(seconds))
@@ -308,13 +331,36 @@ def tool_timings(transcript_path: Path) -> dict[str, Any]:
     per_tool: dict[str, float] = {}
     for name, seconds in longest.values():
         per_tool[name] = round(per_tool.get(name, 0.0) + seconds, 1)
-    timed_out = sum(1 for _, s in longest.values() if s >= TOOL_TIMEOUT_SECONDS)
     return {
         "slow_tool_calls": len(longest),
         "slow_tool_seconds": round(sum(s for _, s in longest.values()), 1),
         "slow_tool_seconds_by_tool": per_tool,
         "timed_out_tool_calls": timed_out,
     }
+
+
+def _timeouts_in(record: Record) -> int:
+    """How many killed tool calls one transcript record reports.
+
+    A killed call comes back as a `tool_result` block with `is_error` set and
+    the CLI's own timeout text in its content. The content is a string for a
+    Bash result and a list of blocks for others, so both shapes are read.
+    """
+    content = record.get("message", {}).get("content")
+    if not isinstance(content, list):
+        return 0
+    found = 0
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        if not block.get("is_error"):
+            continue
+        body = block.get("content")
+        if not isinstance(body, str):
+            body = json.dumps(body)
+        if TIMEOUT_MARKER in body:
+            found += 1
+    return found
 
 
 def tool_subject(payload: Record) -> str:
