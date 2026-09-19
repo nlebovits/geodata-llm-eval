@@ -755,14 +755,21 @@ def run_session(
     agent: str = "claude",
     reasoning_effort: str | None = None,
     auth: str | None = None,
+    commit: str | None = None,
 ) -> None:
     arm_spec = resolve_arm(arm, ablations)
+    # Read once and reused for the run id and both meta writes. Asking git per
+    # call meant a commit made while a sweep was running landed in the runs
+    # after it and not the ones before, and harness_commit is a fingerprint
+    # field. Ten trials of one configuration then reported as three rows of
+    # one, four, and five, and pass^10 read blank on all three.
+    commit = commit or harness_commit()
 
     adapter = make_adapter(agent, model, reasoning_effort, auth)
     model_id = adapter.model_id
     result_key = agent_result_key(adapter, model)
     started = datetime.now(UTC)
-    name = run_id(started, harness_commit())
+    name = run_id(started, commit)
     out_dir = REPO_ROOT / "results" / result_key / name
     container = f"geodata-eval-{result_key}-{name}-{os.getpid()}"
 
@@ -819,7 +826,7 @@ def run_session(
                 "duration_seconds": 0.0,
                 "exit_code": None,
                 "attempts": 0,
-                "harness_commit": harness_commit(),
+                "harness_commit": commit,
                 "input_mode": input_mode,
                 "golden_fingerprint": golden_fingerprint(),
                 "pins_fingerprint": pins_fingerprint(),
@@ -1041,7 +1048,7 @@ def run_session(
             "duration_seconds": duration,
             "exit_code": returncode,
             "attempts": attempts,
-            "harness_commit": harness_commit(),
+            "harness_commit": commit,
             "input_mode": input_mode,
             "golden_fingerprint": golden_fingerprint(),
             "pins_fingerprint": pins_fingerprint(),
@@ -1264,6 +1271,11 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # One read for the sweep, so every pass records the harness it started
+    # against. A commit landing mid-sweep no longer splits the trials into
+    # separate fingerprints and no longer costs the run its pass^k estimate.
+    commit = harness_commit()
+
     for _ in range(args.passes):
         try:
             run_session(
@@ -1279,6 +1291,7 @@ def main() -> int:
                 agent=args.agent,
                 reasoning_effort=args.reasoning_effort,
                 auth=args.auth,
+                commit=commit,
             )
         except (ablation.AblationError, ValueError, runtime.RuntimeDrift) as exc:
             # A mistyped arm is a config problem, not a crash. Say so in one

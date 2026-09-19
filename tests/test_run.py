@@ -1482,3 +1482,48 @@ def test_the_probe_reads_past_tcp_slow_start() -> None:
     link: 1.2 MB/s over 1 MB, 6.0 MB/s over 8 MB, 12.8 MB/s over 32 MB. The
     smallest read reports a tenth of the rate the route can hold."""
     assert run.PROBE_BYTES >= 8 * 1_048_576
+
+
+def test_a_sweep_records_one_harness_commit_for_every_pass(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A commit landing mid-sweep used to split one configuration into two.
+
+    harness_commit is a fingerprint field, so ten trials that straddled a
+    commit reported as separate rows and lost the pass^k estimate that ten
+    trials would have supported. The commit is read once, when the sweep
+    starts, and every pass in it records that one.
+    """
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["run.py", "--model", "opus", "--passes", "3"])
+    heads = iter(["commit-one", "commit-two", "commit-three"])
+    monkeypatch.setattr(run, "harness_commit", lambda: next(heads))
+    seen: list[str] = []
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: seen.append(k["commit"]))
+
+    assert run.main() == 0
+    assert seen == ["commit-one"] * 3
+
+
+def test_a_session_started_on_its_own_still_reads_the_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """run_session is callable without a sweep around it, so an absent commit
+    means 'ask git', not 'record nothing'."""
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    seen: list[str] = []
+
+    class Stop(Exception):
+        pass
+
+    def capture(started: object, commit: str) -> str:
+        seen.append(commit)
+        raise Stop
+
+    monkeypatch.setattr(run, "run_id", capture)
+
+    with pytest.raises(Stop):
+        run.run_session("opus", dry_run=True)
+
+    assert seen == ["abc1234"]
