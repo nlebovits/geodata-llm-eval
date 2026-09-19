@@ -26,6 +26,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 
 | Configuration | Attempted | Invalid | Valid | Strict success | pass^3 | pass^5 | pass^10 |
 |---------------|-----------|---------|---------------|----------------|--------|--------|---------|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 10 | 0 (0%) | 10 | 0% (0/10) | 0% [0%–2%] | 0% [0%–0%] | 0% [0%–0%] |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 10 | 0 (0%) | 10 | 0% (0/10) | 0% [0%–2%] | 0% [0%–0%] | 0% [0%–0%] |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 10 | 0 (0%) | 10 | 0% (0/10) | 0% [0%–2%] | 0% [0%–0%] | 0% [0%–0%] |
 | claude/opus · questions-only · agent-config 81d65c · spec 793d5d · harness 2ec5e8 | 7 | 7 (100%) | 0 | – | – (n=0<3) | – (n=0<5) | – (n=0<10) |
@@ -37,6 +38,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 
 | Configuration | agent_produced_nothing | agent_timeout | authentication_invalid | container_oom | failed | grader_error | infrastructure_invalid | passed | ungraded |
 |---------------|---|---|---|---|---|---|---|---|---|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
 | claude/opus · questions-only · agent-config 81d65c · spec 793d5d · harness 2ec5e8 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -52,6 +54,7 @@ says something different at three resumes than at one.
 
 | Configuration | Resume limit | Max resumes used | Max turns used | Wall limit | Max wall used | Total cost |
 |---------------|--------------|------------------|----------------|------------|---------------|------------|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 2 | 2 | 188 | unlimited | 76m | $6.91 |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 2 | 2 | 141 | unlimited | 27m | $35.47 |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 2 | 0 | 300 | unlimited | 27m | $58.91 |
 | claude/opus · questions-only · agent-config 81d65c · spec 793d5d · harness 2ec5e8 | 2 | 0 | 1 | unlimited | 0m | $0.00 |
@@ -87,6 +90,7 @@ tolerance itself: computed right, formatted or rounded differently.
 
 | Configuration | Passes | Mean accuracy | Accuracy range | Mean near misses | Mean cost (USD) |
 |---------------|--------|---------------|----------------|------------------|-----------------|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 10 | 9.0% | 0.0% – 19.4% | 5.6 | $0.6912 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 1 | 87.1% | 87.1% – 87.1% | 2.0 | $4.6713 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 4 | 90.3% | 90.3% – 90.3% | 0.8 | $4.3986 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 5 | 91.6% | 87.1% – 96.8% | 0.8 | $4.5292 |
@@ -106,6 +110,7 @@ than reasoning badly.
 
 | Configuration | Mean wall clock | In slow tool calls | Timed-out calls | Killed calls |
 |---------------|-----------------|--------------------|-----------------|--------------|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 19m | 31% | 0 | 0 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 30m | 39% | 0 | 0 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 21m | 7% | 0 | 0 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 20m | 3% | 0 | 0 |
@@ -119,6 +124,7 @@ dependencies all passed (the error-propagation-adjusted score).
 
 | Configuration | S1 | S2 | S3 | S4 | S5 | S6 |
 |---------------|-----|-----|-----|-----|-----|-----|
+| claude/haiku · full · spec-consolidation · agent-config 4bf60a · spec ae7901 · harness 85ee19 | 48%/48% | 10%/0% | 0%/– | 3%/– | 3%/– | 0%/– |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 100%/100% | 100%/100% | 86%/86% | 78%/78% | 83%/67% | 100%/– |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 94%/94% | 100%/100% | 96%/100% | 78%/74% | 92%/78% | 100%/100% |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 95%/95% | 100%/100% | 100%/100% | 80%/81% | 90%/75% | 100%/100% |

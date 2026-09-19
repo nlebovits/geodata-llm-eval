@@ -1,0 +1,34 @@
+[90mWARNING:
+[00m[90m'ST_Transform' assumes the axis order of the input geometry to be the same as defined by the source CRS.
+E.g., EPSG:4326 expects [NORTHING, EASTING] (= LATITUDE, LONGITUDE).
+In the future this will change to always assume [EASTING, NORTHING] regardless of CRS definition.
+To avoid unexpected results when this changes:
+ * 'SET geometry_always_xy = true' to always expect [EASTING, NORTHING]
+ * 'SET geometry_always_xy = false' to keep current behavior
+ * Pass 'true' or 'false' as last optional 'always_xy' parameter to override per-call
+
+[00mloss_year,n_fields,cleared_ha
+2001,26,1615.9387
+2002,14,588.2255
+2003,16,702.20557
+2004,2,73.6846
+2005,13,401.96036
+2006,8,421.5613
+2007,7,309.26367
+2008,8,852.0291
+2009,8,172.18074
+2010,26,1125.5753
+2011,14,545.2787
+2012,12,314.31296
+2013,4,96.22756
+2014,5,141.21446
+2015,8,58.991737
+2016,2,48.71402
+2017,8,654.977
+2018,2,38.658043
+2019,9,775.1323
+2020,3,39.625988
+2021,6,178.29617
+2022,6,426.5223
+2023,2,93.52214
+2024,7,283.09

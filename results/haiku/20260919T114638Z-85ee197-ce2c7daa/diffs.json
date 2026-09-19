@@ -1,0 +1,945 @@
+{
+  "q01": [
+    {
+      "answer": 1,
+      "column": "n_collections",
+      "golden": 3,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.666667,
+      "rel_error": 0.666667,
+      "row": 0
+    },
+    {
+      "answer": "trazo3_brazil_goias_2024",
+      "column": "recommended_id",
+      "golden": "trazo3-fields",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q05": [
+    {
+      "answer": 114,
+      "column": "list_ids",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    },
+    {
+      "answer": 114,
+      "column": "found_in_car",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    }
+  ],
+  "q06": [
+    {
+      "answer": 106,
+      "column": "n_parcels",
+      "golden": 109,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.027523,
+      "rel_error": 0.027523,
+      "row": 0
+    }
+  ],
+  "q08": [
+    {
+      "answer": 2977,
+      "column": "n_fields_in_envelope",
+      "golden": 3291,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.095412,
+      "rel_error": 0.095412,
+      "row": 0
+    }
+  ],
+  "q09": [
+    {
+      "answer": 689,
+      "column": "matched_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.131148,
+      "rel_error": 0.131148,
+      "row": 0
+    }
+  ],
+  "q10": [
+    {
+      "answer": 661,
+      "column": "by_single_parcel_rule",
+      "golden": 766,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.137076,
+      "rel_error": 0.137076,
+      "row": 0
+    }
+  ],
+  "q11": [
+    {
+      "answer": 1.147839069366455,
+      "column": "avg_union_frac",
+      "golden": 0.996,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 1.148,
+      "quantized_rel_error": 0.15261,
+      "raw_rel_error": 0.152449,
+      "rel_error": 0.152449,
+      "row": 0
+    }
+  ],
+  "q12": [
+    {
+      "answer": 67,
+      "column": "n_excluded",
+      "golden": 79,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.151899,
+      "rel_error": 0.151899,
+      "row": 0
+    }
+  ],
+  "q13": [
+    {
+      "answer": "GO-5212204-5EA91F9370294F8F8F9447882810DD0B",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-15108D4D7C134B8D9E71E50A2ED2E605",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "GO-5219258-E7F86639E6404DC4AD9B8DBFAFFB112B",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-5EA91F9370294F8F8F9447882810DD0B",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": "GO-5212204-52E2FECF2A7042F2B0DC6B27138AADE6",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-6A28AC5AF7BF4BEC8931E8E154D99AEE",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": 31,
+      "column": "n_fields",
+      "golden": 34,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.088235,
+      "rel_error": 0.088235,
+      "row": 3
+    },
+    {
+      "answer": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-52E2FECF2A7042F2B0DC6B27138AADE6",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": 29,
+      "column": "n_fields",
+      "golden": 31,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.064516,
+      "rel_error": 0.064516,
+      "row": 4
+    },
+    {
+      "answer": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-F17BEA20B17148C1ADB4BD53A04EC448",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.034483,
+      "rel_error": 0.034483,
+      "row": 5
+    },
+    {
+      "answer": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 26,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.103448,
+      "rel_error": 0.103448,
+      "row": 6
+    },
+    {
+      "answer": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.214286,
+      "rel_error": 0.214286,
+      "row": 7
+    },
+    {
+      "answer": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 26,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.153846,
+      "rel_error": 0.153846,
+      "row": 8
+    },
+    {
+      "answer": "GO-5212204-2CC9462D520645069EBCBC7EA3D33548",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 21,
+      "column": "n_fields",
+      "golden": 22,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.045455,
+      "rel_error": 0.045455,
+      "row": 9
+    }
+  ],
+  "q14": [
+    {
+      "answer": 19987.8984375,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 19987.9,
+      "quantized_rel_error": 0.44645,
+      "raw_rel_error": 0.44645,
+      "rel_error": 0.44645,
+      "row": 0
+    }
+  ],
+  "q15": [
+    {
+      "answer": 95,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.188034,
+      "rel_error": 0.188034,
+      "row": 0
+    },
+    {
+      "answer": 689,
+      "column": "n_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.131148,
+      "rel_error": 0.131148,
+      "row": 0
+    },
+    {
+      "answer": 20653.9765625,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 20654.0,
+      "quantized_rel_error": 0.428003,
+      "raw_rel_error": 0.428004,
+      "rel_error": 0.428003,
+      "row": 0
+    },
+    {
+      "answer": 146.53190308605335,
+      "column": "post2020_loss_ha",
+      "golden": 114.9,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 146.5,
+      "quantized_rel_error": 0.275022,
+      "raw_rel_error": 0.275299,
+      "rel_error": 0.275022,
+      "row": 0
+    }
+  ],
+  "q16": [
+    {
+      "answer_columns": 5,
+      "answer_rows": 11,
+      "golden_columns": 5,
+      "golden_rows": 4,
+      "kind": "shape"
+    }
+  ],
+  "q25": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 4,
+      "golden_columns": 3,
+      "golden_rows": 2,
+      "kind": "shape"
+    }
+  ],
+  "q27": [
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 0
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 1
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 2
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 3
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 4
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 5
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 6
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 7
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 8
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 9
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 10
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 10
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 11
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 11
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 12
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 13
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 14
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 14
+    },
+    {
+      "answer": "Jussara",
+      "column": "entity_id",
+      "golden": 5212204,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": 106.0,
+      "column": "evidence",
+      "golden": 105.0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 106.0,
+      "quantized_rel_error": 0.009524,
+      "raw_rel_error": 0.009524,
+      "rel_error": 0.009524,
+      "row": 15
+    },
+    {
+      "answer": "Santa Fe de Goias",
+      "column": "entity_id",
+      "golden": 5219258,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 16
+    },
+    {
+      "answer": 7.0,
+      "column": "evidence",
+      "golden": 20.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 7.0,
+      "quantized_rel_error": 0.65,
+      "raw_rel_error": 0.65,
+      "rel_error": 0.65,
+      "row": 16
+    },
+    {
+      "answer": "Santa Fe de Goias",
+      "column": "entity_id",
+      "golden": 5219258,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 17
+    },
+    {
+      "answer": 7.0,
+      "column": "evidence",
+      "golden": 20.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 7.0,
+      "quantized_rel_error": 0.65,
+      "raw_rel_error": 0.65,
+      "rel_error": 0.65,
+      "row": 17
+    }
+  ],
+  "q28": [
+    {
+      "answer_columns": 7,
+      "answer_rows": 20,
+      "golden_columns": 7,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q29": [
+    {
+      "answer": 17,
+      "column": "n_nearest_by_far",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 7.5,
+      "rel_error": 7.5,
+      "row": 0
+    }
+  ],
+  "q31": [
+    {
+      "answer": 115,
+      "column": "resolved_clean",
+      "golden": 114,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.008772,
+      "rel_error": 0.008772,
+      "row": 0
+    },
+    {
+      "answer": 4,
+      "column": "centroid_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 3.0,
+      "rel_error": 3.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "geometry_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "axis_repaired",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "duplicates_removed",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "unresolvable",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ]
+}

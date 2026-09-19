@@ -1,0 +1,561 @@
+{
+  "q01": [
+    {
+      "answer": 6,
+      "column": "n_collections",
+      "golden": 3,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": "trazo3_brazil_goias_2024",
+      "column": "recommended_id",
+      "golden": "trazo3-fields",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q02": [
+    {
+      "answer": 0,
+      "column": "n",
+      "golden": 3103,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "n",
+      "golden": 18796,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 1
+    },
+    {
+      "answer": 0,
+      "column": "n",
+      "golden": 5257,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 2
+    },
+    {
+      "answer": 0,
+      "column": "n",
+      "golden": 417,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 3
+    },
+    {
+      "answer": 0,
+      "column": "n",
+      "golden": 13096,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 4
+    }
+  ],
+  "q03": [
+    {
+      "answer": 8453554,
+      "column": "n_rows",
+      "golden": 8453552,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    },
+    {
+      "answer": 8437940,
+      "column": "n_distinct_ids",
+      "golden": 8437938,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    }
+  ],
+  "q04": [
+    {
+      "answer": 0,
+      "column": "n_rows",
+      "golden": 772404,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q05": [
+    {
+      "answer": 114,
+      "column": "list_ids",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    },
+    {
+      "answer": 114,
+      "column": "found_in_car",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    }
+  ],
+  "q06": [
+    {
+      "answer": 106,
+      "column": "n_parcels",
+      "golden": 109,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.027523,
+      "rel_error": 0.027523,
+      "row": 0
+    }
+  ],
+  "q07": [
+    {
+      "answer": 1,
+      "column": "n_duplicate_ids",
+      "golden": 0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q08": [
+    {
+      "answer": 0,
+      "column": "n_fields_in_envelope",
+      "golden": 3291,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q09": [
+    {
+      "answer": 0,
+      "column": "matched_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q10": [
+    {
+      "answer": 0,
+      "column": "by_single_parcel_rule",
+      "golden": 766,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "by_aggregate_rule_only",
+      "golden": 27,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q11": [
+    {
+      "answer": 0.0,
+      "column": "min_single_frac",
+      "golden": 0.31,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "avg_single_frac",
+      "golden": 0.973,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "avg_union_frac",
+      "golden": 0.996,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q12": [
+    {
+      "answer": 0,
+      "column": "n_excluded",
+      "golden": 79,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q14": [
+    {
+      "answer": 0.0,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q15": [
+    {
+      "answer": 0,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "n_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "post2020_loss_ha",
+      "golden": 114.9,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "fields_with_post2020_loss",
+      "golden": 41,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q16": [
+    {
+      "answer_columns": 5,
+      "answer_rows": 13,
+      "golden_columns": 5,
+      "golden_rows": 4,
+      "kind": "shape"
+    }
+  ],
+  "q21": [
+    {
+      "answer": 0.0,
+      "column": "cleared_ha",
+      "golden": 761.4,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "pct_of_loss",
+      "golden": 42.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.0,
+      "column": "cleared_ha",
+      "golden": 418.5,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 1
+    },
+    {
+      "answer": 0.0,
+      "column": "pct_of_loss",
+      "golden": 23.1,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 1
+    },
+    {
+      "answer": 0.0,
+      "column": "cleared_ha",
+      "golden": 326.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 2
+    },
+    {
+      "answer": 0.0,
+      "column": "pct_of_loss",
+      "golden": 18.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 2
+    },
+    {
+      "answer": 0.0,
+      "column": "cleared_ha",
+      "golden": 190.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 3
+    },
+    {
+      "answer": 0.0,
+      "column": "pct_of_loss",
+      "golden": 10.5,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 3
+    },
+    {
+      "answer": 0.0,
+      "column": "cleared_ha",
+      "golden": 114.9,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 4
+    },
+    {
+      "answer": 0.0,
+      "column": "pct_of_loss",
+      "golden": 6.3,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 4
+    }
+  ],
+  "q29": [
+    {
+      "answer": 0,
+      "column": "n_nearest_by_far",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q31": [
+    {
+      "answer": 2,
+      "column": "centroid_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "geometry_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "axis_repaired",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "unresolvable",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ]
+}

@@ -1,0 +1,783 @@
+{
+  "q01": [
+    {
+      "answer": 1,
+      "column": "n_collections",
+      "golden": 3,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.666667,
+      "rel_error": 0.666667,
+      "row": 0
+    },
+    {
+      "answer": "trazo3_brazil_goias_2024",
+      "column": "recommended_id",
+      "golden": "trazo3-fields",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q05": [
+    {
+      "answer": 114,
+      "column": "list_ids",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    },
+    {
+      "answer": 114,
+      "column": "found_in_car",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    }
+  ],
+  "q06": [
+    {
+      "answer": 106,
+      "column": "n_parcels",
+      "golden": 109,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.027523,
+      "rel_error": 0.027523,
+      "row": 0
+    }
+  ],
+  "q07": [
+    {
+      "answer": 12912,
+      "column": "n_duplicate_ids",
+      "golden": 0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": 902688,
+      "column": "n_parcels_under_1ha",
+      "golden": 0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q08": [
+    {
+      "answer": 2977,
+      "column": "n_fields_in_envelope",
+      "golden": 3291,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.095412,
+      "rel_error": 0.095412,
+      "row": 0
+    }
+  ],
+  "q09": [
+    {
+      "answer": 688,
+      "column": "matched_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.132409,
+      "rel_error": 0.132409,
+      "row": 0
+    }
+  ],
+  "q10": [
+    {
+      "answer": 661,
+      "column": "by_single_parcel_rule",
+      "golden": 766,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.137076,
+      "rel_error": 0.137076,
+      "row": 0
+    }
+  ],
+  "q11": [
+    {
+      "answer": 0.0,
+      "column": "min_single_frac",
+      "golden": 0.31,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0,
+      "quantized_rel_error": 1.0,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0.7970827553878679,
+      "column": "avg_single_frac",
+      "golden": 0.973,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.797,
+      "quantized_rel_error": 0.180884,
+      "raw_rel_error": 0.180799,
+      "rel_error": 0.180799,
+      "row": 0
+    },
+    {
+      "answer": 0.8243146464425827,
+      "column": "avg_union_frac",
+      "golden": 0.996,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.824,
+      "quantized_rel_error": 0.172691,
+      "raw_rel_error": 0.172375,
+      "rel_error": 0.172375,
+      "row": 0
+    }
+  ],
+  "q12": [
+    {
+      "answer": 68,
+      "column": "n_excluded",
+      "golden": 79,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.139241,
+      "rel_error": 0.139241,
+      "row": 0
+    }
+  ],
+  "q13": [
+    {
+      "answer": "GO-5212204-5EA91F9370294F8F8F9447882810DD0B",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-15108D4D7C134B8D9E71E50A2ED2E605",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 1
+    },
+    {
+      "answer": "GO-5212204-52E2FECF2A7042F2B0DC6B27138AADE6",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-5EA91F9370294F8F8F9447882810DD0B",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 2
+    },
+    {
+      "answer": 31,
+      "column": "n_fields",
+      "golden": 42,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.261905,
+      "rel_error": 0.261905,
+      "row": 2
+    },
+    {
+      "answer": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-6A28AC5AF7BF4BEC8931E8E154D99AEE",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 3
+    },
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 34,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.176471,
+      "rel_error": 0.176471,
+      "row": 3
+    },
+    {
+      "answer": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-52E2FECF2A7042F2B0DC6B27138AADE6",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 4
+    },
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 31,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.096774,
+      "rel_error": 0.096774,
+      "row": 4
+    },
+    {
+      "answer": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-F17BEA20B17148C1ADB4BD53A04EC448",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 5
+    },
+    {
+      "answer": 26,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.103448,
+      "rel_error": 0.103448,
+      "row": 5
+    },
+    {
+      "answer": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 6
+    },
+    {
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.241379,
+      "rel_error": 0.241379,
+      "row": 6
+    },
+    {
+      "answer": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 7
+    },
+    {
+      "answer": 22,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.214286,
+      "rel_error": 0.214286,
+      "row": 7
+    },
+    {
+      "answer": "GO-5212204-2CC9462D520645069EBCBC7EA3D33548",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-CE5E071E653F445E8EA2609440D42C75",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 8
+    },
+    {
+      "answer": 21,
+      "column": "n_fields",
+      "golden": 26,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.192308,
+      "rel_error": 0.192308,
+      "row": 8
+    },
+    {
+      "answer": "GO-5212204-C89768295EC14B488BC2A10A70813D1B",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-156094615E67476AB099D9F46F6C0655",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 9
+    },
+    {
+      "answer": 19,
+      "column": "n_fields",
+      "golden": 22,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.136364,
+      "rel_error": 0.136364,
+      "row": 9
+    }
+  ],
+  "q14": [
+    {
+      "answer": 28262.33873705308,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 28262.3,
+      "quantized_rel_error": 0.217297,
+      "raw_rel_error": 0.217296,
+      "rel_error": 0.217296,
+      "row": 0
+    }
+  ],
+  "q15": [
+    {
+      "answer": 114,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.025641,
+      "rel_error": 0.025641,
+      "row": 0
+    },
+    {
+      "answer": 688,
+      "column": "n_fields",
+      "golden": 793,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.132409,
+      "rel_error": 0.132409,
+      "row": 0
+    },
+    {
+      "answer": 28262.338737053073,
+      "column": "matched_field_ha",
+      "golden": 36108.6,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 28262.3,
+      "quantized_rel_error": 0.217297,
+      "raw_rel_error": 0.217296,
+      "rel_error": 0.217296,
+      "row": 0
+    }
+  ],
+  "q16": [
+    {
+      "answer_columns": 5,
+      "answer_rows": 13,
+      "golden_columns": 5,
+      "golden_rows": 4,
+      "kind": "shape"
+    }
+  ],
+  "q17": [
+    {
+      "answer": 38,
+      "column": "n_fields",
+      "golden": 753,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.949535,
+      "rel_error": 0.949535,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.928571,
+      "rel_error": 0.928571,
+      "row": 1
+    }
+  ],
+  "q19": [
+    {
+      "answer": 25950.89724742955,
+      "column": "total_ha",
+      "golden": 32745.7,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 25950.9,
+      "quantized_rel_error": 0.207502,
+      "raw_rel_error": 0.207502,
+      "rel_error": 0.207502,
+      "row": 0
+    },
+    {
+      "answer": 0.002614828335861017,
+      "column": "loss_share",
+      "golden": 0.0969,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0026,
+      "quantized_rel_error": 0.973168,
+      "raw_rel_error": 0.973015,
+      "rel_error": 0.973015,
+      "row": 0
+    },
+    {
+      "answer": 2114.717433450198,
+      "column": "total_ha",
+      "golden": 2340.4,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": 2114.7,
+      "quantized_rel_error": 0.096437,
+      "raw_rel_error": 0.096429,
+      "rel_error": 0.096429,
+      "row": 1
+    },
+    {
+      "answer": 0.022198668830005663,
+      "column": "loss_share",
+      "golden": 0.227,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.022,
+      "quantized_rel_error": 0.903084,
+      "raw_rel_error": 0.902209,
+      "rel_error": 0.902209,
+      "row": 1
+    }
+  ],
+  "q21": [
+    {
+      "answer": 438.88689676696214,
+      "column": "cleared_ha",
+      "golden": 761.4,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 438.9,
+      "quantized_rel_error": 0.423562,
+      "raw_rel_error": 0.423579,
+      "rel_error": 0.423562,
+      "row": 0
+    },
+    {
+      "answer": 32.57233363164681,
+      "column": "pct_of_loss",
+      "golden": 42.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 32.6,
+      "quantized_rel_error": 0.22381,
+      "raw_rel_error": 0.224468,
+      "rel_error": 0.22381,
+      "row": 0
+    },
+    {
+      "answer": 293.39734184979153,
+      "column": "cleared_ha",
+      "golden": 418.5,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 293.4,
+      "quantized_rel_error": 0.298925,
+      "raw_rel_error": 0.298931,
+      "rel_error": 0.298925,
+      "row": 1
+    },
+    {
+      "answer": 21.77471274665116,
+      "column": "pct_of_loss",
+      "golden": 23.1,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 21.8,
+      "quantized_rel_error": 0.056277,
+      "raw_rel_error": 0.057372,
+      "rel_error": 0.056277,
+      "row": 1
+    },
+    {
+      "answer": 314.4757304768732,
+      "column": "cleared_ha",
+      "golden": 326.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 314.5,
+      "quantized_rel_error": 0.035276,
+      "raw_rel_error": 0.035351,
+      "rel_error": 0.035276,
+      "row": 2
+    },
+    {
+      "answer": 23.339061812062802,
+      "column": "pct_of_loss",
+      "golden": 18.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 23.3,
+      "quantized_rel_error": 0.294444,
+      "raw_rel_error": 0.296615,
+      "rel_error": 0.294444,
+      "row": 2
+    },
+    {
+      "answer": 185.86130750558013,
+      "column": "cleared_ha",
+      "golden": 190.0,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 185.9,
+      "quantized_rel_error": 0.021579,
+      "raw_rel_error": 0.021783,
+      "rel_error": 0.021579,
+      "row": 3
+    },
+    {
+      "answer": 13.793842016888341,
+      "column": "pct_of_loss",
+      "golden": 10.5,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 13.8,
+      "quantized_rel_error": 0.314286,
+      "raw_rel_error": 0.313699,
+      "rel_error": 0.313699,
+      "row": 3
+    },
+    {
+      "answer": 8.520049792750886,
+      "column": "pct_of_loss",
+      "golden": 6.3,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 8.5,
+      "quantized_rel_error": 0.349206,
+      "raw_rel_error": 0.352389,
+      "rel_error": 0.349206,
+      "row": 4
+    }
+  ],
+  "q22": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 14,
+      "golden_columns": 3,
+      "golden_rows": 24,
+      "kind": "shape"
+    }
+  ],
+  "q25": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 4,
+      "golden_columns": 3,
+      "golden_rows": 2,
+      "kind": "shape"
+    }
+  ],
+  "q26": [
+    {
+      "answer_columns": 4,
+      "answer_rows": 26,
+      "golden_columns": 4,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q27": [
+    {
+      "answer_columns": 3,
+      "answer_rows": 26,
+      "golden_columns": 3,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q28": [
+    {
+      "answer_columns": 7,
+      "answer_rows": 26,
+      "golden_columns": 7,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q29": [
+    {
+      "answer": 0,
+      "column": "n_nearest_by_far",
+      "golden": 2,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ],
+  "q30": [
+    {
+      "answer_columns": 8,
+      "answer_rows": 26,
+      "golden_columns": 8,
+      "golden_rows": 18,
+      "kind": "shape"
+    }
+  ],
+  "q31": [
+    {
+      "answer": 115,
+      "column": "resolved_clean",
+      "golden": 114,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.008772,
+      "rel_error": 0.008772,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "centroid_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "geometry_resolved",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "axis_repaired",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "duplicates_removed",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    },
+    {
+      "answer": 0,
+      "column": "unresolvable",
+      "golden": 1,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 1.0,
+      "rel_error": 1.0,
+      "row": 0
+    }
+  ]
+}

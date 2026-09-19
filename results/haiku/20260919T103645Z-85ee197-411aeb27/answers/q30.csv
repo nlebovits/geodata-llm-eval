@@ -1,0 +1,6 @@
+cod_imovel,annex1_commodity,post2020_loss_ha,entity_id,entity_kind,tier,basis,distance_km
+GO-5212204-1,cattle,10.0,facility_1,cooperative,slaughter_point,observed,5.0
+GO-5212204-2,soya,9.0,facility_2,cooperative,intake_point,observed,7.0
+GO-5212204-3,oil_palm,8.0,"","","",observed,
+GO-5212204-4,coffee,7.0,"","","",observed,
+GO-5212204-5,cattle,6.0,5212204,cooperative,membership_muni,observed,

@@ -1,0 +1,4 @@
+cod_imovel,entity_id,tier,distance_km
+GO-5212204-1,facility_1,slaughter_point,5.0
+GO-5212204-2,facility_2,intake_point,7.0
+GO-5212204-3,facility_3,slaughter_point,9.0
