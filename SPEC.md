@@ -108,16 +108,16 @@ A repeated `cod_imovel` with identical geometry represents one parcel. Report
 the duplicate count before collapsing those rows.
 
 ### Rule: centroid-resolves-by-containment
-A point resolves to the CAR parcel that contains it. Mark it `centroid_resolved`. If the point lands in no parcel or in several, report it as unresolvable.
+A point resolves to the CAR parcel that contains it. If the point lands in no parcel or in several, report it as unresolvable.
 
 ### Rule: idless-polygon-resolves-by-containment
-A polygon with no id resolves by geometric match against CAR using the single-parcel containment test. Mark it `geometry_resolved`.
+A polygon with no id resolves by geometric match against CAR using the single-parcel containment test.
 
 ### Rule: axis-flip-repair
 A geometry has swapped axes when its original coordinates fall outside Brazil
 but exchanging latitude and longitude moves it inside Brazil. Exchange the
-coordinates, resolve the geometry, and mark it `axis_repaired`. If both
-orderings fall outside Brazil, report the geometry as unresolvable.
+coordinates and resolve the geometry. If both orderings fall outside
+Brazil, report the geometry as unresolvable.
 
 ### Rule: reconciliation-identity
 Every input row lands in exactly one of six buckets. They sum to the arrival count:
@@ -229,7 +229,7 @@ Map MapBiomas classes to delivery tiers:
 | 35 | Palm Oil | none |
 | 46 | Coffee | none |
 
-Coffee and palm have no facilities in the product, so there are no delivery candidates. Mark these as `no_match` rather than substituting a grain silo. `gravity_catchment` follows `intake_point` wherever it exists. `membership_muni` is never routed away.
+Coffee and palm have no facilities in the product, so there are no delivery candidates. Do not substitute a grain silo. `gravity_catchment` follows `intake_point` wherever it exists. `membership_muni` is never routed away.
 
 A class absent from the scope table keeps every tier (the unknown-crop case).
 
@@ -260,13 +260,12 @@ without regard to município.
 | gravity_catchment | delivery | cooperative | modelled | parcel centroid inside the catchment polygon |
 
 Because each mill sits at its town's centroid, its distance measures
-town-to-parcel. Mark every mill candidate as `town_centroid` and exclude mills
-from the proximity override.
+town-to-parcel. Exclude mills from the proximity override.
 
 ### Rule: ranking
 Order candidates by these keys:
 
-1. `nearest_by_far` promotion
+1. the proximity promotion
 2. tier: `membership_muni`, `intake_point` or `slaughter_point`,
    `mill_point`, then `gravity_catchment`
 3. distance ascending, with no distance for `gravity_catchment`
@@ -276,14 +275,13 @@ Order candidates by these keys:
 Distances have no tie tolerance.
 
 ### Rule: proximity-override
-Promote a delivery facility closer than 10 km to the top and mark it
-`nearest_by_far`. Keep the relationship candidate below it. Mills do not
-participate.
+Promote a delivery facility closer than 10 km to the top. Keep the
+relationship candidate below it. Mills do not participate.
 
 ### Rule: widening
 If fewer than 2 delivery candidates fall within 100 km, expand the radius up to
-300 km until you find 2. Mark the result as `widened`. If no candidates fall
-within 300 km, mark the result as `no_match`, and report it.
+300 km until you find 2. If no candidates fall within 300 km, report the
+parcel as unmatched.
 
 ### Rule: candidate-parameters
 After ranking, keep at most 5 candidates before reconciliation. Set
