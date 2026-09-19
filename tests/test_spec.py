@@ -87,22 +87,6 @@ def test_spec_stages_match_questions_yaml() -> None:
         )
 
 
-def test_spec_names_the_geometry_graded_questions() -> None:
-    """Section 2 lists the geometry-graded set in one line; it must be the
-    set questions.yaml actually grades that way."""
-    graded = {q["id"] for q in QUESTIONS if q.get("grading") == "geometry"}
-    line = next(ln for ln in SPEC.splitlines() if "Geometry-graded questions:" in ln)
-    named: set[str] = set()
-    for start, end in re.findall(r"q(\d{2})–q(\d{2})", line):
-        named.update(f"{n:02d}" for n in range(int(start), int(end) + 1))
-    stripped = re.sub(r"q\d{2}–q\d{2}", "", line)
-    named.update(re.findall(r"q(\d{2})", stripped))
-    assert named == graded, (
-        f"SPEC.md names {sorted(named)}, questions.yaml grades "
-        f"{sorted(graded)} as geometry"
-    )
-
-
 def test_agent_view_is_the_exact_contract() -> None:
     assert specdoc.agent_view(SPEC) == SPEC
     assert specdoc.render(REPO).encode() == (REPO / "SPEC.md").read_bytes()
@@ -138,6 +122,15 @@ def test_agent_contract_excludes_reviewer_and_comparator_details() -> None:
         "near miss",
         "case-insensitively",
         "scan order",
+        # Which questions the grader treats as geometry, and the tolerances
+        # it applies, are questions.yaml's business. A spec that restates
+        # them drifts from them silently.
+        "Geometry-graded",
+        "geometry tolerance",
+        "relative error",
+        "REL_TOL",
+        "GEOM_REL_TOL",
+        "GEOM_INT_SLACK",
     )
     for text in forbidden:
         assert text.lower() not in SPEC.lower(), f"agent contract exposes {text!r}"

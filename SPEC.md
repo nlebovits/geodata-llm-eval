@@ -52,26 +52,9 @@ the file order.
 ### Rule: column-names-are-free
 Choose your column names and order. The grader matches columns by meaning and type only.
 
-### Rule: numeric-tolerance
-Numbers compare at 0.1% relative error, with an absolute floor of 0.000000001.
-Questions marked `geometry` can shift with the calculation method. Their
-decimal values allow 1% relative error. Their integer counts allow a difference
-of either 2 units or 1% of the golden value, whichever is larger.
-
-These tolerances account for defensible differences in feature counts.
-
-Geometry-graded questions: q08–q12, q14, q15, q19, q26, q30.
-
-### Rule: q23-grades-strict
-q23 allows no tolerance for `field_id`. Adjacent plots have adjacent IDs, so a
-"close enough" comparison could credit the wrong farm.
-
 ### Rule: area-and-distance-method-is-free
 You may choose the method for computing areas and distances. Geodesic area,
-equal-area projections, and Brazil Polyconic agree within 1%. The geometry
-tolerance absorbs this spread.
-
-This rule applies to all hectare and kilometer columns except q23.
+equal-area projections, and Brazil Polyconic agree within 1%.
 
 ---
 
@@ -351,8 +334,6 @@ invalidate stored answer keys.
 
 ### Stage 3 — field–cadaster matching
 
-Except q13, these are geometry-graded.
-
 **q08** — Fields intersecting the bounding envelope of the listed parcels.
 
 Columns: `n_fields_in_envelope` (integer). Rows: 1. Depends: q05.
@@ -388,7 +369,7 @@ Columns: `matched_field_ha` (float). Rows: 1. Depends: q09.
 **q15** — Report the list-level totals for parcels, fields, matched hectares,
 post-2020 loss hectares, and fields with post-2020 loss.
 
-Columns: `n_parcels`, `n_fields` (integers), `matched_field_ha`, `post2020_loss_ha` (floats), `fields_with_post2020_loss` (integer). Rows: 1. Depends: q09. Geometry-graded.
+Columns: `n_parcels`, `n_fields` (integers), `matched_field_ha`, `post2020_loss_ha` (floats), `fields_with_post2020_loss` (integer). Rows: 1. Depends: q09.
 
 **q16** — Classify every MapBiomas class on matched fields according to the
 scope table. Report its commodity, scope status, and caveat. Leave the
@@ -406,7 +387,7 @@ Columns: `mb_class` (string), `n_fields` (integer), `post2020_loss_ha` (float). 
 
 **q19** — Total matched-field area by in-scope commodity, and the share carrying post-2020 loss (0–1).
 
-Columns: `annex1_commodity` (string), `total_ha`, `loss_share` (floats). Rows: data. Depends: q16. Geometry-graded.
+Columns: `annex1_commodity` (string), `total_ha`, `loss_share` (floats). Rows: data. Depends: q16.
 
 **q20** — Ten cadasters with the most post-2020 loss on in-scope crops. Loss descending, ties by `cod_imovel` ascending.
 
@@ -439,7 +420,7 @@ Columns: `annex1_commodity`, `tier`, `coverage` (strings). Rows: data. Depends: 
 
 **q26** — Nearest delivery facility per flagged parcel under the routing rule. Distance in a metric CRS. Parcels whose commodity has no tier have no row.
 
-Columns: `cod_imovel`, `entity_id`, `tier` (strings), `distance_km` (float). Rows: data. Depends: q24. Geometry-graded.
+Columns: `cod_imovel`, `entity_id`, `tier` (strings), `distance_km` (float). Rows: data. Depends: q24.
 
 **q27** — Membership-tier candidate per flagged parcel: entity id (the município code) and evidence (cooperative-member count).
 
@@ -461,7 +442,7 @@ Columns: `n_widened`, `n_no_match`, `n_nearest_by_far` (integers). Rows: 1. Depe
 commodity and post-2020 loss, plus the candidate's ID, kind, tier, basis, and
 distance. Leave distance empty for non-distance tiers.
 
-Columns: `cod_imovel`, `annex1_commodity` (strings), `post2020_loss_ha` (float), `entity_id`, `entity_kind`, `tier`, `basis` (strings), `distance_km` (float). Rows: data. Depends: q24, q26, q27, q28. Geometry-graded.
+Columns: `cod_imovel`, `annex1_commodity` (strings), `post2020_loss_ha` (float), `entity_id`, `entity_kind`, `tier`, `basis` (strings), `distance_km` (float). Rows: data. Depends: q24, q26, q27, q28.
 
 `workflow.csv` repeats q30 in the fixed eight-column form from section 1.
 
