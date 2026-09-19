@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HARNESS = REPO_ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 
+import layout
 import run
 
 
@@ -1527,3 +1528,71 @@ def test_a_session_started_on_its_own_still_reads_the_commit(
         run.run_session("opus", dry_run=True)
 
     assert seen == ["abc1234"]
+
+
+# --- a memory kill is its own failure ---
+
+
+def _tool_error(text: str) -> dict[str, object]:
+    """One transcript record carrying a failed tool result."""
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {"type": "tool_result", "is_error": True, "content": text},
+            ]
+        },
+    }
+
+
+def test_a_tool_call_the_kernel_killed_is_counted(tmp_path: Path) -> None:
+    """DuckDB asking for more than the cgroup allows dies with no error text.
+    The agent sees a dead command, so the count is the only trace."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                _tool_error("Exit code 137"),
+                _tool_error("Exit code 137\nKilled"),
+                _tool_error("Command timed out after 2m 0s"),
+                _tool_error("Exit code 1: no such file"),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    timings = run.tool_timings(transcript)
+
+    assert timings["sigkilled_tool_calls"] == 2
+    # The two counts are independent: a timeout is not a memory kill.
+    assert timings["timed_out_tool_calls"] == 1
+
+
+def test_a_container_the_kernel_killed_is_not_a_plain_failure() -> None:
+    """Ten of these in a sweep mean the memory cap is wrong. That has to be
+    visible in the status, not buried in a transcript."""
+    status = run.execution_status(20, container_oom=True)
+
+    assert status == layout.CONTAINER_OOM
+    # A real failure the agent owns, so it stays in the denominator.
+    assert layout.is_valid({"status": status})
+    # It outranks the short run it caused, because it says why the run is short.
+    assert run.execution_status(20) == layout.INCOMPLETE
+
+
+def test_a_wall_clock_kill_is_not_read_as_a_memory_kill() -> None:
+    """The harness kills a session that outruns its wall clock, and that exits
+    137 too. Only the harness knows which of the two pulled the trigger."""
+    status = run.execution_status(20, timed_out=True, container_oom=True)
+
+    assert status == layout.AGENT_TIMEOUT
+
+
+def test_a_dead_credential_still_outranks_a_memory_kill() -> None:
+    """A session that never reached the task cannot have run out of memory
+    doing it."""
+    status = run.execution_status(0, credential_dead=True, container_oom=True)
+
+    assert status == layout.AUTHENTICATION_INVALID

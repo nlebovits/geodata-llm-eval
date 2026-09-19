@@ -34,6 +34,13 @@ DONE = "done"
 INCOMPLETE = "incomplete"
 AGENT_TIMEOUT = "agent_timeout"
 AGENT_PRODUCED_NOTHING = "agent_produced_nothing"
+# The container hit its memory cap and the kernel killed the agent process.
+# A failure the agent owns, not an invalid trial: the cap is part of what the
+# session was handed, the same way the wall clock is, and a session that plans
+# its memory stays inside it. It is named separately from a plain failure
+# because ten of these in a sweep mean the cap is wrong, and that has to be
+# visible without opening a transcript.
+CONTAINER_OOM = "container_oom"
 INFRASTRUCTURE_INVALID = "infrastructure_invalid"
 AUTHENTICATION_INVALID = "authentication_invalid"
 GRADER_ERROR = "grader_error"
@@ -53,6 +60,7 @@ TRIAL_STATUSES = frozenset(
         FAILED,
         AGENT_TIMEOUT,
         AGENT_PRODUCED_NOTHING,
+        CONTAINER_OOM,
         INFRASTRUCTURE_INVALID,
         AUTHENTICATION_INVALID,
         GRADER_ERROR,
@@ -61,7 +69,7 @@ TRIAL_STATUSES = frozenset(
 )
 
 # The three a trial can be excused for. An agent that timed out, stopped
-# early, or wrote nothing failed the task. Only a failure proven external to
+# early, wrote nothing, or ran its container out of memory failed the task. Only a failure proven external to
 # the agent -- a dead credential, unavailable infrastructure, a grader that
 # crashed -- is invalidated, and everything else stays in the denominator.
 INVALID_STATUSES = frozenset(
@@ -131,8 +139,8 @@ def trial_status(meta: Meta) -> str:
         return status
     if status in UNSCORED_STATUSES:
         return AGENT_PRODUCED_NOTHING
-    if status == AGENT_TIMEOUT:
-        return AGENT_TIMEOUT
+    if status in (AGENT_TIMEOUT, CONTAINER_OOM):
+        return status
     strict = meta.get("strict_success")
     if strict is None:
         return UNGRADED

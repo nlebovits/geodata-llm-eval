@@ -111,7 +111,7 @@ def test_runtime_breakdown_is_reported_next_to_accuracy(tmp_path: Path) -> None:
     report.write_summary_csv(sessions, results / "summary.csv")
     header, row = results.joinpath("summary.csv").read_text().splitlines()[:2]
     assert "timed_out_tool_calls" in header and "near_miss" in header
-    assert row.endswith("1858.2,1350.0,4")
+    assert row.endswith("1858.2,1350.0,4,0")
 
 
 def test_report_without_consistency_file_still_renders(tmp_path: Path) -> None:

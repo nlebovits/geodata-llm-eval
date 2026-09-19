@@ -12,9 +12,10 @@ Held constant across every row: golden-at-run 7bbdf1, graded 7bbdf1, pins df2389
 ## Strict task success and reliability
 
 A trial passes when every critical question graded correct. A near
-miss does not pass. Agent timeouts, early stops, and empty runs are
-failures and stay in the denominator; only a dead credential,
-unavailable infrastructure, or a grader crash invalidates a trial.
+miss does not pass. Agent timeouts, early stops, empty runs, and
+memory kills are failures and stay in the denominator; only a dead
+credential, unavailable infrastructure, or a grader crash
+invalidates a trial.
 
 pass^k is the chance that k independent trials all pass, estimated
 without replacement from the trials on disk, with a 95% interval. It
@@ -34,14 +35,14 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 
 ### Trial outcomes
 
-| Configuration | agent_produced_nothing | agent_timeout | authentication_invalid | failed | grader_error | infrastructure_invalid | passed | ungraded |
-|---------------|---|---|---|---|---|---|---|---|
-| claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
-| claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
-| claude/opus · questions-only · agent-config 81d65c · spec 793d5d · harness 2ec5e8 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 0 | 0 | 0 | 5 | 0 | 0 | 0 | 0 |
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 0 |
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| Configuration | agent_produced_nothing | agent_timeout | authentication_invalid | container_oom | failed | grader_error | infrastructure_invalid | passed | ungraded |
+|---------------|---|---|---|---|---|---|---|---|---|
+| claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
+| claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 0 | 0 | 0 | 0 | 10 | 0 | 0 | 0 | 0 |
+| claude/opus · questions-only · agent-config 81d65c · spec 793d5d · harness 2ec5e8 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 0 | 0 |
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 0 |
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 
 ### Completion budget
 
@@ -98,13 +99,18 @@ Slow-call share is time inside tool calls slow enough to emit a
 heartbeat, over wall clock. A high share with timeouts means the
 run was degraded by the network, not by the model.
 
-| Configuration | Mean wall clock | In slow tool calls | Timed-out calls |
-|---------------|-----------------|--------------------|-----------------|
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 30m | 39% | 0 |
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 21m | 7% | 0 |
-| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 20m | 3% | 0 |
-| claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 15m | 0% | 0 |
-| claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 19m | 4% | 0 |
+A killed call is one the kernel ended with SIGKILL. Under the
+container memory cap that means the OOM killer took it, so a
+configuration with a high count is running out of memory rather
+than reasoning badly.
+
+| Configuration | Mean wall clock | In slow tool calls | Timed-out calls | Killed calls |
+|---------------|-----------------|--------------------|-----------------|--------------|
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 30m | 39% | 0 | 0 |
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 21m | 7% | 0 | 0 |
+| claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 20m | 3% | 0 | 0 |
+| claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 15m | 0% | 0 | 0 |
+| claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 19m | 4% | 0 | 0 |
 
 ## Accuracy by workflow stage
 

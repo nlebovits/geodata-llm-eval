@@ -270,6 +270,22 @@ HEARTBEAT_SUFFIX = re.compile(r"-heartbeat-\d+$")
 # timeout. A phrase the CLI itself emits cannot drift out of step with the cap.
 TIMEOUT_MARKER = "Command timed out"
 
+# What a tool call reports when the kernel killed its child. 137 is 128 plus
+# SIGKILL, and under a memory cap the OOM killer is what sends it: DuckDB asks
+# for more than the cgroup allows, the kernel takes the process, and bash
+# reports the status. The agent sees a dead command with no error text, which
+# is why this is counted rather than left for a reader to find.
+#
+# SIGKILL has other senders. A session that kills its own background job
+# produces the same code. The count is therefore an upper bound on OOM kills,
+# and the name says what it measures rather than what caused it.
+SIGKILL_MARKER = "Exit code 137"
+
+# The exit code `docker run` returns when the kernel killed the agent process
+# itself. Same number, one level up: the container breached --memory rather
+# than a command inside it.
+CONTAINER_SIGKILL = 137
+
 
 def _call_id(heartbeat_id: str) -> str:
     """The tool call a heartbeat belongs to."""
@@ -294,8 +310,10 @@ def tool_timings(transcript_path: Path) -> dict[str, Any]:
     """
     longest: dict[str, tuple[str, float]] = {}
     timed_out = 0
+    sigkilled = 0
     for record in read_records(transcript_path):
-        timed_out += _timeouts_in(record)
+        timed_out += _errors_matching(record, TIMEOUT_MARKER)
+        sigkilled += _errors_matching(record, SIGKILL_MARKER)
         seconds = record.get("elapsed_time_seconds")
         heartbeat_id = record.get("tool_use_id")
         if seconds is None or heartbeat_id is None:
@@ -313,15 +331,16 @@ def tool_timings(transcript_path: Path) -> dict[str, Any]:
         "slow_tool_seconds": round(sum(s for _, s in longest.values()), 1),
         "slow_tool_seconds_by_tool": per_tool,
         "timed_out_tool_calls": timed_out,
+        "sigkilled_tool_calls": sigkilled,
     }
 
 
-def _timeouts_in(record: Record) -> int:
-    """How many killed tool calls one transcript record reports.
+def _errors_matching(record: Record, marker: str) -> int:
+    """How many failed tool calls in one record carry this marker.
 
-    A killed call comes back as a `tool_result` block with `is_error` set and
-    the CLI's own timeout text in its content. The content is a string for a
-    Bash result and a list of blocks for others, so both shapes are read.
+    A failed call comes back as a `tool_result` block with `is_error` set and
+    the CLI's own text in its content. The content is a string for a Bash
+    result and a list of blocks for others, so both shapes are read.
     """
     content = record.get("message", {}).get("content")
     if not isinstance(content, list):
@@ -335,7 +354,7 @@ def _timeouts_in(record: Record) -> int:
         body = block.get("content")
         if not isinstance(body, str):
             body = json.dumps(body)
-        if TIMEOUT_MARKER in body:
+        if marker in body:
             found += 1
     return found
 
@@ -416,11 +435,14 @@ def resume_prompt(missing: list[str]) -> str:
 
 
 def execution_status(
-    answered: int, timed_out: bool = False, credential_dead: bool = False
+    answered: int,
+    timed_out: bool = False,
+    credential_dead: bool = False,
+    container_oom: bool = False,
 ) -> str:
     """The status this run records, before grading has an opinion.
 
-    Four outcomes the harness can see for itself. `done` and `incomplete`
+    Five outcomes the harness can see for itself. `done` and `incomplete`
     both mean the session ran and wrote answers, and which of them becomes a
     passed or failed trial is grading's call, not this function's.
 
@@ -429,11 +451,18 @@ def execution_status(
     the trial is invalid rather than a failure the agent owns. It only counts
     when nothing was answered -- a session that recovered mid-run and wrote
     answers was measured, whatever happened to its first token.
+
+    A memory kill outranks both an empty run and a short one for the same
+    reason: it says why the answers stop. It ranks below a timeout because a
+    session the harness killed on the wall clock also exits 137, and there the
+    harness knows it pulled the trigger.
     """
     if credential_dead and answered == 0:
         return layout.AUTHENTICATION_INVALID
     if timed_out:
         return layout.AGENT_TIMEOUT
+    if container_oom:
+        return layout.CONTAINER_OOM
     if answered == 0:
         return layout.AGENT_PRODUCED_NOTHING
     if answered < question_count():
@@ -1072,6 +1101,9 @@ def run_session(
             answered,
             timed_out=timed_out,
             credential_dead=facts.authentication_rejected,
+            # The kernel killed the agent process. Only trustworthy when the
+            # harness did not kill it first, which `timed_out` records.
+            container_oom=returncode == CONTAINER_SIGKILL and not timed_out,
         )
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         cost_text = (
@@ -1085,7 +1117,8 @@ def run_session(
             f" {stats['turns']} turns,"
             f" {duration / 60:.0f}m wall"
             f" ({waited / 60:.0f}m in slow tool calls,"
-            f" {meta['timed_out_tool_calls']} timed out),"
+            f" {meta['timed_out_tool_calls']} timed out,"
+            f" {meta['sigkilled_tool_calls']} killed),"
             f" {cost_text}" + (f", {attempts} attempts" if attempts > 1 else "")
         )
         if answered < question_count():

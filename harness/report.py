@@ -59,6 +59,7 @@ def current_timings(session_dir: Path, meta: Session) -> dict[str, Any]:
         return {
             "slow_tool_seconds": meta.get("slow_tool_seconds", 0.0) or 0.0,
             "timed_out_tool_calls": meta.get("timed_out_tool_calls", 0),
+            "sigkilled_tool_calls": meta.get("sigkilled_tool_calls", 0),
         }
     return run.tool_timings(transcript)
 
@@ -100,6 +101,7 @@ def load_sessions(results_dir: Path) -> list[Session]:
                 "slow_tool_seconds": slow,
                 "slow_tool_share": slow / duration if duration else 0.0,
                 "timed_out_tool_calls": timings.get("timed_out_tool_calls", 0),
+                "sigkilled_tool_calls": timings.get("sigkilled_tool_calls", 0),
                 "grades": grades,
             }
         )
@@ -295,9 +297,10 @@ def reliability_lines(results_dir: Path, naming: Naming | None = None) -> list[s
         "## Strict task success and reliability",
         "",
         "A trial passes when every critical question graded correct. A near",
-        "miss does not pass. Agent timeouts, early stops, and empty runs are",
-        "failures and stay in the denominator; only a dead credential,",
-        "unavailable infrastructure, or a grader crash invalidates a trial.",
+        "miss does not pass. Agent timeouts, early stops, empty runs, and",
+        "memory kills are failures and stay in the denominator; only a dead",
+        "credential, unavailable infrastructure, or a grader crash",
+        "invalidates a trial.",
         "",
         "pass^k is the chance that k independent trials all pass, estimated",
         "without replacement from the trials on disk, with a 95% interval. It",
@@ -416,15 +419,28 @@ def runtime_lines(sessions: list[Session], naming: Naming | None = None) -> list
         "heartbeat, over wall clock. A high share with timeouts means the",
         "run was degraded by the network, not by the model.",
         "",
-        "| Configuration | Mean wall clock | In slow tool calls | Timed-out calls |",
-        "|---------------|-----------------|--------------------|-----------------|",
+        "A killed call is one the kernel ended with SIGKILL. Under the",
+        "container memory cap that means the OOM killer took it, so a",
+        "configuration with a high count is running out of memory rather",
+        "than reasoning badly.",
+        "",
+        (
+            "| Configuration | Mean wall clock | In slow tool calls |"
+            " Timed-out calls | Killed calls |"
+        ),
+        (
+            "|---------------|-----------------|--------------------|"
+            "-----------------|--------------|"
+        ),
     ]
     for config_label, rows in _configuration_groups(sessions, naming):
         wall = statistics.mean([s["duration_seconds"] for s in rows])
         share = statistics.mean([s["slow_tool_share"] for s in rows])
         timeouts = sum(s["timed_out_tool_calls"] for s in rows)
+        killed = sum(s["sigkilled_tool_calls"] for s in rows)
         lines.append(
-            f"| {config_label} | {wall / 60:.0f}m | {share:.0%} | {timeouts} |"
+            f"| {config_label} | {wall / 60:.0f}m | {share:.0%}"
+            f" | {timeouts} | {killed} |"
         )
     lines.append("")
     return lines
@@ -446,6 +462,7 @@ def write_summary_csv(sessions: list[Session], path: Path) -> None:
         "duration_seconds",
         "slow_tool_seconds",
         "timed_out_tool_calls",
+        "sigkilled_tool_calls",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
