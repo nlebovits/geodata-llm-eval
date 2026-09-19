@@ -33,6 +33,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 5 | 0 (0%) | 5 | 0% (0/5) | 0% [0%–8%] | 0% [0%–2%] | – (n=5<10) |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 4 | 0 (0%) | 4 | 0% (0/4) | 0% [0%–12%] | – (n=4<5) | – (n=4<10) |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 1 | 0 (0%) | 1 | 0% (0/1) | – (n=1<3) | – (n=1<5) | – (n=1<10) |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 1 | 0 (0%) | 1 | 0% (0/1) | – (n=1<3) | – (n=1<5) | – (n=1<10) |
 
 ### Trial outcomes
 
@@ -45,6 +46,7 @@ repinned dataset, or a harness change. Each row is one fingerprint.
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 0 | 0 | 0 | 0 | 5 | 0 | 0 | 0 | 0 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 0 | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 0 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 
 ### Completion budget
 
@@ -61,6 +63,7 @@ says something different at three resumes than at one.
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 2 | 0 | 134 | unlimited | 23m | $22.65 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ec3740 | 2 | 0 | 133 | unlimited | 26m | $17.59 |
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness 42b045 | 2 | 0 | 115 | unlimited | 30m | $4.67 |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 2 | 0 | 231 | unlimited | 15m | $6.01 |
 
 **Invalidated trials**
 
@@ -96,6 +99,7 @@ tolerance itself: computed right, formatted or rounded differently.
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 5 | 91.6% | 87.1% – 96.8% | 0.8 | $4.5292 |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 10 | 28.4% | 12.9% – 41.9% | 2.5 | $3.5466 |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 10 | 92.6% | 87.1% – 96.8% | 0.5 | $5.8915 |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 1 | 87.1% | 87.1% – 87.1% | 1.0 | $6.0131 |
 
 ## Runtime
 
@@ -116,6 +120,7 @@ than reasoning badly.
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 20m | 3% | 0 | 0 |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 15m | 0% | 0 | 0 |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 19m | 4% | 0 | 0 |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 15m | 3% | 0 | 0 |
 
 ## Accuracy by workflow stage
 
@@ -130,3 +135,4 @@ dependencies all passed (the error-propagation-adjusted score).
 | claude/opus · full · spec-consolidation · agent-config f208cf · spec ae7901 · harness ff0a0c | 95%/95% | 100%/100% | 100%/100% | 80%/81% | 90%/75% | 100%/100% |
 | claude/opus · questions-only · agent-config f208cf · spec 793d5d · harness 2ec5e8 | 100%/100% | 68%/68% | 24%/45% | 0%/0% | 7%/– | 0%/– |
 | claude/sonnet · full · spec-consolidation · agent-config 0051d6 · spec ae7901 · harness 2ec5e8 | 100%/100% | 98%/90% | 100%/100% | 84%/85% | 87%/87% | 100%/100% |
+| claude/sonnet · full · agent-config 0d2160 · spec 7ad7e0 · harness e2d699 | 100%/100% | 100%/100% | 100%/100% | 56%/56% | 100%/100% | 100%/100% |
