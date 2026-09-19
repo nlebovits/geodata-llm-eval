@@ -8,6 +8,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "harness"))
 
+import layout
 import pytest
 import report
 
@@ -368,3 +369,167 @@ def test_runtime_falls_back_to_meta_without_a_transcript(tmp_path: Path) -> None
 
     assert session["slow_tool_share"] == 0.4
     assert session["timed_out_tool_calls"] == 2
+
+
+# --- how a row names itself ---------------------------------------------------
+
+
+def _fingerprint(**overrides: Any) -> layout.Fingerprint:
+    base = {
+        "model": "opus",
+        "model_id": "claude-opus-4-8",
+        "agent": "claude",
+        "agent_config": "f208cf11",
+        "arm": "full",
+        "spec": "ae7901aa",
+        "golden": "7bbdf1bb",
+        "graded_against": "7bbdf1bb",
+        "pins": "df2389cc",
+        "harness_commit": "ff0a0cee",
+        "input_mode": "csv",
+        "max_attempts": 3,
+        "max_wall_seconds": 0,
+    }
+    return layout.Fingerprint(**{**base, **overrides})
+
+
+def test_a_field_that_never_varies_is_not_printed_on_every_row() -> None:
+    """Six digests repeated identically down a table separate nothing, and
+    they cost the reader the one word that does."""
+    full = _fingerprint()
+    ablated = _fingerprint(arm="questions-only", spec="793d5d7d")
+
+    constant = layout.constant_parts([full, ablated])
+    name = full.describe(omit=constant)
+
+    assert "pins" not in name
+    assert "golden-at-run" not in name
+    assert "spec ae7901" in name
+    assert "full" in name
+    assert len(name) < len(full.label()) // 2
+
+
+def test_the_fields_that_do_vary_survive_the_trim() -> None:
+    a = _fingerprint()
+    b = _fingerprint(harness_commit="2ec5e8cc")
+
+    constant = layout.constant_parts([a, b])
+
+    assert "harness_commit" not in constant
+    assert "harness ff0a0c" in a.describe(omit=constant)
+    assert "harness 2ec5e8" in b.describe(omit=constant)
+
+
+def test_one_configuration_alone_holds_everything_constant() -> None:
+    """With nothing to contrast against, every field is shared. The name
+    shrinks to the identity and the conditions move to the header."""
+    only = _fingerprint()
+
+    name = only.describe(omit=layout.constant_parts([only]))
+
+    assert name == "claude/opus · full"
+
+
+def test_nothing_is_constant_across_no_runs() -> None:
+    assert layout.constant_parts([]) == {}
+
+
+def test_the_operators_label_names_the_row() -> None:
+    """--label is what the operator called the experiment. It was read into
+    the session row and then dropped on the floor."""
+    name = _fingerprint().describe(note="baseline-sweep")
+
+    assert "baseline-sweep" in name
+
+
+def test_a_label_that_repeats_the_arm_is_not_printed_twice() -> None:
+    name = _fingerprint(arm="questions-only").describe(note="questions-only")
+
+    assert name.count("questions-only") == 1
+
+
+def test_a_label_is_not_part_of_the_identity() -> None:
+    """Two runs differing only in what someone typed after --label are the
+    same experiment. Keying on it would split them into underpowered rows."""
+    assert "label" not in layout.Fingerprint._fields
+
+
+def test_the_report_states_the_conditions_it_trimmed(tmp_path: Path) -> None:
+    results = tmp_path / "results"
+    shared = {
+        "agent": "claude",
+        "agent_config_fingerprint": "f208cf11",
+        "golden_fingerprint": "7bbdf1bb",
+        "graded_against": "7bbdf1bb",
+        "pins_fingerprint": "df2389cc",
+        "input_mode": "csv",
+        "max_attempts": 3,
+        "label": "sweep-a",
+    }
+    _session(results, "opus", 1, {"q01": "correct"}, 1.0, runtime={**shared})
+    _session(
+        results,
+        "opus",
+        2,
+        {"q01": "wrong"},
+        1.0,
+        runtime={**shared, "ablation": {"arm": "questions-only"}},
+    )
+    out = tmp_path / "report.md"
+
+    report.write_report_md(report.load_sessions(results), out, QUESTIONS, results)
+    text = out.read_text()
+
+    assert "Held constant across every row:" in text
+    assert "pins df2389" in text
+    assert text.count("pins df2389") == 1
+    assert "sweep-a" in text
+    assert "questions-only" in text
+
+
+# --- the pareto plot ----------------------------------------------------------
+
+
+def test_a_dominated_configuration_is_off_the_frontier() -> None:
+    """Costing more and scoring worse is never a reason to choose something."""
+    points = [(1.0, 0.5), (2.0, 0.4), (3.0, 0.9), (4.0, 0.6)]
+
+    assert report.pareto_frontier(points) == [(1.0, 0.5), (3.0, 0.9)]
+
+
+def test_the_frontier_reads_cheapest_first() -> None:
+    points = [(9.0, 0.95), (2.0, 0.60), (5.0, 0.80)]
+
+    costs = [c for c, _a in report.pareto_frontier(points)]
+
+    assert costs == sorted(costs)
+
+
+def test_the_cheaper_of_two_equal_scores_wins() -> None:
+    assert report.pareto_frontier([(2.0, 0.8), (5.0, 0.8)]) == [(2.0, 0.8)]
+
+
+def test_the_better_of_two_equal_costs_wins() -> None:
+    assert report.pareto_frontier([(2.0, 0.4), (2.0, 0.9)]) == [(2.0, 0.9)]
+
+
+def test_the_plot_names_its_series_the_way_the_tables_do(tmp_path: Path) -> None:
+    """A legend entry and a table row have to be followable as one thing."""
+    results = tmp_path / "results"
+    _session(
+        results,
+        "opus",
+        1,
+        {"q01": "correct"},
+        1.0,
+        runtime={"label": "sweep-a", "agent": "claude"},
+    )
+    sessions = report.load_sessions(results)
+    naming = report.naming_for(sessions, results)
+    out = tmp_path / "pareto.png"
+
+    report.write_pareto_png(sessions, out, naming)
+
+    (table_name, _rows) = report._configuration_groups(sessions, naming)[0]
+    assert table_name == "claude/opus · full · sweep-a"
+    assert out.stat().st_size > 0

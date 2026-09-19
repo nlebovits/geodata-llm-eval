@@ -16,6 +16,7 @@ import csv
 import json
 import statistics
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -105,16 +106,85 @@ def load_sessions(results_dir: Path) -> list[Session]:
     return sessions
 
 
+class Naming:
+    """How every table in one report names its rows.
+
+    Built once per report so the five tables use identical row names and a
+    reader can follow one configuration down the page. It drops the identity
+    fields that are the same on every row, because a column reading
+    `pins df2389` five times out of five separates nothing, and it adds the
+    operator's --label, which names the experiment in their words and is the
+    one part of the identity they chose.
+    """
+
+    def __init__(
+        self,
+        fingerprints: Iterable[layout.Fingerprint],
+        labels: dict[layout.Fingerprint, str] | None = None,
+    ) -> None:
+        self.constant = layout.constant_parts(fingerprints)
+        self.labels = labels or {}
+
+    def of(self, fingerprint: layout.Fingerprint) -> str:
+        return fingerprint.describe(
+            omit=self.constant, note=self.labels.get(fingerprint, "")
+        )
+
+    def held_constant(self) -> list[str]:
+        """The one statement of the conditions every row below shares."""
+        if not self.constant:
+            return []
+        return [
+            "Held constant across every row: "
+            + ", ".join(
+                self.constant[f] for f in layout.VARIABLE_PARTS if f in self.constant
+            )
+            + ".",
+            "",
+        ]
+
+
+def naming_for(sessions: list[Session], results_dir: Path | None = None) -> Naming:
+    """The row naming for a report over these sessions.
+
+    Reads the fingerprints of every run on disk, not only the graded ones,
+    so an invalid trial that differs in some field stops that field being
+    called constant. The reliability table counts those runs, and a name has
+    to mean the same thing in both tables.
+    """
+    labels: dict[layout.Fingerprint, str] = {}
+    seen: list[layout.Fingerprint] = []
+    for session in sessions:
+        seen.append(session["fingerprint"])
+        if session["label"]:
+            labels.setdefault(session["fingerprint"], session["label"])
+    if results_dir is not None:
+        for session_dir in run_dirs(results_dir):
+            meta_path = session_dir / "meta.json"
+            if not meta_path.exists():
+                continue
+            meta = json.loads(meta_path.read_text())
+            fingerprint = layout.fingerprint_of(meta)
+            seen.append(fingerprint)
+            if meta.get("label"):
+                labels.setdefault(fingerprint, meta["label"])
+    return Naming(seen, labels)
+
+
 def _configuration_groups(
     sessions: list[Session],
+    naming: Naming | None = None,
 ) -> list[tuple[str, list[Session]]]:
     """Diagnostics grouped by the complete reliability fingerprint."""
     grouped: dict[layout.Fingerprint, list[Session]] = {}
     for session in sessions:
         grouped.setdefault(session["fingerprint"], []).append(session)
+    names = naming or Naming(
+        grouped, {s["fingerprint"]: s["label"] for s in sessions if s["label"]}
+    )
     output = []
     for fingerprint, rows in sorted(grouped.items(), key=lambda item: item[0].label()):
-        output.append((fingerprint.label(), rows))
+        output.append((names.of(fingerprint), rows))
     return output
 
 
@@ -124,7 +194,9 @@ def _mean_or_none(values: list[float | None]) -> float | None:
 
 
 def stage_grid_lines(
-    sessions: list[Session], questions: list[dict[str, Any]]
+    sessions: list[Session],
+    questions: list[dict[str, Any]],
+    naming: Naming | None = None,
 ) -> list[str]:
     """Per-model, per-stage mean raw and conditional accuracy across sessions.
 
@@ -145,7 +217,7 @@ def stage_grid_lines(
     header = "| Configuration | " + " | ".join(f"S{s}" for s in stages) + " |"
     sep = "|---------------|" + "|".join(["-----"] * len(stages)) + "|"
     lines += [header, sep]
-    for config_label, rows in _configuration_groups(sessions):
+    for config_label, rows in _configuration_groups(sessions, naming):
         summaries = [stage_summary(s["grades"], questions) for s in rows]
         cells = []
         for st in stages:
@@ -207,7 +279,7 @@ def consistency_lines(results_dir: Path) -> list[str]:
     return lines
 
 
-def reliability_lines(results_dir: Path) -> list[str]:
+def reliability_lines(results_dir: Path, naming: Naming | None = None) -> list[str]:
     """Strict task success and pass^k, per fingerprint.
 
     First section in the report because it answers the question the benchmark
@@ -218,6 +290,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
     groups = reliability.summarise(run_dirs(results_dir))
     if not groups:
         return []
+    names = naming or Naming(g.fingerprint for g in groups)
     lines = [
         "## Strict task success and reliability",
         "",
@@ -257,7 +330,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
             cell(group.pass_hat(k), group.valid, k) for k in reliability.REPORTED_K
         )
         lines.append(
-            f"| {group.fingerprint.label()} | {group.attempted}"
+            f"| {names.of(group.fingerprint)} | {group.attempted}"
             f" | {group.invalid} ({group.invalid_rate:.0%})"
             f" | {group.valid} | {rate_s} | {cells} |"
         )
@@ -274,7 +347,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
             str(group.statuses.get(status, 0))
             for status in sorted(layout.TRIAL_STATUSES)
         )
-        lines.append(f"| {group.fingerprint.label()} | {counts} |")
+        lines.append(f"| {names.of(group.fingerprint)} | {counts} |")
     lines.append("")
 
     lines += [
@@ -311,7 +384,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
             else "unavailable"
         )
         lines.append(
-            f"| {group.fingerprint.label()} | {resume_limit}"
+            f"| {names.of(group.fingerprint)} | {resume_limit}"
             f" | {resumes_used} | {b.max_turns_used} | {wall_limit}"
             f" | {b.max_wall_seconds_used / 60:.0f}m"
             f" | {total_cost} |"
@@ -327,7 +400,7 @@ def reliability_lines(results_dir: Path) -> list[str]:
     return lines
 
 
-def runtime_lines(sessions: list[Session]) -> list[str]:
+def runtime_lines(sessions: list[Session], naming: Naming | None = None) -> list[str]:
     """Wall clock, and how much of it went to waiting on remote reads.
 
     A session that loses a third of its turns to source.coop timeouts scores
@@ -346,7 +419,7 @@ def runtime_lines(sessions: list[Session]) -> list[str]:
         "| Configuration | Mean wall clock | In slow tool calls | Timed-out calls |",
         "|---------------|-----------------|--------------------|-----------------|",
     ]
-    for config_label, rows in _configuration_groups(sessions):
+    for config_label, rows in _configuration_groups(sessions, naming):
         wall = statistics.mean([s["duration_seconds"] for s in rows])
         share = statistics.mean([s["slow_tool_share"] for s in rows])
         timeouts = sum(s["timed_out_tool_calls"] for s in rows)
@@ -380,7 +453,7 @@ def write_summary_csv(sessions: list[Session], path: Path) -> None:
         writer.writerows({k: s[k] for k in fields} for s in sessions)
 
 
-def accuracy_lines(sessions: list[Session]) -> list[str]:
+def accuracy_lines(sessions: list[Session], naming: Naming | None = None) -> list[str]:
     """Mean question accuracy per model: partial credit, for triage.
 
     A dependent workflow fails all at once, so the share of questions a run
@@ -406,7 +479,7 @@ def accuracy_lines(sessions: list[Session]) -> list[str]:
             "------------------|-----------------|"
         ),
     ]
-    for config_label, rows in _configuration_groups(sessions):
+    for config_label, rows in _configuration_groups(sessions, naming):
         accs = [s["accuracy"] for s in rows]
         costs = [s["cost_usd"] for s in rows if s["cost_usd"] is not None]
         cost_text = "$" + format(statistics.mean(costs), ".4f") if costs else "–"
@@ -434,15 +507,21 @@ def write_report_md(
     should leave knowing how often the whole workflow came back correct, not
     a mean that can sit at 93% while every trial failed.
     """
+    naming = naming_for(sessions, results_dir)
     lines = [
         "# EUDR workflow benchmark results",
         "",
         "Strict task success comes first. Everything under Diagnostics is",
         "partial credit: useful for triage, not a claim about reliability.",
         "",
+        "Each row names one configuration: the agent and model, the ablation",
+        "arm, the label the run was given, and only those identity fields",
+        "that differ between rows. The rest are stated here once.",
+        "",
     ]
+    lines += naming.held_constant()
     if results_dir is not None:
-        lines += reliability_lines(results_dir)
+        lines += reliability_lines(results_dir, naming)
     lines += [
         "## Diagnostics",
         "",
@@ -452,34 +531,118 @@ def write_report_md(
         "above is for.",
         "",
     ]
-    lines += accuracy_lines(sessions)
-    lines += runtime_lines(sessions)
-    lines += stage_grid_lines(sessions, questions or [])
+    lines += accuracy_lines(sessions, naming)
+    lines += runtime_lines(sessions, naming)
+    lines += stage_grid_lines(sessions, questions or [], naming)
     if results_dir is not None:
         lines += consistency_lines(results_dir)
     path.write_text("\n".join(lines))
 
 
-def write_pareto_png(sessions: list[Session], path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7, 5))
-    for config_label, group_rows in _configuration_groups(sessions):
+def pareto_frontier(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """The non-dominated points, cheapest first.
+
+    A configuration is dominated when another costs no more and scores at
+    least as well. What survives is the set worth choosing between, and the
+    line through them is the only part of the plot that answers "what should
+    I run?". Ties on cost keep the more accurate point.
+    """
+    best: list[tuple[float, float]] = []
+    ceiling = float("-inf")
+    for cost, accuracy in sorted(points, key=lambda p: (p[0], -p[1])):
+        if accuracy > ceiling:
+            best.append((cost, accuracy))
+            ceiling = accuracy
+    return best
+
+
+def write_pareto_png(
+    sessions: list[Session], path: Path, naming: Naming | None = None
+) -> None:
+    """Accuracy against cost: every trial faint, every configuration solid.
+
+    Three things the previous plot did not do. It draws the frontier, which
+    is the question a cost-accuracy plot is for and which no reader can trace
+    by eye through forty overlapping points. It shows each configuration's
+    spread as a bar, so a mean standing on one trial cannot read like a mean
+    standing on ten. And it puts the legend beside the axes, because a row
+    name is longer than the figure is wide.
+    """
+    groups = _configuration_groups(sessions, naming)
+    fig, ax = plt.subplots(figsize=(11, 6))
+    colours = plt.get_cmap("tab10").colors
+    means: list[tuple[float, float]] = []
+
+    for index, (config_label, group_rows) in enumerate(groups):
         rows = [s for s in group_rows if s["cost_usd"] is not None]
         if not rows:
             continue
-        ax.scatter(
-            [s["cost_usd"] for s in rows],
-            [s["accuracy"] for s in rows],
-            label=config_label,
-            alpha=0.7,
+        colour = colours[index % len(colours)]
+        costs = [s["cost_usd"] for s in rows]
+        scores = [s["accuracy"] for s in rows]
+        ax.scatter(costs, scores, color=colour, alpha=0.25, s=28, zorder=2)
+        mean_cost = statistics.mean(costs)
+        mean_score = statistics.mean(scores)
+        means.append((mean_cost, mean_score))
+        # Whiskers are the observed range, not an interval. With n as low as
+        # one there is no distribution to summarise, and a range that
+        # collapses to a point says exactly that.
+        ax.errorbar(
+            mean_cost,
+            mean_score,
+            xerr=[[mean_cost - min(costs)], [max(costs) - mean_cost]],
+            yerr=[[mean_score - min(scores)], [max(scores) - mean_score]],
+            fmt="o",
+            color=colour,
+            markersize=10,
+            markeredgecolor="white",
+            markeredgewidth=1.2,
+            elinewidth=1.4,
+            capsize=4,
+            zorder=3,
+            label=f"{config_label}  (n={len(rows)})",
         )
+
+    frontier = pareto_frontier(means)
+    if len(frontier) > 1:
+        ax.step(
+            [c for c, _a in frontier],
+            [a for _c, a in frontier],
+            where="post",
+            color="0.35",
+            linestyle="--",
+            linewidth=1.2,
+            zorder=1,
+            label="Pareto frontier",
+        )
+
     ax.set_xlabel("Imputed cost per session (USD, list prices)")
-    ax.set_ylabel("Accuracy (share of questions correct)")
+    ax.set_ylabel("Question accuracy")
     ax.set_ylim(0, 1.02)
-    ax.set_title("Accuracy vs cost: EUDR workflow, 10 passes per model")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    ax.set_xlim(left=0)
+    ax.yaxis.set_major_formatter(lambda y, _pos: f"{y:.0%}")
+    ax.xaxis.set_major_formatter(lambda x, _pos: f"${x:,.0f}")
+    trials = sum(len(rows) for _label, rows in groups)
+    ax.set_title(
+        f"Accuracy against cost: EUDR workflow, {trials} graded trials"
+        f" across {len(groups)} configurations",
+        loc="left",
+    )
+    ax.grid(True, alpha=0.3, linewidth=0.6)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        frameon=False,
+        fontsize=8,
+        title="Configuration",
+        title_fontsize=9,
+    )
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
 
 
 def main() -> int:
@@ -499,7 +662,9 @@ def main() -> int:
     questions = load_questions(args.questions)
     write_summary_csv(sessions, args.results / "summary.csv")
     write_report_md(sessions, args.results / "report.md", questions, args.results)
-    write_pareto_png(sessions, args.results / "pareto.png")
+    write_pareto_png(
+        sessions, args.results / "pareto.png", naming_for(sessions, args.results)
+    )
     print(f"wrote summary.csv, report.md, pareto.png to {args.results}/")
     return 0
 
