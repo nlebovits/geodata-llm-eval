@@ -1,5 +1,5 @@
-"""Session assembly: the workspace gets the policies and the input list, and
-never the golden fixtures. Does not require Docker."""
+"""Session assembly: the workspace gets the exact spec and the input
+list, and never the golden fixtures. Does not require Docker."""
 
 import itertools
 import json
@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HARNESS = REPO_ROOT / "harness"
 sys.path.insert(0, str(HARNESS))
 
+import layout
 import run
 
 
@@ -61,12 +62,17 @@ def test_run_py_never_copies_the_golden_fixtures() -> None:
             assert "golden" not in line.lower(), line.strip()
 
 
-def test_the_ablation_config_is_not_inside_the_policies_directory() -> None:
-    """policies/ is copied into the workspace wholesale. A config living there
-    would hand the session an itemised list of what was withheld from it,
-    which is the one thing an ablation must not reveal."""
+def test_the_ablation_config_never_reaches_the_workspace() -> None:
+    """The workspace receives only the exact SPEC.md and the input list. A
+    session that could read the ablation config would be handed an itemised
+    list of what was withheld from it, which is the one thing an ablation must
+    not reveal. This structural check ensures no assembly line copies or writes the
+    config, and it lives outside anything that is mounted."""
     assert run.ABLATIONS.exists(), "the shipped ablation config must be committed"
-    assert (REPO_ROOT / "policies") not in run.ABLATIONS.parents
+    source = (HARNESS / "run.py").read_text(encoding="utf-8")
+    for line in source.splitlines():
+        if "shutil.copy" in line or "copytree" in line or "write_text" in line:
+            assert "ablation" not in line.lower(), line.strip()
 
 
 def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
@@ -84,9 +90,9 @@ def test_an_ablated_run_assembles_the_workspace_without_the_dropped_policy(
     out = capsys.readouterr().out
 
     assert "arm no-coops" in out
-    assert "policies/COOPS.md" not in out.split("removed")[0], "COOPS.md must be gone"
-    assert "policies/MATCHING.md" in out, "the other policies must survive"
-    assert "removed 150 lines from policies/COOPS.md" in out
+    assert "removed" in out and "SPEC.md" in out
+    lines = [ln for ln in out.splitlines() if "removed" in ln]
+    assert lines and all("SPEC.md" in ln for ln in lines)
 
 
 def test_an_unknown_arm_fails_before_a_container_starts(
@@ -120,7 +126,7 @@ def test_a_plain_run_records_the_full_spec_and_reads_no_config(
     out = capsys.readouterr().out
 
     assert f"arm {run.FULL_SPEC}" in out
-    assert "policies/COOPS.md" in out and "removed" not in out
+    assert "SPEC.md" in out and "removed" not in out
 
 
 def fake_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -135,7 +141,7 @@ def test_dry_run_assembles_workspace_without_docker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     # dry_run prints the docker command and returns before invoking anything;
-    # it still copies policies + the list, so this exercises the mounting.
+    # it still stages the spec and copies the list, so this exercises mounting.
     class FakePrice:
         model_id = "claude-haiku-4-5-20251001"
 
@@ -145,6 +151,16 @@ def test_dry_run_assembles_workspace_without_docker(
     out = capsys.readouterr().out
     assert "docker run" in out
     assert "--model claude-haiku-4-5-20251001" in out
+
+
+def test_workspace_gets_the_exact_contract_and_no_review_notes(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    run.assemble_workspace(workspace, "csv")
+
+    assert (workspace / "SPEC.md").read_bytes() == (REPO_ROOT / "SPEC.md").read_bytes()
+    assert not (workspace / "docs").exists()
+    assert "REVIEW_ONLY_CANARY" not in (workspace / "SPEC.md").read_text("utf-8")
 
 
 def test_auth_mounts_a_session_copy_not_the_host_credentials(
@@ -240,77 +256,33 @@ def write_transcript(tmp_path: Path, records: list[dict[str, Any]]) -> Path:
     return path
 
 
-def test_a_rejected_credential_is_read_off_the_transcript(tmp_path: Path) -> None:
-    """The mounted token copy expires, and a session starting after it does
-    gets a 401 on its first call, retries ten times inside the CLI, then
-    exits having written nothing. To the resume loop that is indistinguishable
-    from a session that stopped with work left, so it starts it again into the
-    same rejection. One sweep spent all three attempts on that and returned
-    the arm at n=1."""
-    dead = write_transcript(
-        tmp_path,
-        [
-            {"type": "system", "subtype": "init", "session_id": "s"},
-            {
-                "type": "system",
-                "subtype": "api_retry",
-                "attempt": 1,
-                "error_status": 401,
-                "error": "authentication_failed",
-            },
-            {"type": "result", "is_error": True},
-        ],
-    )
-    assert run.credential_rejected(dead)
+def heartbeat(call_id: str, tool: str, seconds: float, nth: int = 1) -> dict[str, Any]:
+    """One heartbeat, in the shape the CLI actually writes.
 
-
-def test_a_transcript_with_no_401_is_not_read_as_a_credential_failure(
-    tmp_path: Path,
-) -> None:
-    healthy = write_transcript(
-        tmp_path,
-        [
-            {"type": "system", "subtype": "init", "session_id": "s"},
-            {
-                "type": "system",
-                "subtype": "api_retry",
-                "attempt": 1,
-                "error_status": 529,
-                "error": "overloaded",
-            },
-            {"type": "result", "is_error": False},
-        ],
-    )
-    assert not run.credential_rejected(healthy)
-
-
-def test_the_credential_check_reads_every_attempt_not_just_the_last(
-    tmp_path: Path,
-) -> None:
-    """The run that prompted this logged no api_retry on its third attempt:
-    by then the CLI could not find its config file and failed before reaching
-    the API at all. A check scoped to the latest attempt would have missed the
-    failure it was written for."""
-    path = write_transcript(
-        tmp_path,
-        [
-            {"type": "system", "subtype": "init", "session_id": "s"},
-            {"type": "system", "subtype": "api_retry", "error_status": 401},
-            {"type": "result", "is_error": True},
-            {"type": "system", "subtype": "init", "session_id": "s"},
-            {"type": "assistant", "message": {"content": []}},
-            {"type": "result", "is_error": True},
-        ],
-    )
-    assert run.credential_rejected(path)
-
-
-def heartbeat(call_id: str, tool: str, seconds: float) -> dict[str, Any]:
+    The `-heartbeat-N` suffix is the whole point. A helper that emitted a bare
+    id let tool_timings pass its tests while miscounting every real transcript.
+    """
     return {
         "type": "tool_heartbeat",
-        "tool_use_id": call_id,
+        "tool_use_id": f"toolu_{call_id}-heartbeat-{nth}",
         "tool_name": tool,
         "elapsed_time_seconds": seconds,
+    }
+
+
+def timed_out_result(call_id: str, after: str = "10m 0s") -> dict[str, Any]:
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": f"toolu_{call_id}",
+                    "is_error": True,
+                    "content": f"Exit code 143\nCommand timed out after {after}",
+                }
+            ]
+        },
     }
 
 
@@ -333,19 +305,74 @@ def test_tool_timings_take_the_last_heartbeat_per_call(tmp_path: Path) -> None:
     assert timings["slow_tool_seconds_by_tool"] == {"Bash": 90.0}
 
 
-def test_tool_timings_count_calls_that_hit_the_cap(tmp_path: Path) -> None:
-    """A call at the cap was killed, not answered. That is the difference
-    between a slow query and one that never returned, and a run whose wall
-    clock is mostly killed queries has measured nothing."""
+def test_tool_timings_count_the_calls_the_cli_says_it_killed(
+    tmp_path: Path,
+) -> None:
+    """A killed call is read from the tool result, not guessed from elapsed.
+
+    A session can raise its own Bash timeout per call, so no single duration
+    separates a slow call from a killed one. The old test compared elapsed
+    against a hardcoded 120 seconds, and every call that outlived two minutes
+    and finished counted as a timeout once the harness raised the cap.
+    """
     path = write_transcript(
         tmp_path,
         [
-            heartbeat("a", "Bash", run.TOOL_TIMEOUT_SECONDS),
-            heartbeat("b", "Bash", run.TOOL_TIMEOUT_SECONDS - 1),
+            heartbeat("a", "Bash", 30),
+            heartbeat("a", "Bash", 900, nth=30),
+            timed_out_result("a"),
+            heartbeat("b", "Bash", 480),
         ],
     )
 
-    assert run.tool_timings(path)["timed_out_tool_calls"] == 1
+    timings = run.tool_timings(path)
+
+    assert timings["timed_out_tool_calls"] == 1
+    # b ran eight minutes, four times the old cap, and was never killed.
+    assert timings["slow_tool_calls"] == 2
+
+
+def test_tool_timings_group_every_heartbeat_of_one_call(tmp_path: Path) -> None:
+    """One 300-second call arrives as ten heartbeats under ten ids.
+
+    Keying on the raw `tool_use_id` counted it ten times and summed the
+    running elapsed of each reading, which put the 2026-09-18 run at 194% of
+    its own wall clock.
+    """
+    path = write_transcript(
+        tmp_path,
+        [heartbeat("a", "Bash", 30 * n, nth=n) for n in range(1, 11)],
+    )
+
+    timings = run.tool_timings(path)
+
+    assert timings["slow_tool_calls"] == 1
+    assert timings["slow_tool_seconds"] == 300
+    assert timings["slow_tool_seconds_by_tool"] == {"Bash": 300.0}
+
+
+def test_a_successful_tool_error_is_not_a_timeout(tmp_path: Path) -> None:
+    """Most tool errors are the agent's SQL, not a killed process."""
+    path = write_transcript(
+        tmp_path,
+        [
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_a",
+                            "is_error": True,
+                            "content": 'Parser Error: syntax error at or near "rows"',
+                        }
+                    ]
+                },
+            }
+        ],
+    )
+
+    assert run.tool_timings(path)["timed_out_tool_calls"] == 0
 
 
 def test_tool_timings_survive_a_transcript_still_being_written(tmp_path: Path) -> None:
@@ -758,7 +785,9 @@ def test_the_prompt_rules_out_backgrounding_the_work() -> None:
     """One session parked an 8.4M-row join in a background task and ended its
     turn to wait for it; the container exited and killed the task. The prompt
     keeps the model in the foreground, in whatever words it uses to say so."""
-    task = (REPO_ROOT / "prompts" / "task.md").read_text("utf-8").lower()
+    import specdoc
+
+    task = specdoc.render(REPO_ROOT).lower()
     assert "foreground" in task
     assert "background" in task
 
@@ -769,7 +798,7 @@ def test_question_ids_are_the_question_count() -> None:
     ids = run.question_ids()
     assert len(ids) == run.question_count()
     assert len(set(ids)) == len(ids)
-    assert run.answer_name(ids[0]) == "q01", "task.md asks for answers/q{id}.csv"
+    assert run.answer_name(ids[0]) == "q01", "SPEC.md asks for answers/q{id}.csv"
 
 
 def test_missing_answers_names_what_the_session_still_owes(tmp_path: Path) -> None:
@@ -853,8 +882,8 @@ def test_the_session_id_is_the_last_one_the_transcript_carries(tmp_path: Path) -
 def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A repo root a session can be assembled from, outside the real one."""
     root = tmp_path / "repo"
-    for name in ("prompts", "policies", "fixtures"):
-        shutil.copytree(REPO_ROOT / name, root / name)
+    shutil.copytree(REPO_ROOT / "fixtures", root / "fixtures")
+    shutil.copy(REPO_ROOT / "SPEC.md", root / "SPEC.md")
     monkeypatch.setattr(run, "REPO_ROOT", root)
     monkeypatch.setattr(
         run,
@@ -920,6 +949,7 @@ def test_codex_session_uses_the_common_result_layout_and_status(
     assert (result / "transcript.jsonl").is_file()
     assert (result / "stderr.log").is_file()
     assert meta["schema_version"] == 2
+    assert meta["spec_contract_version"] == 2
     assert meta["agent"] == "codex"
     assert meta["status"] == "done"
     assert meta["imputed_cost_usd"] is None
@@ -1378,3 +1408,191 @@ def test_the_pins_digest_changes_with_the_pinned_data(tmp_path: Path) -> None:
     answer unchanged still changes what the session had to work from."""
     original = run.pins_fingerprint()
     assert original is not None and len(original) == 12
+
+
+def scripted_clock(monkeypatch: pytest.MonkeyPatch, marks: list[float]) -> None:
+    """Drive run.time.monotonic through a fixed sequence of readings."""
+    readings = iter(marks)
+    monkeypatch.setattr(run.time, "monotonic", lambda: next(readings))
+
+
+def test_the_route_sample_separates_latency_from_throughput(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Four seconds of DNS, TCP, TLS, and TTFB in front of a one-second
+    transfer is a 1 MB/s link, not a 200 kB/s one. Dividing the megabyte by
+    the sum is what printed 0.5 MB/s on a gigabit line."""
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * run.PROBE_BYTES, "abc-LHR"),
+    )
+    # started, first_byte, done.
+    scripted_clock(monkeypatch, [10.0, 14.0, 15.0])
+
+    sample = run.source_coop_sample()
+
+    assert sample["ttfb_seconds"] == 4.0
+    assert sample["transfer_seconds"] == 1.0
+    assert sample["seconds"] == 5.0
+    assert sample["bytes_per_second"] == run.PROBE_BYTES
+
+
+def test_an_instant_transfer_reports_no_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cached or mocked read can finish inside one clock tick. The rate is
+    unknown there, and None says so where a division would raise."""
+    fake_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        run.urllib.request,
+        "urlopen",
+        lambda request, timeout=None: SampleResponse(b"x" * run.PROBE_BYTES),
+    )
+    scripted_clock(monkeypatch, [3.0, 3.0, 3.0])
+
+    sample = run.source_coop_sample()
+
+    assert sample["ok"] is True
+    assert sample["bytes_per_second"] is None
+
+
+def test_the_route_summary_prints_both_numbers() -> None:
+    line = run.route_summary(
+        {"bytes_per_second": 9_100_000, "ttfb_seconds": 1.94, "colo": "LHR"}
+    )
+
+    assert line == "source.coop ttfb 1.9s, 9.1 MB/s via LHR"
+
+
+def test_the_route_summary_says_unreachable_without_a_rate() -> None:
+    """A failed probe has no bytes and no timings. Formatting one as 0.0 MB/s
+    would read as a measurement of a link that was never measured."""
+    assert run.route_summary({"ok": False, "error": "URLError: reset"}) == (
+        "source.coop unreachable via ?"
+    )
+    assert (
+        run.route_summary({"bytes_per_second": None, "colo": "AMS"})
+        == "source.coop unreachable via AMS"
+    )
+
+
+def test_the_probe_reads_past_tcp_slow_start() -> None:
+    """A fresh connection spends most of a megabyte ramping. Measured on one
+    link: 1.2 MB/s over 1 MB, 6.0 MB/s over 8 MB, 12.8 MB/s over 32 MB. The
+    smallest read reports a tenth of the rate the route can hold."""
+    assert run.PROBE_BYTES >= 8 * 1_048_576
+
+
+def test_a_sweep_records_one_harness_commit_for_every_pass(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A commit landing mid-sweep used to split one configuration into two.
+
+    harness_commit is a fingerprint field, so ten trials that straddled a
+    commit reported as separate rows and lost the pass^k estimate that ten
+    trials would have supported. The commit is read once, when the sweep
+    starts, and every pass in it records that one.
+    """
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["run.py", "--model", "opus", "--passes", "3"])
+    heads = iter(["commit-one", "commit-two", "commit-three"])
+    monkeypatch.setattr(run, "harness_commit", lambda: next(heads))
+    seen: list[str] = []
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: seen.append(k["commit"]))
+
+    assert run.main() == 0
+    assert seen == ["commit-one"] * 3
+
+
+def test_a_session_started_on_its_own_still_reads_the_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """run_session is callable without a sweep around it, so an absent commit
+    means 'ask git', not 'record nothing'."""
+    monkeypatch.setattr(run, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(run, "harness_commit", lambda: "abc1234")
+    seen: list[str] = []
+
+    class Stop(Exception):
+        pass
+
+    def capture(started: object, commit: str) -> str:
+        seen.append(commit)
+        raise Stop
+
+    monkeypatch.setattr(run, "run_id", capture)
+
+    with pytest.raises(Stop):
+        run.run_session("opus", dry_run=True)
+
+    assert seen == ["abc1234"]
+
+
+# --- a memory kill is its own failure ---
+
+
+def _tool_error(text: str) -> dict[str, object]:
+    """One transcript record carrying a failed tool result."""
+    return {
+        "type": "user",
+        "message": {
+            "content": [
+                {"type": "tool_result", "is_error": True, "content": text},
+            ]
+        },
+    }
+
+
+def test_a_tool_call_the_kernel_killed_is_counted(tmp_path: Path) -> None:
+    """DuckDB asking for more than the cgroup allows dies with no error text.
+    The agent sees a dead command, so the count is the only trace."""
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in (
+                _tool_error("Exit code 137"),
+                _tool_error("Exit code 137\nKilled"),
+                _tool_error("Command timed out after 2m 0s"),
+                _tool_error("Exit code 1: no such file"),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    timings = run.tool_timings(transcript)
+
+    assert timings["sigkilled_tool_calls"] == 2
+    # The two counts are independent: a timeout is not a memory kill.
+    assert timings["timed_out_tool_calls"] == 1
+
+
+def test_a_container_the_kernel_killed_is_not_a_plain_failure() -> None:
+    """Ten of these in a sweep mean the memory cap is wrong. That has to be
+    visible in the status, not buried in a transcript."""
+    status = run.execution_status(20, container_oom=True)
+
+    assert status == layout.CONTAINER_OOM
+    # A real failure the agent owns, so it stays in the denominator.
+    assert layout.is_valid({"status": status})
+    # It outranks the short run it caused, because it says why the run is short.
+    assert run.execution_status(20) == layout.INCOMPLETE
+
+
+def test_a_wall_clock_kill_is_not_read_as_a_memory_kill() -> None:
+    """The harness kills a session that outruns its wall clock, and that exits
+    137 too. Only the harness knows which of the two pulled the trigger."""
+    status = run.execution_status(20, timed_out=True, container_oom=True)
+
+    assert status == layout.AGENT_TIMEOUT
+
+
+def test_a_dead_credential_still_outranks_a_memory_kill() -> None:
+    """A session that never reached the task cannot have run out of memory
+    doing it."""
+    status = run.execution_status(0, credential_dead=True, container_oom=True)
+
+    assert status == layout.AUTHENTICATION_INVALID

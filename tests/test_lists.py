@@ -1,6 +1,6 @@
 """Checks on the input list and the reconciliation it is there to exercise.
 
-The list used to be pristine, which made policies/INPUTS.md unmeasurable: every
+The list used to be pristine, which made SPEC.md section 4 unmeasurable: every
 rule in it described a case the fixture never produced, so withholding the
 document cost a session nothing. These tests pin the defects into place. They
 run offline against the committed fixtures; the generator's determinism check
@@ -256,7 +256,7 @@ def test_the_generator_never_reaches_the_network() -> None:
 
 
 def test_the_reconciliation_identity_holds() -> None:
-    """policies/INPUTS.md:34. Every input row lands in exactly one bucket, so
+    """SPEC.md's reconciliation rule puts every input row in one bucket, so
     the buckets sum to the arrival count. A golden that breaks this is either a
     row counted twice or one dropped silently, which is the failure the whole
     document exists to prevent."""

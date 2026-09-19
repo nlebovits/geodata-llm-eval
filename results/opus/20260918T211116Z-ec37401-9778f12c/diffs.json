@@ -1,0 +1,56 @@
+{
+  "q03": [
+    {
+      "answer": 8453554,
+      "column": "n_rows",
+      "golden": 8453552,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    },
+    {
+      "answer": 8437940,
+      "column": "n_distinct_ids",
+      "golden": 8437938,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.0,
+      "rel_error": 0.0,
+      "row": 0
+    }
+  ],
+  "q13": [
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.034483,
+      "rel_error": 0.034483,
+      "row": 6
+    }
+  ],
+  "q15": [
+    {
+      "answer": 95,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.188034,
+      "rel_error": 0.188034,
+      "row": 0
+    }
+  ]
+}

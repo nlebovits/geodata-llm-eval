@@ -2,8 +2,8 @@
 
 The benchmark measures whether a model implements a written spec. It cannot,
 on its own, say how much any part of that spec is worth. An ablation answers
-that by removing a piece and re-running: drop a whole policy document, or cut
-one section out of one.
+that by removing a piece and re-running: cut a whole section of SPEC.md, or a
+single rule inside one.
 
 Two rules run through everything here.
 
@@ -33,7 +33,7 @@ from typing import Any
 # axis, and folding it in here would make every csv-versus-geometry comparison
 # read as two different specs. When a future operation reaches something new --
 # a mirrored catalog, say -- it belongs in this tuple.
-FINGERPRINTED = ("task.md", "policies")
+FINGERPRINTED = ("SPEC.md",)
 
 # An ATX heading: up to six hashes, whitespace, the text, optional closing
 # hashes. Setext headings (text underlined with === or ---) are not supported,
@@ -156,9 +156,50 @@ def _cut(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
     receipt[relpath] = receipt.get(relpath, 0) + (end - start)
 
 
+def _cut_rule(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
+    """Remove a rule by its stable ID, independent of surrounding prose."""
+    if not isinstance(spec, str) or not ARM_NAME.fullmatch(spec):
+        raise AblationError(f"cut_rule takes a rule ID, got {spec!r}")
+    _cut(
+        workspace,
+        {"file": "SPEC.md", "heading": f"Rule: {spec}"},
+        receipt,
+    )
+
+
+def _cut_section(workspace: Path, spec: Any, receipt: dict[str, int]) -> None:
+    """Remove a numbered top-level section without coupling to its title."""
+    section_id = str(spec).strip()
+    if not section_id.isdigit():
+        raise AblationError(f"cut_section takes a numeric section ID, got {spec!r}")
+
+    target = _resolve(workspace, "SPEC.md")
+    if not target.is_file():
+        raise AblationError(
+            "cut_section target is not a file in the workspace: SPEC.md"
+        )
+    headings = _headings(target.read_text(encoding="utf-8").splitlines())
+    prefix = f"{section_id}. "
+    matches = [
+        text
+        for _line, level, text in headings
+        if level == 2 and text.startswith(prefix)
+    ]
+    if len(matches) != 1:
+        raise AblationError(
+            f"SPEC.md has {len(matches)} level-2 sections with ID {section_id!r}"
+        )
+    _cut(workspace, {"file": "SPEC.md", "heading": matches[0]}, receipt)
+
+
 # name -> operation. A future ablation registers one entry; nothing else here
 # needs to know it exists.
-OPS = {"drop": _drop, "cut": _cut}
+OPS = {
+    "drop": _drop,
+    "cut": _cut,
+    "cut_rule": _cut_rule,
+    "cut_section": _cut_section,
+}
 
 
 def apply_arm(workspace: Path, ops: list[Any]) -> dict[str, int]:
@@ -261,25 +302,13 @@ def load_arms(path: Path) -> dict[str, Any]:
     return {"baseline": baseline, "arms": arms}
 
 
-def spec_sources(repo_root: Path) -> dict[str, Path]:
-    """Where each fingerprinted workspace path comes from in the repo.
-
-    run.py assembles the workspace from these; validation stages the same set
-    so a dry run exercises the paths a session will.
-    """
-    return {
-        "task.md": repo_root / "prompts" / "task.md",
-        "policies": repo_root / "policies",
-    }
-
-
 def stage_spec(repo_root: Path, dest: Path) -> None:
-    """Copy the spec into `dest` the way run.py assembles a workspace."""
-    for name, src in spec_sources(repo_root).items():
-        if src.is_dir():
-            shutil.copytree(src, dest / name)
-        else:
-            shutil.copy(src, dest / name)
+    """Stage the spec in `dest` the way run.py assembles a workspace.
+
+    Validation stages the same exact view a session receives, so a dry run
+    exercises the text an arm's operations will cut.
+    """
+    shutil.copy(repo_root / "SPEC.md", dest / "SPEC.md")
 
 
 def validate_arms(

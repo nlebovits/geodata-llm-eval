@@ -127,6 +127,22 @@ def test_cut_matches_heading_text_without_the_hashes(tmp_path: Path) -> None:
     assert "Cut me" not in (ws / "policies/p.md").read_text(encoding="utf-8")
 
 
+def test_cut_rule_targets_the_stable_rule_id(tmp_path: Path) -> None:
+    doc = "# T\n\n## 1. Any title\n\n### Rule: stable-id\n\nsecret\n"
+    ws = workspace(tmp_path, **{"SPEC.md": doc})
+    ablation.apply_arm(ws, [{"cut_rule": "stable-id"}])
+    assert "stable-id" not in (ws / "SPEC.md").read_text(encoding="utf-8")
+
+
+def test_cut_section_ignores_the_display_title(tmp_path: Path) -> None:
+    doc = "# T\n\n## 4. A completely rewritten title\n\nsecret\n\n## 5. Keep\n\nbody\n"
+    ws = workspace(tmp_path, **{"SPEC.md": doc})
+    ablation.apply_arm(ws, [{"cut_section": 4}])
+    out = (ws / "SPEC.md").read_text(encoding="utf-8")
+    assert "rewritten title" not in out
+    assert "## 5. Keep" in out
+
+
 def test_cut_leaves_no_marker_and_no_run_of_blank_lines(tmp_path: Path) -> None:
     """A visible seam tells the session that spec was withheld, and it will
     hedge or report the policy as incomplete. That measures the notice, not
@@ -150,7 +166,7 @@ def test_cut_ignores_heading_shaped_lines_inside_a_code_fence(tmp_path: Path) ->
 
 
 def test_a_horizontal_rule_is_not_read_as_a_setext_heading(tmp_path: Path) -> None:
-    """policies/MATCHING.md ends its body with a bare `---`. A setext parser
+    """The former matching policy ended with a bare `---`. A setext parser
     reads that as underlining the line above it."""
     doc = "# T\n\n## One\n\nbody\n\n---\n\n## Two\n\nb\n"
     ws = workspace(tmp_path, **{"policies__p.md": doc})
@@ -206,27 +222,28 @@ def test_two_identical_workspaces_fingerprint_the_same(tmp_path: Path) -> None:
 
 
 def test_the_fingerprint_moves_when_a_section_is_cut(tmp_path: Path) -> None:
-    ws = workspace(tmp_path, **{"policies__p.md": DOC, "task.md": "t\n"})
+    ws = workspace(tmp_path, **{"SPEC.md": DOC})
     before, _ = ablation.spec_fingerprint(ws)
-    ablation.apply_arm(ws, [{"cut": {"file": "policies/p.md", "heading": "Cut me"}}])
+    ablation.apply_arm(ws, [{"cut": {"file": "SPEC.md", "heading": "Cut me"}}])
     assert ablation.spec_fingerprint(ws)[0] != before
 
 
-def test_the_fingerprint_moves_when_a_file_is_dropped(tmp_path: Path) -> None:
-    """Dropping changes no surviving file, so the path has to be inside the
-    digest or the deletion is invisible to it."""
-    ws = workspace(tmp_path, **{"policies__a.md": "a\n", "policies__b.md": "b\n"})
+def test_the_fingerprint_ignores_files_outside_the_spec(tmp_path: Path) -> None:
+    """The input list is deliberately outside the digest: input_mode is its
+    own recorded axis, and folding it in would make every csv-versus-geometry
+    comparison read as two different specs."""
+    ws = workspace(tmp_path, **{"SPEC.md": DOC, "notes.txt": "a\n"})
     before, _ = ablation.spec_fingerprint(ws)
-    ablation.apply_arm(ws, [{"drop": "policies/a.md"}])
-    assert ablation.spec_fingerprint(ws)[0] != before
+    (ws / "notes.txt").write_text("b\n", encoding="utf-8")
+    assert ablation.spec_fingerprint(ws)[0] == before
 
 
 def test_the_manifest_names_every_spec_file(tmp_path: Path) -> None:
-    """It turns "these two runs disagree" into "...because MATCHING.md
-    differs" without re-running either of them."""
-    ws = workspace(tmp_path, **{"policies__a.md": "a\n", "task.md": "t\n"})
+    """It turns "these two runs disagree" into "...because the spec differs"
+    without re-running either of them."""
+    ws = workspace(tmp_path, **{"SPEC.md": "# s\n", "notes.txt": "x\n"})
     _digest, manifest = ablation.spec_fingerprint(ws)
-    assert sorted(manifest) == ["policies/a.md", "task.md"]
+    assert sorted(manifest) == ["SPEC.md"]
 
 
 def test_the_input_lists_are_outside_the_fingerprint() -> None:
@@ -262,10 +279,10 @@ def test_a_baseline_naming_no_arm_is_rejected(tmp_path: Path) -> None:
         ablation.load_arms(path)
 
 
-def test_the_shipped_config_validates_against_the_real_policy_files(
+def test_the_shipped_config_validates_against_the_real_spec(
     tmp_path: Path,
 ) -> None:
-    """The highest-value test here. Reword a heading in COOPS.md and this
+    """The highest-value test here. Reword a heading in SPEC.md and this
     fails in CI, rather than four hours into a sweep whose arms all quietly
     scored like the baseline."""
     cfg = ablation.load_arms(REPO_ROOT / "fixtures" / "ablations.yaml")
@@ -292,7 +309,7 @@ arms:
   broken:
     why: names a heading that is not there
     ops:
-      - cut: {file: policies/COOPS.md, heading: No Such Heading}
+      - cut: {file: SPEC.md, heading: No Such Heading}
 """,
     )
     cfg = ablation.load_arms(path)

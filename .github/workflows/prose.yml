@@ -27,14 +27,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out the pull request base
-        if: github.event_name == 'pull_request'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: base
-          persist-credentials: false
-
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
@@ -106,28 +98,3 @@ jobs:
           if ((${#files[@]})); then
             vale --minAlertLevel=error --output=line "${files[@]}"
           fi
-
-      - name: Capture current benchmark-input errors
-        if: github.event_name == 'pull_request'
-        working-directory: repo
-        run: >-
-          vale --minAlertLevel=error --output=JSON policies prompts
-          > ../current-vale.json || true
-
-      - name: Capture base benchmark-input errors
-        if: github.event_name == 'pull_request'
-        working-directory: base
-        run: >-
-          vale --config ../repo/.vale.ini --minAlertLevel=error
-          --output=JSON policies prompts > ../base-vale.json || true
-
-      - name: Reject new benchmark-input errors
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git -C repo diff --name-status -z --find-renames \
-            "$BASE_SHA" "$HEAD_SHA" -- policies prompts > vale-renames
-          python3 repo/scripts/compare_vale.py \
-            base-vale.json current-vale.json --renames vale-renames

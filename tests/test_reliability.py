@@ -160,6 +160,7 @@ def test_every_status_the_module_can_return_is_declared() -> None:
         {"status": "done", "strict_success": False},
         {"status": "done"},
         {"status": "agent_timeout"},
+        {"status": "container_oom"},
         {"status": "produced_nothing"},
         {"status": "authentication_invalid"},
         {"status": "infrastructure_invalid"},

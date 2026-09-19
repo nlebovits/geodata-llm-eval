@@ -36,6 +36,7 @@ import ablation
 import agents
 import layout
 import runtime
+import specdoc
 from pricing import PRICES, imputed_cost_usd
 from probe import USER_AGENT
 
@@ -76,7 +77,7 @@ MAX_WALL_SECONDS = 0
 # that stops for a reason other than waiting will stop again.
 MAX_ATTEMPTS = 3
 
-INITIAL_PROMPT = "Read task.md and complete it."
+INITIAL_PROMPT = "Read SPEC.md and complete it."
 
 # --follow truncates each tool call to one line of this width. A session
 # writes multi-line heredocs of SQL; the point of following is to see what it
@@ -86,12 +87,19 @@ FOLLOW_WIDTH = 150
 # Where a tool call's subject lives, by tool. Falls back to the whole input.
 TOOL_SUBJECT_KEYS = ("command", "file_path", "pattern", "path", "prompt")
 
-# A 1 MB range read is big enough to measure a route and small enough that
+# An 8 MB range read is big enough to measure a route and small enough that
 # a dead one fails fast. See source-cooperative/data.source.coop#194.
-PROBE_BYTES = 1_048_576
+#
+# 1 MB was too small. A fresh TCP connection spends most of a megabyte in
+# slow start, so the same link that sustains 13 MB/s over 32 MB measures
+# 1.2 MB/s over 1 MB. That tenfold understatement is a route diagnosis
+# pointing at the wrong cause, which is what this sample exists to prevent.
+# 8 MB reads within about a factor of two of steady state and adds roughly
+# 1.5 seconds to the start of a run.
+PROBE_BYTES = 8 * 1_048_576
 PROBE_TIMEOUT = 30
 
-# The input list, by encoding (see policies/INPUTS.md). experiment 1 (Goiás)
+# The input list, by encoding (see SPEC.md §4). experiment 1 (Goiás)
 # ships csv; the geometry/split encodings drive the adversarial follow-up.
 INPUT_FILES = {
     "csv": ["goias-sample.csv"],
@@ -246,53 +254,71 @@ def session_id(transcript_path: Path) -> str | None:
     return found
 
 
-def credential_rejected(transcript_path: Path) -> bool:
-    """Whether a 401 appears anywhere in this run's transcript.
+# A heartbeat's `tool_use_id` is not the call's id. The CLI appends a
+# per-heartbeat suffix, so one 300-second Bash call arrives as
+# `toolu_018fJLAK...-heartbeat-1` through `-heartbeat-9`. Grouping on the raw
+# field counts that call nine times and sums its running elapsed as though the
+# readings were separate calls, which put one 2026-09-18 run at 194% of its own
+# wall clock. Splitting here restores one entry per call.
+HEARTBEAT_SUFFIX = re.compile(r"-heartbeat-\d+$")
 
-    The mounted token copy expires, and a session starting after it does gets
-    a 401 on its first call. The CLI retries ten times, logging each as an
-    `api_retry` record, then exits 1 having written nothing -- which reads to
-    the resume loop exactly like a session that stopped with work left.
+# What a killed call says. The CLI reports it verbatim in the tool result, so
+# this is a fact from the transcript rather than an inference from duration.
+# The previous test compared elapsed against a hardcoded 120-second cap, which
+# silently became wrong the moment the harness raised BASH_DEFAULT_TIMEOUT_MS:
+# every call that ran longer than two minutes and finished was counted as a
+# timeout. A phrase the CLI itself emits cannot drift out of step with the cap.
+TIMEOUT_MARKER = "Command timed out"
 
-    The caller pairs this with "no answers at all", because that combination
-    is what distinguishes a dead credential from one refreshed mid-session:
-    a run that recovered has answers on disk and is worth resuming. Read on
-    its own this is deliberately broad, and it has to be. In the run that
-    prompted it, the third attempt logged no api_retry at all -- by then the
-    CLI could not find its config file and failed before reaching the API --
-    so a rule that inspected only the latest attempt would have missed the
-    very failure it was written for.
-    """
-    return any(
-        record.get("subtype") == "api_retry" and record.get("error_status") == 401
-        for record in read_records(transcript_path)
-    )
+# What a tool call reports when the kernel killed its child. 137 is 128 plus
+# SIGKILL, and under a memory cap the OOM killer is what sends it: DuckDB asks
+# for more than the cgroup allows, the kernel takes the process, and bash
+# reports the status. The agent sees a dead command with no error text, which
+# is why this is counted rather than left for a reader to find.
+#
+# SIGKILL has other senders. A session that kills its own background job
+# produces the same code. The count is therefore an upper bound on OOM kills,
+# and the name says what it measures rather than what caused it.
+SIGKILL_MARKER = "Exit code 137"
+
+# The exit code `docker run` returns when the kernel killed the agent process
+# itself. Same number, one level up: the container breached --memory rather
+# than a command inside it.
+CONTAINER_SIGKILL = 137
 
 
-# The CLI caps a Bash call here. A call reported at or above the cap was
-# killed rather than answered, which is the difference between a query that
-# was slow and one that never returned.
-TOOL_TIMEOUT_SECONDS = 120
+def _call_id(heartbeat_id: str) -> str:
+    """The tool call a heartbeat belongs to."""
+    return HEARTBEAT_SUFFIX.sub("", heartbeat_id)
 
 
 def tool_timings(transcript_path: Path) -> dict[str, Any]:
     """Where a session spent its wall clock.
 
     The CLI emits heartbeat records carrying a running `elapsed_time_seconds`
-    for calls slow enough to need one, so the last heartbeat per tool_use_id
-    is a lower bound on that call's duration. Short calls emit none and are
+    for calls slow enough to need one, so the last heartbeat per call is a
+    lower bound on that call's duration. Short calls emit none and are
     invisible here, which is the point: this measures the tail.
 
     Remote reads dominate a run of this benchmark, so a total duration on its
     own cannot distinguish a session that thought for half an hour from one
     that waited on source.coop for half an hour.
+
+    Timeouts are counted from the tool results, not from these durations. A
+    session may raise its own Bash timeout per call, so no single number
+    separates a slow call from a killed one. The killed call says so itself.
     """
     longest: dict[str, tuple[str, float]] = {}
+    timed_out = 0
+    sigkilled = 0
     for record in read_records(transcript_path):
+        timed_out += _errors_matching(record, TIMEOUT_MARKER)
+        sigkilled += _errors_matching(record, SIGKILL_MARKER)
         seconds = record.get("elapsed_time_seconds")
-        call_id = record.get("tool_use_id")
-        if seconds is None or call_id is None:
+        heartbeat_id = record.get("tool_use_id")
+        if seconds is None or heartbeat_id is None:
             continue
+        call_id = _call_id(str(heartbeat_id))
         name = record.get("tool_name") or "unknown"
         if call_id not in longest or seconds > longest[call_id][1]:
             longest[call_id] = (name, float(seconds))
@@ -300,13 +326,37 @@ def tool_timings(transcript_path: Path) -> dict[str, Any]:
     per_tool: dict[str, float] = {}
     for name, seconds in longest.values():
         per_tool[name] = round(per_tool.get(name, 0.0) + seconds, 1)
-    timed_out = sum(1 for _, s in longest.values() if s >= TOOL_TIMEOUT_SECONDS)
     return {
         "slow_tool_calls": len(longest),
         "slow_tool_seconds": round(sum(s for _, s in longest.values()), 1),
         "slow_tool_seconds_by_tool": per_tool,
         "timed_out_tool_calls": timed_out,
+        "sigkilled_tool_calls": sigkilled,
     }
+
+
+def _errors_matching(record: Record, marker: str) -> int:
+    """How many failed tool calls in one record carry this marker.
+
+    A failed call comes back as a `tool_result` block with `is_error` set and
+    the CLI's own text in its content. The content is a string for a Bash
+    result and a list of blocks for others, so both shapes are read.
+    """
+    content = record.get("message", {}).get("content")
+    if not isinstance(content, list):
+        return 0
+    found = 0
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        if not block.get("is_error"):
+            continue
+        body = block.get("content")
+        if not isinstance(body, str):
+            body = json.dumps(body)
+        if marker in body:
+            found += 1
+    return found
 
 
 def tool_subject(payload: Record) -> str:
@@ -348,7 +398,7 @@ def question_count() -> int:
 
 
 def answer_name(question_id: str) -> str:
-    """The answer file a question is written to, as task.md names it."""
+    """The answer file a question is written to, as SPEC.md names it."""
     return f"q{question_id}"
 
 
@@ -380,16 +430,19 @@ def resume_prompt(missing: list[str]) -> str:
         "when your turn ended, and its output is gone. Redo that work in the "
         "foreground, waiting for each query to return before you move on, "
         "and write each answer to answers/<question-id>.csv as soon as you "
-        "have it. Re-read task.md if you need the output contracts."
+        "have it. Re-read SPEC.md if you need the output contracts."
     )
 
 
 def execution_status(
-    answered: int, timed_out: bool = False, credential_dead: bool = False
+    answered: int,
+    timed_out: bool = False,
+    credential_dead: bool = False,
+    container_oom: bool = False,
 ) -> str:
     """The status this run records, before grading has an opinion.
 
-    Four outcomes the harness can see for itself. `done` and `incomplete`
+    Five outcomes the harness can see for itself. `done` and `incomplete`
     both mean the session ran and wrote answers, and which of them becomes a
     passed or failed trial is grading's call, not this function's.
 
@@ -398,11 +451,18 @@ def execution_status(
     the trial is invalid rather than a failure the agent owns. It only counts
     when nothing was answered -- a session that recovered mid-run and wrote
     answers was measured, whatever happened to its first token.
+
+    A memory kill outranks both an empty run and a short one for the same
+    reason: it says why the answers stop. It ranks below a timeout because a
+    session the harness killed on the wall clock also exits 137, and there the
+    harness knows it pulled the trigger.
     """
     if credential_dead and answered == 0:
         return layout.AUTHENTICATION_INVALID
     if timed_out:
         return layout.AGENT_TIMEOUT
+    if container_oom:
+        return layout.CONTAINER_OOM
     if answered == 0:
         return layout.AGENT_PRODUCED_NOTHING
     if answered < question_count():
@@ -636,15 +696,10 @@ def resolve_arm(arm: str, ablations: Path | None) -> dict[str, Any]:
 def assemble_workspace(workspace: Path, input_mode: str) -> None:
     """Build the tree the session is pointed at.
 
-    The policy documents are the binding spec the agent implements. The golden
-    fixtures never enter the workspace.
+    The exact SPEC.md is the binding document the agent implements. The
+    golden fixtures never enter the workspace.
     """
-    shutil.copy(REPO_ROOT / "prompts" / "task.md", workspace / "task.md")
-    shutil.copy(
-        REPO_ROOT / "fixtures" / "questions.yaml",
-        workspace / "questions.yaml",
-    )
-    shutil.copytree(REPO_ROOT / "policies", workspace / "policies")
+    shutil.copy(REPO_ROOT / "SPEC.md", workspace / "SPEC.md")
     lists_dir = workspace / "lists"
     lists_dir.mkdir()
     for src in list_files(input_mode):
@@ -729,14 +784,21 @@ def run_session(
     agent: str = "claude",
     reasoning_effort: str | None = None,
     auth: str | None = None,
+    commit: str | None = None,
 ) -> None:
     arm_spec = resolve_arm(arm, ablations)
+    # Read once and reused for the run id and both meta writes. Asking git per
+    # call meant a commit made while a sweep was running landed in the runs
+    # after it and not the ones before, and harness_commit is a fingerprint
+    # field. Ten trials of one configuration then reported as three rows of
+    # one, four, and five, and pass^10 read blank on all three.
+    commit = commit or harness_commit()
 
     adapter = make_adapter(agent, model, reasoning_effort, auth)
     model_id = adapter.model_id
     result_key = agent_result_key(adapter, model)
     started = datetime.now(UTC)
-    name = run_id(started, harness_commit())
+    name = run_id(started, commit)
     out_dir = REPO_ROOT / "results" / result_key / name
     container = f"geodata-eval-{result_key}-{name}-{os.getpid()}"
 
@@ -776,8 +838,8 @@ def run_session(
                 "expected_duckdb_version": agents.DUCKDB_VERSION,
                 "max_attempts": max_attempts,
                 "max_wall_seconds": max_wall_seconds,
-                "cpu_limit": None,
-                "memory_limit": None,
+                "cpu_limit": agents.CPU_LIMIT,
+                "memory_limit": agents.MEMORY_LIMIT,
             }
             failed_meta = {
                 "schema_version": 2,
@@ -793,13 +855,14 @@ def run_session(
                 "duration_seconds": 0.0,
                 "exit_code": None,
                 "attempts": 0,
-                "harness_commit": harness_commit(),
+                "harness_commit": commit,
                 "input_mode": input_mode,
                 "golden_fingerprint": golden_fingerprint(),
                 "pins_fingerprint": pins_fingerprint(),
                 "max_attempts": max_attempts,
                 "max_wall_seconds": max_wall_seconds,
                 "spec_fingerprint": spec_digest,
+                "spec_contract_version": specdoc.CONTRACT_VERSION,
                 "spec_manifest": spec_manifest,
                 "ablation": arm_spec,
                 "status": layout.INFRASTRUCTURE_INVALID,
@@ -823,12 +886,7 @@ def run_session(
         # is the whole trial's, not each attempt's.
         timed_out = False
         catalog_before = source_coop_sample()
-        rate = catalog_before.get("bytes_per_second")
-        speed = f"{rate / 1e6:.1f} MB/s" if rate else "unreachable"
-        print(
-            f"[{model}/{name}] starting"
-            f" (source.coop {speed} via {catalog_before.get('colo') or '?'})"
-        )
+        print(f"[{model}/{name}] starting ({route_summary(catalog_before)})")
 
         follower = Follower() if follow else None
 
@@ -981,8 +1039,8 @@ def run_session(
             "runtime_cli_version": runtime_info["cli_version"],
             "max_attempts": max_attempts,
             "max_wall_seconds": max_wall_seconds,
-            "cpu_limit": None,
-            "memory_limit": None,
+            "cpu_limit": agents.CPU_LIMIT,
+            "memory_limit": agents.MEMORY_LIMIT,
         }
         config_digest = agent_config_fingerprint(config)
         cost = (
@@ -1019,13 +1077,14 @@ def run_session(
             "duration_seconds": duration,
             "exit_code": returncode,
             "attempts": attempts,
-            "harness_commit": harness_commit(),
+            "harness_commit": commit,
             "input_mode": input_mode,
             "golden_fingerprint": golden_fingerprint(),
             "pins_fingerprint": pins_fingerprint(),
             "max_attempts": max_attempts,
             "max_wall_seconds": max_wall_seconds,
             "spec_fingerprint": spec_digest,
+            "spec_contract_version": specdoc.CONTRACT_VERSION,
             "spec_manifest": spec_manifest,
             "ablation": arm_spec,
             "catalog_at_start": catalog_before,
@@ -1042,6 +1101,9 @@ def run_session(
             answered,
             timed_out=timed_out,
             credential_dead=facts.authentication_rejected,
+            # The kernel killed the agent process. Only trustworthy when the
+            # harness did not kill it first, which `timed_out` records.
+            container_oom=returncode == CONTAINER_SIGKILL and not timed_out,
         )
         (out_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
         cost_text = (
@@ -1055,7 +1117,8 @@ def run_session(
             f" {stats['turns']} turns,"
             f" {duration / 60:.0f}m wall"
             f" ({waited / 60:.0f}m in slow tool calls,"
-            f" {meta['timed_out_tool_calls']} timed out),"
+            f" {meta['timed_out_tool_calls']} timed out,"
+            f" {meta['sigkilled_tool_calls']} killed),"
             f" {cost_text}" + (f", {attempts} attempts" if attempts > 1 else "")
         )
         if answered < question_count():
@@ -1079,6 +1142,23 @@ def run_id(started: datetime, commit: str, nonce: str | None = None) -> str:
     return f"{started.strftime('%Y%m%dT%H%M%SZ')}-{commit[:7]}-{unique}"
 
 
+def route_summary(sample: dict[str, Any]) -> str:
+    """The route, as one line of the run header.
+
+    Latency and throughput are printed as two numbers because they fail
+    independently. source.coop answers a small ranged read in about two
+    seconds and then delivers at several MB/s, so a single combined figure
+    reads as a slow link and sends the reader after the wrong cause.
+    """
+    rate = sample.get("bytes_per_second")
+    ttfb = sample.get("ttfb_seconds")
+    colo = sample.get("colo") or "?"
+    if not rate:
+        return f"source.coop unreachable via {colo}"
+    latency = f"ttfb {ttfb:.1f}s, " if ttfb is not None else ""
+    return f"source.coop {latency}{rate / 1e6:.1f} MB/s via {colo}"
+
+
 def source_coop_sample() -> dict[str, Any]:
     """How fast the catalogs are answering, right now.
 
@@ -1087,6 +1167,16 @@ def source_coop_sample() -> dict[str, Any]:
     source-cooperative/data.source.coop#194). Without a sample beside the run
     there is no way to tell a slow model from a slow route afterwards, and the
     route is gone by the time anyone asks.
+
+    Time to first byte and transfer time are reported separately, and
+    `bytes_per_second` divides by the transfer alone. Summing them first
+    produced a throughput figure that was really latency: one 1 MB read with
+    two seconds of DNS, TCP, TLS, and TTFB in front of it printed as
+    "0.5 MB/s" on a gigabit link, and printed the same value through two
+    different Cloudflare edges half an hour apart. Two runs on 2026-09-18 were
+    diagnosed against that number before anyone measured the real rate, which
+    was closer to 9 MB/s. probe.fetch_range splits the same three parts for
+    the same reason.
     """
     url = json.loads(
         (REPO_ROOT / "fixtures" / "pins.json").read_text(encoding="utf-8")
@@ -1104,16 +1194,20 @@ def source_coop_sample() -> dict[str, Any]:
     try:
         # url comes from fixtures/pins.json, which is committed.
         with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:  # nosec B310
+            first_byte = time.monotonic()
             payload = response.read()
             colo = (response.headers.get("cf-ray") or "").rsplit("-", 1)[-1]
     except Exception as exc:  # noqa: BLE001 - never fatal
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200]}
-    elapsed = time.monotonic() - started
+    done = time.monotonic()
+    transfer = done - first_byte
     return {
         "ok": len(payload) == PROBE_BYTES,
         "bytes": len(payload),
-        "seconds": round(elapsed, 2),
-        "bytes_per_second": round(len(payload) / elapsed) if elapsed else None,
+        "seconds": round(done - started, 2),
+        "ttfb_seconds": round(first_byte - started, 2),
+        "transfer_seconds": round(transfer, 2),
+        "bytes_per_second": round(len(payload) / transfer) if transfer else None,
         "colo": colo,
     }
 
@@ -1179,7 +1273,7 @@ def main() -> int:
         "--input-mode",
         choices=sorted(INPUT_FILES),
         default="csv",
-        help="encoding of the input list; see policies/INPUTS.md",
+        help="encoding of the input list; see SPEC.md section 4",
     )
     ap.add_argument(
         "--max-attempts",
@@ -1210,6 +1304,11 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # One read for the sweep, so every pass records the harness it started
+    # against. A commit landing mid-sweep no longer splits the trials into
+    # separate fingerprints and no longer costs the run its pass^k estimate.
+    commit = harness_commit()
+
     for _ in range(args.passes):
         try:
             run_session(
@@ -1225,6 +1324,7 @@ def main() -> int:
                 agent=args.agent,
                 reasoning_effort=args.reasoning_effort,
                 auth=args.auth,
+                commit=commit,
             )
         except (ablation.AblationError, ValueError, runtime.RuntimeDrift) as exc:
             # A mistyped arm is a config problem, not a crash. Say so in one

@@ -112,12 +112,55 @@ class AgentAdapter(Protocol):
     def config(self) -> dict[str, Any]: ...
 
 
+# A remote scan of the 8.45 million row CAR parquet runs for minutes. Claude
+# Code defaults its Bash tool to 120 seconds, which killed the very query
+# SPEC.md section 1 asks a session to run in the foreground and wait for. The
+# 2026-09-18 Opus run hit that cap, concluded remote reads were unusable, and
+# spent the rest of the trial downloading 3 GB in the background instead.
+#
+# The default is what a session gets when it names no timeout. The maximum is
+# the ceiling it may ask for. Both travel in the run metadata, because a cap
+# that reshapes agent strategy is part of what the session was handed.
+BASH_DEFAULT_TIMEOUT_MS = 600_000
+BASH_MAX_TIMEOUT_MS = 1_800_000
+
+CLAUDE_TOOL_ENV = {
+    "BASH_DEFAULT_TIMEOUT_MS": str(BASH_DEFAULT_TIMEOUT_MS),
+    "BASH_MAX_TIMEOUT_MS": str(BASH_MAX_TIMEOUT_MS),
+}
+
+# A container is not a virtual machine. Without a quota its cgroup has none,
+# so the processes inside compete for every host core on equal terms with the
+# desktop. DuckDB sizes its thread pool from the core count it detects, reads
+# the host's rather than the cgroup's, and a parallel scan of the 3.26 GB CAR
+# file then saturates the machine. One 2026-09-19 session reached 98% of a
+# 16-core host and had to be killed by hand.
+#
+# The quota also makes the trials comparable. An unbounded session that runs
+# while the host is idle gets more compute than one that runs beside a
+# browser, and that difference lands in the wall clock and the timeout count
+# as if it came from the model. Eight CPUs leave room for a parallel scan and
+# leave the host usable.
+#
+# DuckDB has no thread-count environment variable, so the quota is the whole
+# mechanism: it throttles the oversized thread pool to this much throughput
+# rather than shrinking it.
+CPU_LIMIT = "8"
+MEMORY_LIMIT = "32g"
+
+
+def _env_args(env: dict[str, str] | None) -> list[str]:
+    """`docker run -e K=V` pairs, in a stable order."""
+    return [arg for key in sorted(env or {}) for arg in ("-e", f"{key}={env[key]}")]
+
+
 def _docker_prefix(
     image: str,
     workspace: Path,
     container: str,
     entrypoint: str,
     auth_args: list[str],
+    env: dict[str, str] | None = None,
 ) -> list[str]:
     return [
         "docker",
@@ -127,9 +170,14 @@ def _docker_prefix(
         container,
         "--user",
         f"{os.getuid()}:{os.getgid()}",
+        "--cpus",
+        CPU_LIMIT,
+        "--memory",
+        MEMORY_LIMIT,
         "-v",
         f"{workspace}:/workspace",
         *auth_args,
+        *_env_args(env),
         "--entrypoint",
         entrypoint,
         image,
@@ -192,9 +240,45 @@ def _claude_usage(records: list[Record]) -> dict[str, int]:
     return totals
 
 
+# The CLI reports a dead credential two ways, and the two shapes share no
+# field. A token the API rejects produces an `api_retry` record per retry,
+# each carrying a 401. A token the CLI itself finds unusable never reaches the
+# API: it refuses before the first call and says so in prose. Matching only
+# the 401 cost the 2026-09-18 Sonnet sweep three attempts against a stale
+# token, and recorded the arm as `agent_produced_nothing` rather than invalid.
+AUTH_REFUSAL = "Failed to authenticate"
+SYNTHETIC_MODEL = "<synthetic>"
+
+
+def _rejected_by_the_api(record: Record) -> bool:
+    """A 401 the CLI retried, one `api_retry` record per attempt."""
+    return record.get("subtype") == "api_retry" and record.get("error_status") == 401
+
+
+def _refused_before_the_api(record: Record) -> bool:
+    """The CLI's own refusal, written without any call to the API.
+
+    It lands twice: once as a `<synthetic>` assistant turn and once as the
+    terminal result. On that result `subtype` reads `success` while `is_error`
+    is true and `api_error_status` is null, so no status field identifies it.
+    The text does.
+    """
+    if record.get("type") == "result" and record.get("is_error"):
+        return AUTH_REFUSAL in str(record.get("result") or "")
+    if record.get("type") != "assistant":
+        return False
+    message = record.get("message") or {}
+    if message.get("model") != SYNTHETIC_MODEL:
+        return False
+    return any(
+        isinstance(block, dict) and AUTH_REFUSAL in str(block.get("text") or "")
+        for block in message.get("content") or []
+    )
+
+
 def _claude_authentication_rejected(records: list[Record]) -> bool:
     return any(
-        record.get("subtype") == "api_retry" and record.get("error_status") == 401
+        _rejected_by_the_api(record) or _refused_before_the_api(record)
         for record in records
     )
 
@@ -245,6 +329,7 @@ class ClaudeAdapter:
                 container,
                 "claude",
                 self.auth_args(session_home),
+                CLAUDE_TOOL_ENV,
             ),
             "-p",
             task.prompt,
@@ -298,6 +383,8 @@ class ClaudeAdapter:
             "permission_policy": "bypassPermissions",
             "outer_sandbox": "docker",
             "network_policy": "unrestricted",
+            "bash_default_timeout_ms": BASH_DEFAULT_TIMEOUT_MS,
+            "bash_max_timeout_ms": BASH_MAX_TIMEOUT_MS,
         }
 
 
@@ -443,4 +530,10 @@ class CodexAdapter:
             "permission_policy": "bypass-approvals-and-sandbox",
             "outer_sandbox": "docker",
             "network_policy": "unrestricted",
+            # Codex exposes no equivalent of BASH_DEFAULT_TIMEOUT_MS. The
+            # model sets timeout_ms on each shell call instead, so the cap
+            # varies per call and the harness cannot state one. Tracked
+            # upstream as openai/codex#4775.
+            "bash_default_timeout_ms": None,
+            "bash_max_timeout_ms": None,
         }

@@ -1,0 +1,16 @@
+{
+  "q15": [
+    {
+      "answer": 95,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.188034,
+      "rel_error": 0.188034,
+      "row": 0
+    }
+  ]
+}

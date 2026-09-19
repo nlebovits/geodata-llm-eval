@@ -13,11 +13,16 @@ ARG CODEX_CLI_VERSION=0.153.0
 # unreachable and a session can only guess at it.
 ARG DUCKDB_VERSION=1.5.5
 
-# Retries + no pipelining: the default mirror route drops connections
+# Retries + no pipelining: the default mirror route drops connections.
+# procps carries ps. A session without it cannot tell a finished
+# background download from a stalled one, and the 2026-09-18 Opus run
+# guessed wrong: it resumed a live curl with `curl -C -` and produced a
+# CAR file 1,728,512 bytes longer than the object, which DuckDB then
+# rejected with "don't know what type:".
 RUN apt-get -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 update \
     && apt-get -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 \
        install -y --no-install-recommends \
-       ca-certificates curl unzip python3 \
+       ca-certificates curl unzip python3 procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Pinned DuckDB CLI

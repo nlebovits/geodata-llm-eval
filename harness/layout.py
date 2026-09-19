@@ -13,6 +13,7 @@ meta.json, which keeps the readers working whatever the name says.
 from __future__ import annotations
 
 import json
+from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -33,6 +34,13 @@ DONE = "done"
 INCOMPLETE = "incomplete"
 AGENT_TIMEOUT = "agent_timeout"
 AGENT_PRODUCED_NOTHING = "agent_produced_nothing"
+# The container hit its memory cap and the kernel killed the agent process.
+# A failure the agent owns, not an invalid trial: the cap is part of what the
+# session was handed, the same way the wall clock is, and a session that plans
+# its memory stays inside it. It is named separately from a plain failure
+# because ten of these in a sweep mean the cap is wrong, and that has to be
+# visible without opening a transcript.
+CONTAINER_OOM = "container_oom"
 INFRASTRUCTURE_INVALID = "infrastructure_invalid"
 AUTHENTICATION_INVALID = "authentication_invalid"
 GRADER_ERROR = "grader_error"
@@ -52,6 +60,7 @@ TRIAL_STATUSES = frozenset(
         FAILED,
         AGENT_TIMEOUT,
         AGENT_PRODUCED_NOTHING,
+        CONTAINER_OOM,
         INFRASTRUCTURE_INVALID,
         AUTHENTICATION_INVALID,
         GRADER_ERROR,
@@ -60,7 +69,7 @@ TRIAL_STATUSES = frozenset(
 )
 
 # The three a trial can be excused for. An agent that timed out, stopped
-# early, or wrote nothing failed the task. Only a failure proven external to
+# early, wrote nothing, or ran its container out of memory failed the task. Only a failure proven external to
 # the agent -- a dead credential, unavailable infrastructure, a grader that
 # crashed -- is invalidated, and everything else stays in the denominator.
 INVALID_STATUSES = frozenset(
@@ -130,8 +139,8 @@ def trial_status(meta: Meta) -> str:
         return status
     if status in UNSCORED_STATUSES:
         return AGENT_PRODUCED_NOTHING
-    if status == AGENT_TIMEOUT:
-        return AGENT_TIMEOUT
+    if status in (AGENT_TIMEOUT, CONTAINER_OOM):
+        return status
     strict = meta.get("strict_success")
     if strict is None:
         return UNGRADED
@@ -187,6 +196,22 @@ def regraded(meta: Meta) -> bool:
     return bool(ran and scored and ran != scored)
 
 
+# The digest-valued identity fields, and how a row name introduces each one.
+# Order is the order they print in.
+DIGEST_PARTS = {
+    "agent_config": "agent-config",
+    "spec": "spec",
+    "golden": "golden-at-run",
+    "graded_against": "graded",
+    "pins": "pins",
+    "harness_commit": "harness",
+}
+
+# Everything a row name prints after the agent, the arm, and the label. These
+# are the parts a caller may drop once it has checked they never vary.
+VARIABLE_PARTS = (*DIGEST_PARTS, "input_mode", "max_attempts", "max_wall_seconds")
+
+
 class Fingerprint(NamedTuple):
     """Everything that has to match before two runs may be pooled.
 
@@ -218,31 +243,53 @@ class Fingerprint(NamedTuple):
     max_attempts: int | None
     max_wall_seconds: int | None
 
-    def label(self) -> str:
-        """One line naming the group, digests shortened to their first six."""
-        identity = f"{self.agent or 'legacy'}/{self.model}"
-        parts = [identity, self.arm]
-        for name, digest in (
-            ("agent-config", self.agent_config),
-            ("spec", self.spec),
-            ("golden-at-run", self.golden),
-            ("graded", self.graded_against),
-            ("pins", self.pins),
-            ("harness", self.harness_commit),
-        ):
-            parts.append(f"{name} {digest[:6]}" if digest else f"{name} –")
-        if self.input_mode:
-            parts.append(self.input_mode)
-        attempts = str(self.max_attempts) if self.max_attempts is not None else "–"
-        if self.max_wall_seconds is None:
-            wall = "–"
-        elif self.max_wall_seconds == 0:
-            wall = "unlimited"
-        else:
-            wall = f"{self.max_wall_seconds / 60:g}m"
-        parts.append(f"attempt limit {attempts}")
-        parts.append(f"wall limit {wall}")
+    def part(self, field: str) -> str:
+        """One field of the identity, rendered the way a row names it."""
+        if field == "identity":
+            return f"{self.agent or 'legacy'}/{self.model}"
+        if field == "arm":
+            return self.arm
+        if field == "input_mode":
+            return self.input_mode or "–"
+        if field == "max_attempts":
+            seen = self.max_attempts
+            return f"attempt limit {seen if seen is not None else '–'}"
+        if field == "max_wall_seconds":
+            seen = self.max_wall_seconds
+            if seen is None:
+                wall = "–"
+            elif seen == 0:
+                wall = "unlimited"
+            else:
+                wall = f"{seen / 60:g}m"
+            return f"wall limit {wall}"
+        digest = getattr(self, field)
+        name = DIGEST_PARTS[field]
+        return f"{name} {digest[:6]}" if digest else f"{name} –"
+
+    def describe(self, omit: Collection[str] = (), note: str = "") -> str:
+        """A row name: identity, arm, the operator's label, then what varies.
+
+        `omit` drops fields the caller has established are identical on every
+        row it is about to print. A column that reads the same everywhere
+        distinguishes nothing, and each one costs about twenty characters of a
+        name the reader has to scan past. Whoever omits them owes the reader
+        one statement of them beside the table, which `constant_parts` builds.
+
+        `note` is the operator's own --label. It is deliberately not a
+        fingerprint field: two runs differing only in what someone typed after
+        --label are the same experiment and must pool. It is printed when it
+        says something the arm name does not.
+        """
+        parts = [self.part("identity"), self.arm]
+        if note and note != self.arm:
+            parts.append(note)
+        parts += [self.part(f) for f in VARIABLE_PARTS if f not in omit]
         return " · ".join(parts)
+
+    def label(self) -> str:
+        """The full name, every field present. A stable sort key for a group."""
+        return self.describe()
 
 
 def fingerprint_of(meta: Meta) -> Fingerprint:
@@ -275,3 +322,22 @@ def group_by_fingerprint(dirs: list[Path]) -> dict[Fingerprint, list[Path]]:
     for run_dir in dirs:
         groups.setdefault(fingerprint_of(read_meta(run_dir)), []).append(run_dir)
     return groups
+
+
+def constant_parts(fingerprints: Iterable[Fingerprint]) -> dict[str, str]:
+    """The identity fields every one of these fingerprints agrees on.
+
+    Returned as {field: rendered text} so a caller can both omit them from
+    each row name and print them once as the conditions it held fixed. An
+    empty input has nothing in common with anything, so it constrains nothing
+    and the result is empty.
+    """
+    seen = list(fingerprints)
+    if not seen:
+        return {}
+    first = seen[0]
+    return {
+        field: first.part(field)
+        for field in VARIABLE_PARTS
+        if all(getattr(f, field) == getattr(first, field) for f in seen)
+    }

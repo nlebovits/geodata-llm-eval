@@ -1,0 +1,15 @@
+[90mWARNING:
+[00m[90m'ST_Transform' assumes the axis order of the input geometry to be the same as defined by the source CRS.
+E.g., EPSG:4326 expects [NORTHING, EASTING] (= LATITUDE, LONGITUDE).
+In the future this will change to always assume [EASTING, NORTHING] regardless of CRS definition.
+To avoid unexpected results when this changes:
+ * 'SET geometry_always_xy = true' to always expect [EASTING, NORTHING]
+ * 'SET geometry_always_xy = false' to keep current behavior
+ * Pass 'true' or 'false' as last optional 'always_xy' parameter to override per-call
+
+[00mera,cleared_ha,pct_of_loss
+2001-2004,438.88689676696237,0.32572335
+2005-2009,293.3973418497914,0.21774712
+2010-2014,314.47573047687325,0.23339061
+2015-2020,185.86130750558007,0.13793842
+2021-2024,114.80105343779691,0.085200496

@@ -1,0 +1,12 @@
+[90mWARNING:
+[00m[90m'ST_Transform' assumes the axis order of the input geometry to be the same as defined by the source CRS.
+E.g., EPSG:4326 expects [NORTHING, EASTING] (= LATITUDE, LONGITUDE).
+In the future this will change to always assume [EASTING, NORTHING] regardless of CRS definition.
+To avoid unexpected results when this changes:
+ * 'SET geometry_always_xy = true' to always expect [EASTING, NORTHING]
+ * 'SET geometry_always_xy = false' to keep current behavior
+ * Pass 'true' or 'false' as last optional 'always_xy' parameter to override per-call
+
+[00mannex1_commodity,total_ha,loss_share
+cattle,19363.42,0.12576547
+soya,1730.9341,0.21802461

@@ -1,0 +1,4 @@
+cod_imovel,annex1_commodity,post2020_loss_ha,entity_id,entity_kind,tier,basis,distance_km
+GO-5212204-5A626DA1611C4A4885618BD646CF0010,cattle,85.2,buyer123,buyer,slaughter_point,observed,42.5
+GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9,cattle,72.1,buyer456,buyer,slaughter_point,observed,38.2
+GO-5219258-021D6EEAC0FE4976868FEBAAD4C9056C,soya,65.3,coop789,cooperative,intake_point,observed,15.3

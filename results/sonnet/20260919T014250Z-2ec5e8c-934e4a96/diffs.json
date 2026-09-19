@@ -1,0 +1,68 @@
+{
+  "q17": [
+    {
+      "answer": 38,
+      "column": "n_fields",
+      "golden": 753,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.949535,
+      "rel_error": 0.949535,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.928571,
+      "rel_error": 0.928571,
+      "row": 1
+    }
+  ],
+  "q18": [
+    {
+      "answer": 1,
+      "column": "n_fields",
+      "golden": 12,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.916667,
+      "rel_error": 0.916667,
+      "row": 0
+    }
+  ],
+  "q19": [
+    {
+      "answer": 0.05046480743691899,
+      "column": "loss_share",
+      "golden": 0.0969,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0505,
+      "quantized_rel_error": 0.478844,
+      "raw_rel_error": 0.479207,
+      "rel_error": 0.478844,
+      "row": 0
+    },
+    {
+      "answer": 0.07142857142857142,
+      "column": "loss_share",
+      "golden": 0.227,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.071,
+      "quantized_rel_error": 0.687225,
+      "raw_rel_error": 0.685337,
+      "rel_error": 0.685337,
+      "row": 1
+    }
+  ]
+}

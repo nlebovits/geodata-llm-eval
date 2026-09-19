@@ -1,0 +1,32 @@
+[90mWARNING:
+[00m[90m'ST_Transform' assumes the axis order of the input geometry to be the same as defined by the source CRS.
+E.g., EPSG:4326 expects [NORTHING, EASTING] (= LATITUDE, LONGITUDE).
+In the future this will change to always assume [EASTING, NORTHING] regardless of CRS definition.
+To avoid unexpected results when this changes:
+ * 'SET geometry_always_xy = true' to always expect [EASTING, NORTHING]
+ * 'SET geometry_always_xy = false' to keep current behavior
+ * Pass 'true' or 'false' as last optional 'always_xy' parameter to override per-call
+
+[00mcod_imovel,annex1_commodity,post2020_loss_ha,entity_id,entity_kind,tier,basis,distance_km
+GO-5207600-E22FF9A4A75344D3994CB002B90B6686,cattle,0.14319511,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-156094615E67476AB099D9F46F6C0655,cattle,0.31162694,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-294B806F6169468E98BB3456EC5158A4,cattle,0.04921194,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-2B296F3D835C44D7BF1AD385C1D519A9,cattle,29.501389,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-3EC9EBA0E8B64C978796D37DE35E549F,cattle,3.0036767,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-50D789C6D210454F80F32B313D791784,cattle,1.0551201,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-59B661AA7FEB45408462F5CD9717FC56,cattle,0.6036009,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-5A18ED37BE2448B2BF618ECD096BF499,cattle,0.048188448,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-5A626DA1611C4A4885618BD646CF0010,cattle,10.803708,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-5EA91F9370294F8F8F9447882810DD0B,cattle,0.08152583,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-67B7F23029D24ACFAC7656714A14C2DB,cattle,10.744021,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-89767A2A870E408092A410DDBAFF342D,cattle,0.08655438,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-8AE07816A270436D856E6EC821DE0A7B,cattle,0.4858826,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-8F9A53F42FEE4187BBBC3E66F68CEEBE,soya,52.58655,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-B09F3674DFFF46D7AB8D2101F77AFC10,cattle,1.1992123,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61,cattle,2.857829,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-BCCDDA00F01E4C72BA80402253DCB38A,cattle,0.46506733,cooperative,cooperative,membership_muni,observed,0.0
+GO-5212204-D99E7FB413AF499E8845CAA36FC4353B,cattle,22.229239,cooperative,cooperative,membership_muni,observed,0.0
+GO-5219258-790AA7BBD80648C79EF9210095176353,cattle,0.6065007,cooperative,cooperative,membership_muni,observed,0.0
+GO-5219258-803E3D97C5A8498CBB0C2DFE0F2EB8E7,cattle,0.5803252,cooperative,cooperative,membership_muni,observed,0.0
+GO-5219258-D8B970A69F30415F9FDEE84663A2210B,cattle,1.6153524,cooperative,cooperative,membership_muni,observed,0.0
+GO-5219258-E7F86639E6404DC4AD9B8DBFAFFB112B,cattle,7.993443,cooperative,cooperative,membership_muni,observed,0.0

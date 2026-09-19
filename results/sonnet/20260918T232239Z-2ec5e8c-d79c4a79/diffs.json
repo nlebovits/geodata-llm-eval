@@ -1,0 +1,68 @@
+{
+  "q15": [
+    {
+      "answer": 95,
+      "column": "n_parcels",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.188034,
+      "rel_error": 0.188034,
+      "row": 0
+    }
+  ],
+  "q19": [
+    {
+      "answer": 0.05046480743691899,
+      "column": "loss_share",
+      "golden": 0.0969,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.0505,
+      "quantized_rel_error": 0.478844,
+      "raw_rel_error": 0.479207,
+      "rel_error": 0.478844,
+      "row": 0
+    },
+    {
+      "answer": 0.07142857142857142,
+      "column": "loss_share",
+      "golden": 0.227,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": 0.071,
+      "quantized_rel_error": 0.687225,
+      "raw_rel_error": 0.685337,
+      "rel_error": 0.685337,
+      "row": 1
+    }
+  ],
+  "q25": [
+    {
+      "answer": "yes",
+      "column": "coverage",
+      "golden": "covered",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    },
+    {
+      "answer": "yes",
+      "column": "coverage",
+      "golden": "covered",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 1
+    }
+  ]
+}

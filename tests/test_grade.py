@@ -17,6 +17,8 @@ from grade import (
     NEAR_MISS,
     UNPARSEABLE,
     WRONG,
+    ColumnRule,
+    column_rules_for,
     compare,
     diff_summary,
     diff_table,
@@ -24,6 +26,7 @@ from grade import (
     golden_fingerprint,
     grade_question,
     grade_session,
+    load_questions,
     load_table,
     stage_summary,
     values_match,
@@ -304,7 +307,7 @@ def test_counts_are_not_read_as_booleans() -> None:
 
 def test_commodity_casing_does_not_decide_a_question() -> None:
     """issue #20. The lowercase house style for `annex1_commodity` is stated
-    only in policies/EUDR_CROPS.md, so an arm run without that document has no
+    only in SPEC.md's scope section, so an arm run without that section has no
     way to recover it. Sessions that classified every class correctly still
     wrote `Cattle` and `Soya`, and since seven questions across three stages
     report the column, that one choice cost five points. Capitalisation is not
@@ -344,6 +347,142 @@ def test_no_golden_value_is_distinguished_by_case_alone() -> None:
                 assert len(spellings) == 1, (
                     f"{path.name}:{column} holds {sorted(spellings)}, which "
                     f"case folding collapses to {folded!r}"
+                )
+
+
+# --- absence ----------------------------------------------------------------
+
+
+def test_absent_spellings_are_one_answer() -> None:
+    """SPEC.md used to name one spelling for an empty cell and grade every
+    other one wrong, which tested typing rather than analysis. Each spelling
+    below says the same thing: this row has no value in this column."""
+    for written in ("", "   ", "NULL", "None", "NA", "n/a", "-", "--"):
+        assert values_match(written, ""), written
+    assert values_match("", "NULL")
+    assert values_match("na", "N/A")
+
+
+def test_absence_is_not_zero_and_not_a_category() -> None:
+    """The one distinction absence folding may never erase. q30 leaves
+    distance_km empty for the tiers that carry no distance, and no distance is
+    a different answer from a distance of zero. q16 leaves caveat empty where
+    no assumption was made, which is not the same as naming one."""
+    assert not values_match("", 0)
+    assert not values_match("", 0.0)
+    assert not values_match("NA", 0.0)
+    assert not values_match("", "cattle")
+    assert not values_match("none", "assumed_pasture")
+    assert not values_match("", "False")
+
+
+def test_no_golden_uses_an_absent_spelling_as_a_value() -> None:
+    """What makes absence folding lossless. Absence is folded in every column
+    with no fixture key, so a golden that used `NA` or `-` as a real category
+    would start accepting an empty answer in its place, and nothing else would
+    notice. Checked across every column of every golden, because a later
+    oracle change could introduce such a value anywhere."""
+    for path in sorted(GOLDEN_DIR.glob("q*.csv")):
+        rows = list(csv.DictReader(path.open(encoding="utf-8")))
+        if not rows:
+            continue
+        for column in rows[0]:
+            for row in rows:
+                value = (row[column] or "").strip()
+                assert not value or value.casefold() not in grade.ABSENT_SPELLINGS, (
+                    f"{path.name}:{column} holds {value!r} as a real value, "
+                    "which absence folding would collapse to an empty cell"
+                )
+
+
+# --- multi-value columns and declared synonyms ------------------------------
+
+# Stands in for q24's routed_tier without pinning the fixture's own wording.
+TIER_RULE = ColumnRule(
+    multivalued=True,
+    equivalents=(("no_tier", "no tier", "notier"), ("unknown", "out_of_scope")),
+)
+
+
+def test_separator_and_order_do_not_decide_a_tier_set() -> None:
+    """SPEC.md used to require `|` in tier-name order. The set of tiers a
+    commodity routes to is the decision. The character between the members and
+    the order they are listed in are not."""
+    assert values_match(
+        "intake_point|slaughter_point", "slaughter_point,intake_point", rule=TIER_RULE
+    )
+    assert values_match(
+        "intake_point; slaughter_point", "intake_point/slaughter_point", rule=TIER_RULE
+    )
+    assert values_match("Intake_Point", "intake_point", rule=TIER_RULE)
+
+
+def test_a_tier_set_still_has_to_name_the_right_tiers() -> None:
+    """Splitting a cell frees the punctuation and nothing else. Naming too few
+    tiers, too many, or the wrong one stays a wrong answer, and naming one
+    twice is malformed rather than a synonym for naming it once."""
+    assert not values_match(
+        "intake_point", "intake_point|slaughter_point", rule=TIER_RULE
+    )
+    assert not values_match(
+        "intake_point|mill_point", "intake_point|slaughter_point", rule=TIER_RULE
+    )
+    assert not values_match("intake_point|intake_point", "intake_point", rule=TIER_RULE)
+
+
+def test_gap_markers_fold_by_spelling_but_stay_distinct() -> None:
+    """SPEC.md dictated the literals `no_tier` and `unknown`. The decision is
+    that a commodity with no tier is a different answer from a class absent
+    from the scope table. Which word carries that is not the decision, so the
+    groups fold spellings while staying disjoint."""
+    assert values_match("notier", "no_tier", rule=TIER_RULE)
+    assert values_match("out_of_scope", "unknown", rule=TIER_RULE)
+    assert not values_match("unknown", "no_tier", rule=TIER_RULE)
+    assert not values_match("no_tier", "intake_point", rule=TIER_RULE)
+
+
+def test_a_synonym_frees_nothing_until_someone_declares_it() -> None:
+    """Equivalence is hand-written and reviewed per column, never inferred. A
+    column that declares nothing compares exactly as it did before."""
+    assert not values_match("notier", "no_tier")
+    assert not values_match("notier", "no_tier", rule=ColumnRule())
+    assert not values_match("a|b", "b|a", rule=ColumnRule())
+
+
+def test_equivalence_groups_never_collapse_two_golden_values() -> None:
+    """What makes a synonym group lossless, and the analogue of the case test.
+    If two values a golden column actually holds fell in one group, the grader
+    would stop telling them apart and a wrong answer would score. Also pins
+    the declared column count to the golden width, which is the assumption
+    that lets a rule be matched to a column by position at all."""
+    for question in load_questions(REPO / "fixtures" / "questions.yaml"):
+        rules = column_rules_for(question)
+        if rules is None:
+            continue
+        path = GOLDEN_DIR / f"q{question['id']}.csv"
+        if not path.exists():
+            continue
+        rows = list(csv.DictReader(path.open(encoding="utf-8")))
+        if not rows:
+            continue
+        header = list(rows[0])
+        assert len(header) == len(rules), (
+            f"{path.name} has {len(header)} columns and questions.yaml "
+            f"declares {len(rules)}"
+        )
+        for column, rule in zip(header, rules):
+            if not rule.equivalents:
+                continue
+            by_canonical: dict[str, set[str]] = {}
+            for row in rows:
+                value = (row[column] or "").strip()
+                if value:
+                    canonical = rule.canonical(value.casefold())
+                    by_canonical.setdefault(canonical, set()).add(value)
+            for canonical, spellings in by_canonical.items():
+                assert len(spellings) == 1, (
+                    f"{path.name}:{column} holds {sorted(spellings)}, which "
+                    f"the group for {canonical!r} collapses to one answer"
                 )
 
 
@@ -700,6 +839,52 @@ def test_unknown_column_grading_policy_fails_validation(tmp_path: Path) -> None:
         "          grading: approximate\n",
     )
     with pytest.raises(ValueError, match="column 'area'.*'approximate'"):
+        grade.load_questions(questions)
+
+
+def _with_equivalents(tmp_path: Path, body: str) -> Path:
+    """A one-column questions.yaml whose only interesting key is equivalents."""
+    return write(
+        tmp_path,
+        "questions.yaml",
+        "questions:\n"
+        "  - id: '01'\n"
+        "    output:\n"
+        "      columns:\n"
+        "        - name: tier\n"
+        "          equivalents:\n" + body,
+    )
+
+
+def test_equivalence_set_needs_two_spellings(tmp_path: Path) -> None:
+    """A group of one frees nothing, so it is a typo rather than a policy."""
+    questions = _with_equivalents(tmp_path, "            - ['no_tier']\n")
+    with pytest.raises(ValueError, match="column 'tier'.*set 0 needs at least two"):
+        grade.load_questions(questions)
+
+
+def test_equivalence_sets_must_be_disjoint(tmp_path: Path) -> None:
+    """Overlapping groups make the canonical spelling depend on scan order,
+    and would let the two gap markers quietly become one answer."""
+    questions = _with_equivalents(
+        tmp_path,
+        "            - ['no_tier', 'notier']\n            - ['unknown', 'notier']\n",
+    )
+    with pytest.raises(ValueError, match="'notier' appears in sets 0 and 1"):
+        grade.load_questions(questions)
+
+
+def test_equivalence_set_may_not_name_an_absent_spelling(tmp_path: Path) -> None:
+    """Absence is decided before any group is consulted, so declaring `none`
+    as a synonym is a silent no-op rather than the freedom it looks like."""
+    questions = _with_equivalents(tmp_path, "            - ['no_tier', 'none']\n")
+    with pytest.raises(ValueError, match="'none' already denotes an absent value"):
+        grade.load_questions(questions)
+
+
+def test_equivalence_sets_must_be_lists_of_strings(tmp_path: Path) -> None:
+    questions = _with_equivalents(tmp_path, "            - 'no_tier'\n")
+    with pytest.raises(ValueError, match="expected a list of sets of strings"):
         grade.load_questions(questions)
 
 

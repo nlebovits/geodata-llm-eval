@@ -4,8 +4,8 @@ This benchmark tests whether a language model can complete a sourcing review
 under the EU Deforestation Regulation (EUDR). The review uses real geospatial
 data from cloud-hosted catalogs.
 
-Each trial gives the model a portfolio of rural properties in Brazil and four
-policy documents. The model must answer 31 questions. To find the answers, it
+Each trial gives the model a portfolio of rural properties in Brazil and a
+binding specification. The model must answer 31 questions. To find the answers, it
 searches three Source Cooperative catalogs and queries remote GeoParquet data.
 The policy rules determine which properties fail the review and whom to contact
 about each failure.
@@ -46,7 +46,7 @@ current results.
 ## How a trial works
 
 ```text
-portfolio + questions + policies
+portfolio + specification
               |
               v
    isolated Docker session ------> three remote data catalogs
@@ -62,7 +62,7 @@ portfolio + questions + policies
 ```
 
 Each trial starts a fresh Docker container with a clean workspace. The container
-holds the task, questions, policies, and property portfolio. It can't access the
+holds the exact `SPEC.md` and the property portfolio. It can't access the
 answer key.
 
 If the model stops early, the harness can resume the same session. It stops
@@ -77,7 +77,7 @@ The workflow has six dependent stages:
    row Rural Environmental Registry (CAR) dataset. This stage also repairs
    duplicates, missing IDs, and swapped coordinate axes.
 3. **Field and cadaster matching:** apply the 2/3 containment and buffered-union
-   rules from [`policies/MATCHING.md`](policies/MATCHING.md).
+   rules from [`SPEC.md`](SPEC.md).
 4. **EUDR deforestation:** map MapBiomas land-cover classes to EUDR Annex I
    commodities, then measure post-2020 loss for the in-scope classes.
 5. **Commodity infrastructure:** rank cooperatives and buyers for each flagged
@@ -94,7 +94,7 @@ conditional score for questions whose dependencies passed.
 ## Run the benchmark
 
 Install Python 3.12 or later, [uv](https://docs.astral.sh/uv/), and Docker. You
-also need a Claude login or an `ANTHROPIC_API_KEY`.
+also need credentials for the agent you plan to run.
 
 A run can transfer several gigabytes from the remote catalogs. Test your setup
 with one trial or use a dry run before you start a larger experiment.
@@ -225,8 +225,8 @@ This command scans the live catalogs and can take several minutes.
 
 ## Policy and data are part of the specification
 
-The documents in [`policies/`](policies/) are part of the model's input. They
-explain how to resolve input errors, match fields, classify EUDR crops, and rank
+[`SPEC.md`](SPEC.md) is the policy source and part of the model's input. It
+explains how to resolve input errors, match fields, classify EUDR crops, and rank
 facilities. The benchmark tests whether the model can apply these written
 rules. It doesn't require the model to guess hidden policy.
 
@@ -283,7 +283,7 @@ also lists the advisory Vale and proselint commands.
 | Path | Purpose |
 |---|---|
 | [`fixtures/questions.yaml`](fixtures/questions.yaml) | Questions, dependencies, output contracts, and grading modes |
-| [`policies/`](policies/) | Binding workflow rules supplied to the agent |
+| [`SPEC.md`](SPEC.md) | Binding workflow rules supplied to the agent |
 | [`harness/`](harness/) | Runner, grader, reliability analysis, consistency metrics, and reports |
 | [`oracle/`](oracle/) | SQL answer-key generation |
 | [`fixtures/golden/`](fixtures/golden/) | Committed answer key and checksum manifest |

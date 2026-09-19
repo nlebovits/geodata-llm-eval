@@ -1,0 +1,70 @@
+{
+  "q13": [
+    {
+      "answer": 28,
+      "column": "n_fields",
+      "golden": 29,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.034483,
+      "rel_error": 0.034483,
+      "row": 6
+    }
+  ],
+  "q17": [
+    {
+      "answer": 38,
+      "column": "n_fields",
+      "golden": 753,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.949535,
+      "rel_error": 0.949535,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.928571,
+      "rel_error": 0.928571,
+      "row": 1
+    }
+  ],
+  "q18": [
+    {
+      "answer": 1,
+      "column": "n_fields",
+      "golden": 12,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.916667,
+      "rel_error": 0.916667,
+      "row": 0
+    }
+  ],
+  "q24": [
+    {
+      "answer": "gravity_catchment|intake_point",
+      "column": "routed_tier",
+      "golden": "intake_point",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 12
+    }
+  ]
+}

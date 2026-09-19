@@ -32,3 +32,11 @@ fixtures/golden/_work/
 styles/Google/
 styles/Microsoft/
 styles/Readability/
+
+# A session that stages the CAR file locally builds a DuckDB database in
+# answers/, and the harness copies that whole directory out. One 2026-09-18
+# Opus trial produced a 3.2 GB work.duckdb and GitHub rejected the push at
+# its 100 MB file limit. The trial's CSVs, metadata, and transcript are the
+# record; the scratch database is not.
+results/*/*/answers/*.duckdb
+results/*/*/answers/*.duckdb.wal
