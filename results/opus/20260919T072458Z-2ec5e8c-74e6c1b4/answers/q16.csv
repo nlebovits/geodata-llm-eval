@@ -1,0 +1,5 @@
+mbmode24,mb_class,annex1_commodity,in_scope,caveat
+15,Pasture,cattle,true,"pasture is a land-cover proxy for cattle grazing, not direct proof of cattle production"
+21,Mosaic of Uses,,false,mixed agricultural uses cannot be attributed to a single commodity
+39,Soybean,soya,true,
+41,Other Temporary Crops,,false,unspecified annual crops

@@ -1,0 +1,5 @@
+mbmode24,mb_class,annex1_commodity,in_scope,caveat
+15,Pasture,cattle,true,"pasture is a land-cover proxy for cattle, not direct herd evidence"
+21,Mosaic of Uses,"",false,mixed agriculture and pasture; does not resolve to a single Annex 1 commodity
+39,Soybean,soya,true,""
+41,Other Temporary Crops,"",false,unspecified annual crops; not an Annex 1 commodity

@@ -1,0 +1,154 @@
+{
+  "schema_version": 2,
+  "agent": "claude",
+  "agent_config": {
+    "adapter": "claude",
+    "mode": "native",
+    "scaffold": "claude-code",
+    "model_id_requested": "claude-opus-4-8",
+    "reasoning_effort_requested": null,
+    "auth_method": "login",
+    "tool_policy": "native",
+    "permission_policy": "bypassPermissions",
+    "outer_sandbox": "docker",
+    "network_policy": "unrestricted",
+    "bash_default_timeout_ms": 600000,
+    "bash_max_timeout_ms": 1800000,
+    "model_id_reported": "claude-opus-4-8",
+    "cli_version_reported": "2.1.218",
+    "tools_reported": [
+      "Task",
+      "Bash",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
+      "Edit",
+      "EnterWorktree",
+      "ExitWorktree",
+      "Monitor",
+      "NotebookEdit",
+      "PushNotification",
+      "Read",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
+      "Skill",
+      "TaskCreate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "TaskUpdate",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Workflow",
+      "Write"
+    ],
+    "permission_mode_reported": "bypassPermissions",
+    "runtime_image_id": "sha256:7e2731a5ef3235b6ce2f8ccc67643bb4ab34d38b07b02a2e58e64813d1dc4364",
+    "runtime_cli_version": "2.1.218",
+    "max_attempts": 3,
+    "max_wall_seconds": 0,
+    "cpu_limit": null,
+    "memory_limit": null
+  },
+  "agent_config_fingerprint": "f208cf7ddd22",
+  "runtime": {
+    "image": "geodata-llm-eval",
+    "image_id": "sha256:7e2731a5ef3235b6ce2f8ccc67643bb4ab34d38b07b02a2e58e64813d1dc4364",
+    "image_repo_digests": [],
+    "cli": "claude-code",
+    "cli_version": "2.1.218",
+    "cli_version_output": "2.1.218 (Claude Code)",
+    "duckdb_version": "1.5.5",
+    "duckdb_version_output": "v1.5.5 (Variegata) d8cdaa33fd"
+  },
+  "transcript": {
+    "path": "transcript.jsonl",
+    "format": "claude-stream-json",
+    "stderr_path": "stderr.log"
+  },
+  "model": "opus",
+  "model_id": "claude-opus-4-8",
+  "run_id": "20260919T063431Z-2ec5e8c-82fa5842",
+  "label": "questions-only",
+  "started_utc": "2026-09-19T06:34:31.654485+00:00",
+  "finished_utc": "2026-09-19T07:01:29.273386+00:00",
+  "duration_seconds": 1616.9,
+  "exit_code": 0,
+  "attempts": 2,
+  "harness_commit": "2ec5e8c4b2a314a069c1a34abcd296cf693e8ab2",
+  "input_mode": "csv",
+  "golden_fingerprint": "7bbdf1bbf735",
+  "pins_fingerprint": "df23891ca73b",
+  "max_attempts": 3,
+  "max_wall_seconds": 0,
+  "spec_fingerprint": "793d5d7d8c65",
+  "spec_contract_version": 2,
+  "spec_manifest": {
+    "SPEC.md": "e03c4800a8b3cc602fb7bd6df98d48f7eacc962cf494e8c6bc9ff66286685b9f"
+  },
+  "ablation": {
+    "arm": "questions-only",
+    "why": "The floor of the experiment: can a session complete the workflow from the questions alone? Keeps section 1 (the deliverables and the eight workflow.csv columns), section 3 (the three dataset URLs and the axis order), and section 9 (the questions). Cuts every policy section, so the session has to infer the defect handling, the matching thresholds, the loss definition, the scope table, and the candidate tiers from the data. Four questions still name a cut section by number (q05, q23, q31, and the workflow.csv note), and that dangling reference is part of the condition. Sections 1 and 3 stay because without them no session can find the data or name an answer file, which measures the harness rather than the spec.",
+    "ops": [
+      {
+        "cut_section": 2
+      },
+      {
+        "cut_section": 4
+      },
+      {
+        "cut_section": 5
+      },
+      {
+        "cut_section": 6
+      },
+      {
+        "cut_section": 7
+      },
+      {
+        "cut_section": 8
+      }
+    ],
+    "receipt": {
+      "SPEC.md": 241
+    }
+  },
+  "catalog_at_start": {
+    "ok": true,
+    "bytes": 8388608,
+    "seconds": 2.62,
+    "ttfb_seconds": 1.32,
+    "transfer_seconds": 1.3,
+    "bytes_per_second": 6462449,
+    "colo": "AMS"
+  },
+  "catalog_at_end": {
+    "ok": true,
+    "bytes": 8388608,
+    "seconds": 2.15,
+    "ttfb_seconds": 0.84,
+    "transfer_seconds": 1.31,
+    "bytes_per_second": 6406954,
+    "colo": "AMS"
+  },
+  "turns": 141,
+  "input_tokens": 90,
+  "output_tokens": 87106,
+  "cache_creation_tokens": 202563,
+  "cache_read_tokens": 3872521,
+  "reasoning_output_tokens": 0,
+  "slow_tool_calls": 0,
+  "slow_tool_seconds": 0,
+  "slow_tool_seconds_by_tool": {},
+  "timed_out_tool_calls": 0,
+  "imputed_cost_usd": 5.380379,
+  "answers_written": 31,
+  "status": "done",
+  "strict_success": false,
+  "graded_against": "7bbdf1bbf735"
+}

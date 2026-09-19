@@ -1,0 +1,5 @@
+mbmode24,mb_class,annex1_commodity,in_scope,caveat
+15,Pasture,cattle,true,pasture is a land-cover proxy for cattle
+21,Mosaic of Uses,,false,mixed agriculture-pasture mosaic; commodity not separable
+39,Soybean,soya,true,
+41,Other Temporary Crops,,false,crop not identifiable as an Annex 1 commodity

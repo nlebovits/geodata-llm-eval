@@ -1,0 +1,154 @@
+{
+  "q05": [
+    {
+      "answer": 118,
+      "column": "list_ids",
+      "golden": 117,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.008547,
+      "rel_error": 0.008547,
+      "row": 0
+    },
+    {
+      "answer": 1,
+      "column": "missing",
+      "golden": 0,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 0
+    }
+  ],
+  "q17": [
+    {
+      "answer": 38,
+      "column": "n_fields",
+      "golden": 753,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.949535,
+      "rel_error": 0.949535,
+      "row": 0
+    },
+    {
+      "answer": 2,
+      "column": "n_fields",
+      "golden": 28,
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.928571,
+      "rel_error": 0.928571,
+      "row": 1
+    }
+  ],
+  "q18": [
+    {
+      "answer": 1,
+      "column": "n_fields",
+      "golden": 12,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.916667,
+      "rel_error": 0.916667,
+      "row": 0
+    }
+  ],
+  "q28": [
+    {
+      "answer": "GO-5212204-B09F3674DFFF46D7AB8D2101F77AFC10",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-8F9A53F42FEE4187BBBC3E66F68CEEBE",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 12
+    },
+    {
+      "answer": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-B09F3674DFFF46D7AB8D2101F77AFC10",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 13
+    },
+    {
+      "answer": "GO-5212204-BCCDDA00F01E4C72BA80402253DCB38A",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-BC0DD19983DE40DDA0F0E5BF93136C61",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 14
+    },
+    {
+      "answer": "GO-5219258-E7F86639E6404DC4AD9B8DBFAFFB112B",
+      "column": "cod_imovel",
+      "golden": "GO-5212204-BCCDDA00F01E4C72BA80402253DCB38A",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 15
+    },
+    {
+      "answer": "GO-5212204-8F9A53F42FEE4187BBBC3E66F68CEEBE",
+      "column": "cod_imovel",
+      "golden": "GO-5219258-E7F86639E6404DC4AD9B8DBFAFFB112B",
+      "kind": "cell",
+      "near_miss": false,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": null,
+      "rel_error": null,
+      "row": 17
+    },
+    {
+      "answer": 4,
+      "column": "n_candidates",
+      "golden": 5,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.2,
+      "rel_error": 0.2,
+      "row": 17
+    },
+    {
+      "answer": 3,
+      "column": "n_delivery",
+      "golden": 4,
+      "kind": "cell",
+      "near_miss": true,
+      "quantized_answer": null,
+      "quantized_rel_error": null,
+      "raw_rel_error": 0.25,
+      "rel_error": 0.25,
+      "row": 17
+    }
+  ]
+}
