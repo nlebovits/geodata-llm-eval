@@ -8,6 +8,11 @@ The comparator is deliberately dumb and deterministic:
 - Integers must match exactly. Strings match ignoring case.
 - Floats match within relative tolerance 1e-3 (absolute 1e-9 near zero),
   either as written or after rounding to the golden's displayed precision.
+- Every spelling of absence is one answer, and none of them equals zero
+  or a category.
+- A column may declare synonym groups, or that its cells name several
+  values. Both come from questions.yaml, which no session ever sees, so
+  SPEC.md can state a decision without dictating how to spell it.
 - A missing or unparseable answer file is a distinct outcome from a
   wrong answer, so broken sessions and wrong sessions stay separable.
 
@@ -26,8 +31,10 @@ import hashlib
 import itertools
 import json
 import math
+import re
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +78,46 @@ GEOM_INT_SLACK = 2
 EXACT = "exact"
 GEOMETRY = "geometry"
 GRADING_POLICIES = frozenset({EXACT, GEOMETRY})
+
+# Every spelling below denotes an absent value. The spec used to name one of
+# them and grade the rest wrong, which tested typing rather than analysis. A
+# number is never absent, so an empty cell still cannot match 0 -- "no distance
+# for this tier" and "a distance of zero" stay different answers. No golden may
+# hold one of these as a meaningful value; tests/test_grade.py holds that line.
+ABSENT_SPELLINGS = frozenset({"", "null", "none", "na", "n/a", "-", "--"})
+
+# Characters a model might join several values with. The set a cell names is
+# the decision; the character between the members is not.
+MULTIVALUE_SPLIT = re.compile(r"[|,;/]")
+
+
+@dataclass(frozen=True)
+class ColumnRule:
+    """How one golden column compares, resolved once per grading run.
+
+    `geometry` is the tolerance policy that questions.yaml already declared.
+    The other two fields carry distinctions the spec used to dictate and the
+    grader now absorbs. `equivalents` holds hand-written synonym groups, each
+    already casefolded, canonical member first. Groups are disjoint and no
+    golden column may hold two values that land in the same group, so folding
+    them can turn a wrong answer right only if it was already right.
+    """
+
+    geometry: bool = False
+    multivalued: bool = False
+    equivalents: tuple[tuple[str, ...], ...] = ()
+
+    def canonical(self, token: str) -> str:
+        """The group's canonical spelling, or the token unchanged.
+
+        Takes an already-casefolded token. Groups are small and few, so a
+        linear scan costs less than building a lookup per rule.
+        """
+        for members in self.equivalents:
+            if token in members:
+                return members[0]
+        return token
+
 
 # An answer that fails its own tolerance but clears a tenfold looser one is a
 # different result from one that is wrong by half. Recording that separately
@@ -237,8 +284,45 @@ def _floats_match(answer: float, golden: float, rel_tol: float) -> bool:
     )
 
 
+def _is_absent(value: object) -> bool:
+    """Whether a cell denotes an absent value rather than a real one."""
+    return isinstance(value, str) and value.strip().casefold() in ABSENT_SPELLINGS
+
+
+def _match_absent(a: object, b: object) -> bool | None:
+    """Compare two cells as absence, or None if neither side is absent.
+
+    Mirrors _match_booleans: once either side reads as absent, both must, and
+    no later branch gets to reinterpret the pair as a number or a category.
+    """
+    a_absent, b_absent = _is_absent(a), _is_absent(b)
+    if not (a_absent or b_absent):
+        return None
+    return a_absent and b_absent
+
+
+def _members(value: str, rule: ColumnRule) -> list[str]:
+    """A cell's members, casefolded and sorted, before any synonym applies.
+
+    Sorted because the order a model lists members in carries no meaning. A
+    list rather than a set because a repeated member is a malformed answer,
+    not a synonym for naming it once.
+    """
+    parts = MULTIVALUE_SPLIT.split(value) if rule.multivalued else [value]
+    return sorted(part.strip().casefold() for part in parts if part.strip())
+
+
+def _tokens(value: str, rule: ColumnRule) -> list[str]:
+    """A cell's members with each one replaced by its canonical spelling."""
+    return sorted(rule.canonical(member) for member in _members(value, rule))
+
+
 def values_match(
-    a: object, b: object, geometry: bool = False, slack: float = 1.0
+    a: object,
+    b: object,
+    geometry: bool = False,
+    slack: float = 1.0,
+    rule: ColumnRule | None = None,
 ) -> bool:
     """True if answer cell `a` matches golden cell `b` within tolerance.
 
@@ -257,6 +341,11 @@ def values_match(
     in the set distinguishes two values by case alone, so folding case can
     turn a wrong answer into a right one only if the answer was right.
     """
+    if rule is not None:
+        geometry = rule.geometry
+    as_absent = _match_absent(a, b)
+    if as_absent is not None:
+        return as_absent
     as_bools = _match_booleans(a, b)
     if as_bools is not None:
         return as_bools
@@ -276,27 +365,71 @@ def values_match(
         rel = slack * (GEOM_REL_TOL if geometry else REL_TOL)
         return _floats_match(float(a), float(b), rel)
     if isinstance(a, str) and isinstance(b, str):
-        return a.casefold() == b.casefold()
+        if rule is None:
+            return a.casefold() == b.casefold()
+        return _tokens(a, rule) == _tokens(b, rule)
     return a == b
 
 
-def _column_geometry(
+def explain_match(
+    answer: object, golden: object, rule: ColumnRule | None = None
+) -> str | None:
+    """Which freedom makes two cells compare equal, or None if they do not.
+
+    harness/verify_regrade.py attributes every newly-passing cell to a freedom
+    someone declared, and fails the migration on any cell it cannot name a
+    reason for. The attribution lives beside the comparator on purpose: a
+    reason that drifted from values_match would file real regressions under a
+    freedom nobody granted.
+    """
+    rule = rule or ColumnRule()
+    if not values_match(answer, golden, rule=rule):
+        return None
+    if _match_absent(answer, golden) is not None:
+        return "absence"
+    if isinstance(answer, str) and isinstance(golden, str):
+        if answer == golden:
+            return "identical"
+        if answer.casefold() == golden.casefold():
+            return "case"
+        if _members(answer, rule) == _members(golden, rule):
+            return "separator or order"
+        return "declared synonym"
+    if answer == golden:
+        return "identical"
+    return "numeric tolerance"
+
+
+def _column_rules(
     n_cols: int,
     geometry: bool,
-    column_policies: Sequence[str] | None,
-) -> list[bool]:
-    """Resolve comparator policy once for each golden column."""
+    column_policies: Sequence[str | ColumnRule] | None,
+) -> list[ColumnRule]:
+    """Resolve comparator policy once for each golden column.
+
+    Bare policy strings are still accepted alongside resolved rules, so a
+    caller that only cares about tolerance passes what it always passed.
+    """
     if column_policies is None:
-        return [geometry] * n_cols
+        return [ColumnRule(geometry=geometry)] * n_cols
     if len(column_policies) != n_cols:
         raise ValueError(
             "grading policy count does not match golden columns: "
             f"{len(column_policies)} policies for {n_cols} columns"
         )
-    unknown = [policy for policy in column_policies if policy not in GRADING_POLICIES]
+    unknown = [
+        policy
+        for policy in column_policies
+        if not isinstance(policy, ColumnRule) and policy not in GRADING_POLICIES
+    ]
     if unknown:
         raise ValueError(f"unknown grading policy: {unknown[0]!r}")
-    return [policy == GEOMETRY for policy in column_policies]
+    return [
+        policy
+        if isinstance(policy, ColumnRule)
+        else ColumnRule(geometry=policy == GEOMETRY)
+        for policy in column_policies
+    ]
 
 
 def _rows_match_under_permutation(
@@ -305,18 +438,18 @@ def _rows_match_under_permutation(
     perm: tuple[int, ...],
     geometry: bool = False,
     slack: float = 1.0,
-    column_policies: Sequence[str] | None = None,
+    column_policies: Sequence[str | ColumnRule] | None = None,
 ) -> bool:
     """Check answer rows == golden rows as multisets, with answer columns
     reordered by perm."""
     remaining = [list(r) for r in golden]
-    column_geometry = _column_geometry(len(perm), geometry, column_policies)
+    column_rules = _column_rules(len(perm), geometry, column_policies)
     for a_row in answer:
         projected = [a_row[i] for i in perm]
         for idx, g_row in enumerate(remaining):
             if all(
-                values_match(p, g, is_geometry, slack)
-                for p, g, is_geometry in zip(projected, g_row, column_geometry)
+                values_match(p, g, slack=slack, rule=rule)
+                for p, g, rule in zip(projected, g_row, column_rules)
             ):
                 del remaining[idx]
                 break
@@ -330,7 +463,7 @@ def compare(
     golden: Sequence[Sequence[object]],
     geometry: bool = False,
     slack: float = 1.0,
-    column_policies: Sequence[str] | None = None,
+    column_policies: Sequence[str | ColumnRule] | None = None,
 ) -> bool:
     """True if the answer table matches golden up to row order and
     column permutation."""
@@ -341,7 +474,7 @@ def compare(
     n_cols = len(golden[0])
     if len(answer[0]) != n_cols:
         return False
-    _column_geometry(n_cols, geometry, column_policies)
+    _column_rules(n_cols, geometry, column_policies)
     for perm in itertools.permutations(range(n_cols)):
         if _rows_match_under_permutation(
             answer, golden, perm, geometry, slack, column_policies
@@ -358,7 +491,7 @@ def _align_under_permutation(
     golden: Sequence[Sequence[object]],
     perm: tuple[int, ...],
     geometry: bool,
-    column_policies: Sequence[str] | None,
+    column_policies: Sequence[str | ColumnRule] | None,
 ) -> tuple[tuple[int, int], list[tuple[int, int]]]:
     """Pair answer rows to golden rows greedily, fewest mismatched cells first.
 
@@ -367,7 +500,7 @@ def _align_under_permutation(
     (golden row index, answer row index).
     """
     unused = set(range(len(answer)))
-    column_geometry = _column_geometry(len(perm), geometry, column_policies)
+    column_rules = _column_rules(len(perm), geometry, column_policies)
     pairs: list[tuple[int, int]] = []
     total = (0, 0)
     for g_idx, g_row in enumerate(golden):
@@ -375,17 +508,13 @@ def _align_under_permutation(
         best_cost: tuple[int, int] | None = None
         for a_idx in unused:
             projected = [answer[a_idx][i] for i in perm]
-            cells = list(zip(projected, g_row, column_geometry))
+            cells = list(zip(projected, g_row, column_rules))
             cost = (
+                sum(1 for p, g, rule in cells if not values_match(p, g, rule=rule)),
                 sum(
                     1
-                    for p, g, is_geometry in cells
-                    if not values_match(p, g, is_geometry)
-                ),
-                sum(
-                    1
-                    for p, g, is_geometry in cells
-                    if not values_match(p, g, is_geometry, NEAR_MISS_FACTOR)
+                    for p, g, rule in cells
+                    if not values_match(p, g, slack=NEAR_MISS_FACTOR, rule=rule)
                 ),
             )
             if best_cost is None or cost < best_cost:
@@ -406,7 +535,7 @@ def diff_table(
     golden: Sequence[Sequence[object]],
     geometry: bool = False,
     golden_header: list[str] | None = None,
-    column_policies: Sequence[str] | None = None,
+    column_policies: Sequence[str | ColumnRule] | None = None,
 ) -> list[Diff]:
     """Per-cell differences between a wrong answer and golden.
 
@@ -428,7 +557,7 @@ def diff_table(
         ]
 
     n_cols = len(golden[0])
-    column_geometry = _column_geometry(n_cols, geometry, column_policies)
+    column_rules = _column_rules(n_cols, geometry, column_policies)
     header = list(golden_header or [])
     perms = (
         itertools.permutations(range(n_cols))
@@ -454,8 +583,8 @@ def diff_table(
         g_row = golden[g_idx]
         projected = [answer[a_idx][i] for i in best_perm]
         for col, (got, want) in enumerate(zip(projected, g_row)):
-            is_geometry = column_geometry[col]
-            if values_match(got, want, is_geometry):
+            rule = column_rules[col]
+            if values_match(got, want, rule=rule):
                 continue
             numeric = _numeric_diagnostics(got, want)
             diffs.append(
@@ -466,7 +595,9 @@ def diff_table(
                     "golden": want,
                     "answer": got,
                     **numeric,
-                    "near_miss": values_match(got, want, is_geometry, NEAR_MISS_FACTOR),
+                    "near_miss": values_match(
+                        got, want, slack=NEAR_MISS_FACTOR, rule=rule
+                    ),
                 }
             )
     return diffs
@@ -538,7 +669,7 @@ def evaluate_question(
     answer_path: Path,
     golden_path: Path,
     geometry: bool = False,
-    column_policies: Sequence[str] | None = None,
+    column_policies: Sequence[str | ColumnRule] | None = None,
 ) -> tuple[str, list[Diff]]:
     """Grade one question and, when it fails, say where.
 
@@ -578,7 +709,7 @@ def grade_question(
     answer_path: Path,
     golden_path: Path,
     geometry: bool = False,
-    column_policies: Sequence[str] | None = None,
+    column_policies: Sequence[str | ColumnRule] | None = None,
 ) -> str:
     return evaluate_question(answer_path, golden_path, geometry, column_policies)[0]
 
@@ -593,8 +724,56 @@ def _grading_policy(value: object, location: str) -> str:
     return str(value)
 
 
-def column_grading_policies(question: Question) -> list[str] | None:
-    """Column overrides in declared (and therefore golden) column order.
+COLUMN_RULE_KEYS = frozenset({"grading", "multivalued", "equivalents"})
+
+
+def _column_equivalents(
+    column: dict[str, Any], location: str
+) -> tuple[tuple[str, ...], ...]:
+    """Validate and casefold one column's synonym groups.
+
+    Every rejection here is a way an equivalence set could stop being lossless.
+    A group of one frees nothing. A token in two groups makes the canonical
+    spelling depend on scan order. A token that already denotes absence would
+    never reach this code, because _match_absent decides first, so declaring
+    one is a silent no-op rather than the freedom the author intended.
+    """
+    raw = column.get("equivalents", [])
+    if not isinstance(raw, list) or not all(
+        isinstance(group, list) and all(isinstance(m, str) for m in group)
+        for group in raw
+    ):
+        raise ValueError(
+            f"invalid equivalence sets at {location}: "
+            "expected a list of sets of strings"
+        )
+    groups: list[tuple[str, ...]] = []
+    seen: dict[str, int] = {}
+    for index, group in enumerate(raw):
+        if len(group) < 2:
+            raise ValueError(
+                f"invalid equivalence set at {location}: "
+                f"set {index} needs at least two spellings"
+            )
+        members = tuple(m.strip().casefold() for m in group)
+        for member in members:
+            if member in ABSENT_SPELLINGS:
+                raise ValueError(
+                    f"invalid equivalence set at {location}: "
+                    f"{member!r} already denotes an absent value"
+                )
+            if member in seen:
+                raise ValueError(
+                    f"invalid equivalence set at {location}: "
+                    f"{member!r} appears in sets {seen[member]} and {index}"
+                )
+            seen[member] = index
+        groups.append(members)
+    return tuple(groups)
+
+
+def column_rules_for(question: Question) -> list[ColumnRule] | None:
+    """Column rules in declared (and therefore golden) column order.
 
     None means every column inherits the question-level policy, preserving the
     scalar comparator path for old fixtures and callers.
@@ -603,19 +782,23 @@ def column_grading_policies(question: Question) -> list[str] | None:
     default = _grading_policy(question.get("grading", EXACT), f"question q{qid}")
     output = question.get("output", {})
     columns = output.get("columns", []) if isinstance(output, dict) else []
-    policies: list[str] = []
+    rules: list[ColumnRule] = []
     has_override = False
     for index, column in enumerate(columns):
         if not isinstance(column, dict):
             continue
-        has_override = has_override or "grading" in column
+        has_override = has_override or bool(COLUMN_RULE_KEYS & set(column))
         name = column.get("name", index)
-        policies.append(
-            _grading_policy(
-                column.get("grading", default), f"question q{qid} column {name!r}"
+        location = f"question q{qid} column {name!r}"
+        policy = _grading_policy(column.get("grading", default), location)
+        rules.append(
+            ColumnRule(
+                geometry=policy == GEOMETRY,
+                multivalued=bool(column.get("multivalued", False)),
+                equivalents=_column_equivalents(column, location),
             )
         )
-    return policies if has_override else None
+    return rules if has_override else None
 
 
 def geometry_graded_questions(questions: Sequence[Question]) -> set[str]:
@@ -663,9 +846,7 @@ def grade_session(
             continue
         answer_path = session_dir / "answers" / f"{qid}.csv"
         question = question_by_id.get(qid)
-        column_policies = (
-            column_grading_policies(question) if question is not None else None
-        )
+        column_policies = column_rules_for(question) if question is not None else None
         question_geometry = qid in geometry_ids or bool(
             question and question.get("grading", EXACT) == GEOMETRY
         )
@@ -790,7 +971,7 @@ def load_questions(questions_path: Path) -> list[Question]:
             question.get("grading", EXACT),
             f"question q{question.get('id', '?')}",
         )
-        column_grading_policies(question)
+        column_rules_for(question)
     return questions
 
 

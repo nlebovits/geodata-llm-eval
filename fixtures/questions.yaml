@@ -28,6 +28,21 @@
 # the golden fixture. They follow those golden column indexes while the grader
 # discovers any permutation in the answer CSV.
 #
+# A column may also declare two representation keys, which the grader reads
+# and the agent never sees. They exist so SPEC.md can state a decision without
+# also dictating how to spell it.
+#   multivalued  the cell may name several values; the grader splits on any of
+#                | , ; / and compares the members as a sorted multiset, so the
+#                join character and the listing order carry no meaning
+#   equivalents  hand-written synonym groups, canonical spelling first. Two
+#                spellings in one group are the same answer. Groups must be
+#                disjoint, hold at least two spellings, and name nothing that
+#                already denotes absence (harness/grade.py ABSENT_SPELLINGS,
+#                which every column folds with no key at all). No golden column
+#                may hold two values that fall in one group, so folding them
+#                can turn a wrong answer right only if it was already right;
+#                tests/test_grade.py checks that against every golden.
+#
 # Every question reporting an absolute area or distance carries it, because no
 # convention for either is stated anywhere and none should be: the oracle
 # computes hectares on the WGS84 spheroid only because this Trazo3 release
@@ -446,6 +461,16 @@ questions:
       columns:
         - name: era
           type: string
+          # The bands are the decision. Their spelling is not: each group
+          # holds the year range, the en-dash and underscore variants, and
+          # the Trazo3 source column the band sums (see
+          # oracle/sql/prov/l03_loss_by_era.sql.tmpl).
+          equivalents:
+            - ["2001-2004", "2001–2004", "2001_2004", "2001 to 2004", "deforestarea0104"]
+            - ["2005-2009", "2005–2009", "2005_2009", "2005 to 2009", "deforestarea0509"]
+            - ["2010-2014", "2010–2014", "2010_2014", "2010 to 2014", "deforestarea1014"]
+            - ["2015-2020", "2015–2020", "2015_2020", "2015 to 2020", "deforestarea1520"]
+            - ["2021-2024", "2021–2024", "2021_2024", "2021 to 2024", "deforestarea2124"]
           description: Hansen era as a year range, e.g. 2001-2004
         - name: cleared_ha
           type: float
@@ -523,6 +548,16 @@ questions:
           description: Annex I commodity
         - name: routed_tier
           type: string
+          # SPEC.md Rule: gap-markers states two decisions. A commodity may
+          # route to more than one tier, and a parcel with no tier is a
+          # different answer from a class absent from the scope table. The
+          # separator and the two marker literals are not decisions, so the
+          # grader absorbs them. The groups stay disjoint, which is what
+          # keeps the two gaps distinguishable.
+          multivalued: true
+          equivalents:
+            - ["no_tier", "no tier", "notier", "untiered", "unrouted"]
+            - ["unknown", "out_of_scope", "out of scope", "not_in_scope_table", "unmapped"]
           description: delivery tier(s) the commodity routes to, or a gap marker
       rows: null
 
