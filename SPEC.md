@@ -156,7 +156,7 @@ Post-2020 loss is the 2021–2024 era band alone. A field carries post-2020 loss
 Total loss is the sum of the five era bands. Do not use `hansen_covered_area` or `hansen_loss_area`.
 
 ### Rule: era-bands
-The five Hansen eras are 2001-2004, 2005-2009, 2010-2014, 2015-2020, 2021-2024. Label them as year ranges in exactly that form.
+The five Hansen eras are 2001-2004, 2005-2009, 2010-2014, 2015-2020, 2021-2024.
 
 ---
 
@@ -185,9 +185,8 @@ Map MapBiomas classes to EUDR commodities:
 | 48 | Other Perennial | | no | |
 | 62 | Cotton | | no | |
 
-Use lowercase tokens for commodity and caveat values. An empty cell represents
-an empty value. Treat classes outside the table as out of scope with empty
-commodity and caveat values.
+Treat a class outside the table as out of scope, with no commodity and no
+caveat.
 
 The table omits cocoa and rubber because MapBiomas has no dedicated class for
 either commodity and neither is materially present in Brazil.
@@ -273,9 +272,9 @@ applies only to `intake_point`. Compute distance from the parcel centroid to
 the facility point in EPSG:5880.
 
 ### Rule: gap-markers
-When a flagged parcel's commodity has no tier, set `routed_tier` to
-`no_tier`. Route an unknown class as `unknown`. Join multiple tiers with
-`|` in tier-name order. Use an empty string for an empty cell.
+Report a parcel whose commodity has no tier distinctly from one whose class
+is absent from the scope table. A result may name more than one tier. A
+missing value is distinct from zero and from a real category.
 
 ---
 
@@ -396,8 +395,7 @@ Columns: `cod_imovel`, `municipio` (strings), `post2020_loss_ha` (float), `n_fie
 **q21** — Loss by era band: the five eras with cleared hectares and percentage
 of total loss.
 
-Columns: `era` (string, for example `2001-2004`), `cleared_ha`,
-`pct_of_loss` (floats). Rows: 5. Depends: q09.
+Columns: `era` (string), `cleared_ha`, `pct_of_loss` (floats). Rows: 5. Depends: q09.
 
 **q22** — Distribution of dominant loss year across fields with loss: field count and cleared hectares per year.
 
