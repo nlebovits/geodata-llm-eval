@@ -437,3 +437,36 @@ def test_an_error_result_that_is_not_about_authentication_is_not_one() -> None:
             },
         ]
     )
+
+
+# --- the container resource quota ---
+
+
+def test_every_container_carries_a_cpu_and_memory_quota(tmp_path: Path) -> None:
+    """An unquoted cgroup competes with the desktop for all 16 host cores. A
+    2026-09-19 session reached 98% of the machine before it was killed."""
+    credentials = tmp_path / "creds.json"
+    credentials.write_text('{"token":"decoy"}', encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    for adapter in (
+        agents.ClaudeAdapter("claude-test", credentials),
+        agents.CodexAdapter("gpt-test", credentials, "login"),
+    ):
+        cmd = adapter.command(
+            "image", agents.TaskBundle(workspace, "do it"), tmp_path / "home", "c1"
+        )
+        assert cmd[cmd.index("--cpus") + 1] == agents.CPU_LIMIT
+        assert cmd[cmd.index("--memory") + 1] == agents.MEMORY_LIMIT
+        # Both belong to `docker run`, so they have to precede the image.
+        assert cmd.index("--cpus") < cmd.index("--entrypoint")
+        assert cmd.index("--memory") < cmd.index("--entrypoint")
+
+
+def test_the_quota_leaves_room_for_a_parallel_scan() -> None:
+    """Too tight a cap turns a model failure into a timeout. The CAR file is
+    3.26 GB and the sessions that pass it read it in parallel."""
+    assert int(agents.CPU_LIMIT) >= 4
+    assert agents.MEMORY_LIMIT.endswith("g")
+    assert int(agents.MEMORY_LIMIT.removesuffix("g")) >= 16

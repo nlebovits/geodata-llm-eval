@@ -129,6 +129,25 @@ CLAUDE_TOOL_ENV = {
     "BASH_MAX_TIMEOUT_MS": str(BASH_MAX_TIMEOUT_MS),
 }
 
+# A container is not a virtual machine. Without a quota its cgroup has none,
+# so the processes inside compete for every host core on equal terms with the
+# desktop. DuckDB sizes its thread pool from the core count it detects, reads
+# the host's rather than the cgroup's, and a parallel scan of the 3.26 GB CAR
+# file then saturates the machine. One 2026-09-19 session reached 98% of a
+# 16-core host and had to be killed by hand.
+#
+# The quota also makes the trials comparable. An unbounded session that runs
+# while the host is idle gets more compute than one that runs beside a
+# browser, and that difference lands in the wall clock and the timeout count
+# as if it came from the model. Eight CPUs leave room for a parallel scan and
+# leave the host usable.
+#
+# DuckDB has no thread-count environment variable, so the quota is the whole
+# mechanism: it throttles the oversized thread pool to this much throughput
+# rather than shrinking it.
+CPU_LIMIT = "8"
+MEMORY_LIMIT = "32g"
+
 
 def _env_args(env: dict[str, str] | None) -> list[str]:
     """`docker run -e K=V` pairs, in a stable order."""
@@ -151,6 +170,10 @@ def _docker_prefix(
         container,
         "--user",
         f"{os.getuid()}:{os.getgid()}",
+        "--cpus",
+        CPU_LIMIT,
+        "--memory",
+        MEMORY_LIMIT,
         "-v",
         f"{workspace}:/workspace",
         *auth_args,

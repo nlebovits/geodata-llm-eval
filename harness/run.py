@@ -809,8 +809,8 @@ def run_session(
                 "expected_duckdb_version": agents.DUCKDB_VERSION,
                 "max_attempts": max_attempts,
                 "max_wall_seconds": max_wall_seconds,
-                "cpu_limit": None,
-                "memory_limit": None,
+                "cpu_limit": agents.CPU_LIMIT,
+                "memory_limit": agents.MEMORY_LIMIT,
             }
             failed_meta = {
                 "schema_version": 2,
@@ -1010,8 +1010,8 @@ def run_session(
             "runtime_cli_version": runtime_info["cli_version"],
             "max_attempts": max_attempts,
             "max_wall_seconds": max_wall_seconds,
-            "cpu_limit": None,
-            "memory_limit": None,
+            "cpu_limit": agents.CPU_LIMIT,
+            "memory_limit": agents.MEMORY_LIMIT,
         }
         config_digest = agent_config_fingerprint(config)
         cost = (
