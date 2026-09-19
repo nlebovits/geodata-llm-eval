@@ -84,3 +84,23 @@ arms:
     ops:
       - cut_rule: primary-cadaster
       - cut_rule: ranking
+
+  questions-only:
+    why: >
+      The floor of the experiment: can a session complete the workflow from the
+      questions alone? Keeps section 1 (the deliverables and the eight
+      workflow.csv columns), section 3 (the three dataset URLs and the axis
+      order), and section 9 (the questions). Cuts every policy section, so the
+      session has to infer the defect handling, the matching thresholds, the
+      loss definition, the scope table, and the candidate tiers from the data.
+      Four questions still name a cut section by number (q05, q23, q31, and the
+      workflow.csv note), and that dangling reference is part of the condition.
+      Sections 1 and 3 stay because without them no session can find the data
+      or name an answer file, which measures the harness rather than the spec.
+    ops:
+      - cut_section: 2
+      - cut_section: 4
+      - cut_section: 5
+      - cut_section: 6
+      - cut_section: 7
+      - cut_section: 8
